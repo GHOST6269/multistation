@@ -1,0 +1,654 @@
+<style>
+  .field-with-action {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .mini-add {
+    border: 0;
+    background: #fff;
+    color: #587089;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 12px;
+    height: 38px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .mini-add:hover {
+    background: #f5f8fb;
+  }
+  .field-with-action app-dropdown {
+    flex: 1;
+  }
+  .single-payment-row .money-field input,
+  .single-payment-row input {
+    height: 38px;
+  }
+  .single-payment-row {
+    display: grid;
+    grid-template-columns: 1fr 2fr 2fr;
+    gap: 12px;
+    align-items: center;
+  }
+  .reading-form .form-grid {
+    grid-template-columns: 1fr 1fr 1fr 2fr 2fr 1.8fr 2fr;
+  }
+  .reading-form .form-grid input {
+    height: 46px;
+    padding: 10px;
+    font-size: 14px;
+  }
+  .reading-form .money-field input {
+    height: 46px;
+    padding: 10px;
+    font-size: 14px;
+  }
+  .reading-form .form-grid label {
+    display: block;
+  }
+  .index-bottom {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+    margin-top: 12px;
+    align-items: center;
+  }
+  .index-bottom label {
+    display: block;
+    margin: 0 0 4px 0;
+    font-size: 13px;
+  }
+  .index-bottom input,
+  .index-bottom .money-field input {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  @media (max-width: 900px) {
+    .index-bottom {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+  }
+  .money-field {
+    position: relative;
+  }
+  .money-field input {
+    width: 100%;
+    height: 46px;
+    padding: 10px 44px 10px 10px;
+    border: 1px solid #dbe5ed;
+    border-radius: 7px;
+    text-align: right;
+    background: #fff;
+  }
+  .money-field small,
+  .money-field span {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 12px;
+    color: #6a7f8f;
+  }
+  .single-payment-row .money-field input {
+    height: 38px;
+    padding: 8px 36px 8px 8px;
+    text-align: right;
+  }
+  .reading-form {
+    width: min(860px, 95vw);
+  }
+  .small-form {
+    width: min(760px, 95vw);
+  }
+  .field-with-action .mini-add {
+    margin-left: 6px;
+  }
+
+  /* Apply PU TTC visual style to index inputs */
+  .index-bottom input,
+  .index-bottom .money-field input {
+    height: 46px;
+    padding: 10px 44px 10px 10px;
+    border: 1px solid #dbe5ed;
+    border-radius: 7px;
+    background: #fff;
+    text-align: right;
+    font-size: 14px;
+  }
+</style>
+<div class="fuel-heading">
+  <div>
+    <p>EXPLOITATION STATION-SERVICE</p>
+    <h1>Carburants & ventes pompes</h1>
+    <span>Stocks cuves, index pompistes et ventilation des encaissements.</span>
+  </div>
+  <div>
+    <button class="secondary" (click)="openSetup()">＋ Configurer</button
+    ><button class="secondary" routerLink="/carburants/configuration">⚙ Gérer les listes</button
+    ><button (click)="openDelivery()">＋ Livraison</button
+    ><button (click)="openReading()">＋ Relevé pompe</button>
+  </div>
+</div>
+<div class="fuel-toolbar">
+  <label
+    >Station<app-dropdown
+      [(ngModel)]="stationId"
+      (ngModelChange)="load()"
+      [options]="stations"
+      [searchable]="true"
+  /></label>
+  <div class="legend"><i></i>Données mises à jour en temps réel</div>
+</div>
+<section class="fuel-overview" aria-label="Résumé de l'exploitation">
+  <article>
+    <span class="overview-icon stock">◒</span>
+    <div>
+      <small>STOCK DISPONIBLE</small
+      ><strong>{{ totalTankStock | number: '1.0-0' }} <em>L</em></strong>
+      <p>{{ data?.tanks?.length || 0 }} cuve(s) suivie(s)</p>
+    </div>
+  </article>
+  <article>
+    <span class="overview-icon sales">↗</span>
+    <div>
+      <small>VOLUME VENDU</small><strong>{{ totalVolumeSold | number: '1.0-0' }} <em>L</em></strong>
+      <p>{{ data?.readings?.length || 0 }} relevé(s) enregistré(s)</p>
+    </div>
+  </article>
+  <article>
+    <span class="overview-icon money">Ar</span>
+    <div>
+      <small>CHIFFRE D'AFFAIRES</small><strong>{{ money(totalSales) }} <em>Ar</em></strong>
+      <p>Sur les relevés affichés</p>
+    </div>
+  </article>
+  <article [class.alert-card]="criticalTanks">
+    <span class="overview-icon alert">!</span>
+    <div>
+      <small>ALERTES CUVE</small><strong>{{ criticalTanks }}</strong>
+      <p>{{ criticalTanks ? 'Seuil minimum atteint' : 'Aucune alerte active' }}</p>
+    </div>
+  </article>
+</section>
+<div class="tank-grid">
+  @for (t of data?.tanks; track t.id) {
+    <article [class.warning]="t.stock <= t.minimum">
+      <header>
+        <span>{{ t.fuel }}</span
+        ><small>{{ t.code }}</small>
+      </header>
+      <h3>{{ t.name }}</h3>
+      <div class="gauge">
+        <i [style.width.%]="t.capacity ? (t.stock / t.capacity) * 100 : 0"></i>
+      </div>
+      <div>
+        <strong>{{ t.stock | number: '1.0-3' }} L</strong
+        ><span>/ {{ t.capacity | number: '1.0-0' }} L</span>
+      </div>
+      <footer>
+        <span>Seuil : {{ t.minimum | number: '1.0-0' }} L</span
+        ><strong>{{ t.capacity ? ((t.stock / t.capacity) * 100 | number: '1.0-0') : 0 }}%</strong>
+      </footer>
+    </article>
+  } @empty {
+    <div class="tank-empty">Configurez d’abord vos carburants et vos cuves.</div>
+  }
+</div>
+<section class="reading-panel">
+  <header>
+    <div>
+      <h2>
+        {{ salesView === 'attendants' ? 'Ventes par pompiste' : 'Journal des ventes pompes' }}
+      </h2>
+      <p>
+        {{
+          salesView === 'attendants'
+            ? 'Vue consolidée des ventes par responsable et par carburant.'
+            : 'Calcul automatique : sortie = index final − index départ ; quantité vendue = sortie − RC.'
+        }}
+      </p>
+    </div>
+    <div class="view-switch">
+      <button [class.active]="salesView === 'attendants'" (click)="salesView = 'attendants'">
+        Par pompiste</button
+      ><button [class.active]="salesView === 'journal'" (click)="salesView = 'journal'">
+        Journal
+      </button>
+    </div>
+  </header>
+  <div class="sales-filters">
+    <label>Du<input type="date" [(ngModel)]="fromDate" /></label
+    ><label>Au<input type="date" [(ngModel)]="toDate" /></label
+    ><label
+      >Pompiste<app-dropdown [(ngModel)]="attendantFilter" [options]="attendantOptions" /></label
+    ><label>Pompe<app-dropdown [(ngModel)]="nozzleFilter" [options]="nozzleOptions" /></label
+    ><span>{{ filteredReadings.length }} relevé(s)</span>
+  </div>
+  <div class="reading-table">
+    @if (salesView === 'attendants') {
+      <table class="attendant-table">
+        <thead>
+          <tr>
+            <th>POMPISTE</th>
+            <th>POMPE</th>
+            <th>NB. TRANSACTIONS</th>
+            <th>SP (L)</th>
+            <th>GO (L)</th>
+            <th>PL (L)</th>
+            <th>VOLUME TOTAL</th>
+            <th>MONTANT TOTAL</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (sale of attendantSales; track sale.name) {
+            <tr>
+              <td>
+                <strong>{{ sale.name }}</strong>
+              </td>
+              <td>{{ sale.nozzle || '—' }}</td>
+              <td>{{ sale.transactions }}</td>
+              <td>{{ sale.sp | number: '1.0-3' }}</td>
+              <td>{{ sale.go | number: '1.0-3' }}</td>
+              <td>{{ sale.pl | number: '1.0-3' }}</td>
+              <td>
+                <strong>{{ sale.volume | number: '1.0-3' }} L</strong>
+              </td>
+              <td>
+                <strong class="amount">{{ money(sale.total) }} Ar</strong>
+              </td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="8" class="empty">Aucune vente ne correspond à ces filtres.</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    } @else {
+      <table>
+        <thead>
+          <tr>
+            <th>DATE</th>
+            <th>RESPONSABLE</th>
+            <th>POMPE</th>
+            <th>CARBURANT</th>
+            <th>INDEX DÉPART</th>
+            <th>INDEX FINAL</th>
+            <th>SORTIE</th>
+            <th>RC</th>
+            <th>QTÉ VENTE</th>
+            <th>PU TTC</th>
+            <th>MONTANT VENTE</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (r of filteredReadings; track r.id) {
+            <tr>
+              <td>{{ r.date | date: 'dd/MM/yyyy' }}</td>
+              <td>
+                <strong>{{ r.responsible }}</strong>
+              </td>
+              <td>{{ r.nozzle }}</td>
+              <td>
+                <span class="fuel-badge">{{ r.fuel }}</span>
+              </td>
+              <td>{{ r.startIndex | number: '1.3-3' }}</td>
+              <td>{{ r.endIndex | number: '1.3-3' }}</td>
+              <td>{{ r.output | number: '1.3-3' }}</td>
+              <td>{{ r.returnToTank | number: '1.3-3' }}</td>
+              <td>
+                <strong>{{ r.quantitySold | number: '1.3-3' }} L</strong>
+              </td>
+              <td>{{ money(r.unitPrice) }} Ar</td>
+              <td>
+                <strong class="amount">{{ money(r.totalAmount) }} Ar</strong>
+              </td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="11" class="empty">
+                {{ loading ? 'Chargement…' : 'Aucun relevé enregistré.' }}
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    }
+  </div>
+</section>
+<section class="reading-panel payment-history-panel">
+  <header>
+    <div>
+      <h2>Historique des encaissements</h2>
+      <p>Modes de paiement utilisés lors des clôtures de pompe.</p>
+    </div>
+    <span>{{ paymentHistory.length }} paiement(s)</span>
+  </header>
+  <div class="reading-table">
+    <table class="payment-history-table">
+      <thead>
+        <tr>
+          <th>DATE</th>
+          <th>RESPONSABLE</th>
+          <th>PISTOLET</th>
+          <th>MODE</th>
+          <th>RÉFÉRENCE</th>
+          <th>MONTANT</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (payment of paymentHistory; track payment.id) {
+          <tr>
+            <td>{{ payment.date | date: 'dd/MM/yyyy' }}</td>
+            <td>
+              <strong>{{ payment.responsible }}</strong>
+            </td>
+            <td>{{ payment.nozzle }}</td>
+            <td>
+              <span class="fuel-badge">{{ payment.method }}</span>
+            </td>
+            <td>{{ payment.reference || '—' }}</td>
+            <td>
+              <strong class="amount">{{ money(payment.amount) }} Ar</strong>
+            </td>
+          </tr>
+        } @empty {
+          <tr>
+            <td colspan="6" class="empty">Aucun encaissement enregistré.</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+</section>
+@if (modal === 'reading') {
+  <div class="fuel-modal" (click)="modal = null">
+    <form
+      class="reading-form"
+      [formGroup]="readingForm"
+      (ngSubmit)="saveReading()"
+      (click)="$event.stopPropagation()"
+    >
+      <header>
+        <div>
+          <span>⛽</span>
+          <div>
+            <h2>Nouveau relevé de pompe</h2>
+            <p>Clôture du poste et ventilation des règlements.</p>
+          </div>
+        </div>
+        <button type="button" (click)="modal = null">×</button>
+      </header>
+      <div class="reading-body">
+        <section class="index-section">
+          <h3>Relevé des index</h3>
+          <div class="form-grid">
+            <label
+              >Date
+              <input type="date" formControlName="date" />
+            </label>
+            <label
+              >Pistolet *
+              <app-dropdown
+                formControlName="nozzleId"
+                (valueChange)="selectNozzle()"
+                [options]="options(data?.nozzles || [], 'code')"
+                placeholder="Choisir"
+              >
+              </app-dropdown>
+            </label>
+            <label
+              >Responsable *
+              <app-dropdown
+                formControlName="attendantId"
+                [options]="options(data?.attendants || [])"
+                placeholder="Choisir"
+                [searchable]="true"
+              >
+              </app-dropdown>
+            </label>
+          </div>
+
+          <div class="index-bottom">
+            <label
+              >Index départ
+              <input type="number" formControlName="startIndex" step=".001" />
+            </label>
+            <label
+              >Index final
+              <input type="number" formControlName="endIndex" step=".001" />
+            </label>
+            <label
+              >RC / Retour cuve
+              <input type="number" formControlName="returnToTank" step=".001" />
+            </label>
+            <label
+              >PU TTC
+              <div class="money-field">
+                <input appMoney type="text" formControlName="unitPrice" />
+                <span>Ar</span>
+              </div>
+            </label>
+          </div>
+          <div class="calculation">
+            <div>
+              <small>SORTIE</small><strong>{{ output | number: '1.3-3' }} L</strong>
+            </div>
+            <span>− RC</span>
+            <div>
+              <small>QUANTITÉ VENDUE</small><strong>{{ sold | number: '1.3-3' }} L</strong>
+            </div>
+            <span>× PU</span>
+            <div class="total">
+              <small>MONTANT VENTE</small><strong>{{ money(total) }} Ar</strong>
+            </div>
+          </div>
+        </section>
+        <section class="payment-section simple-payment">
+          <div class="payment-title">
+            <div>
+              <h3>Paiement</h3>
+              <p>Choisissez le mode puis saisissez le montant encaissé.</p>
+            </div>
+            <strong [class.bad]="Math.abs(paid - total) > 0.01"
+              >{{ money(paid) }} / {{ money(total) }} Ar</strong
+            >
+          </div>
+          <div class="single-payment-row">
+            <label
+              >Mode de paiement *
+              <div class="field-with-action">
+                <app-dropdown
+                  formControlName="paymentMethodId"
+                  [options]="paymentMethods"
+                  placeholder="Choisir"
+                /><button
+                  type="button"
+                  class="mini-add"
+                  title="Ajouter un mode"
+                  (click)="openPaymentMethod()"
+                >
+                  ＋
+                </button>
+              </div></label
+            >
+            <label
+              >Montant encaissé
+              <div class="money-field">
+                <input appMoney type="text" formControlName="paymentAmount" /><small>Ar</small>
+              </div></label
+            >
+            <label
+              >Référence (facultatif)
+              <div class="money-field">
+                <input
+                  type="text"
+                  formControlName="paymentReference"
+                  placeholder="N° chèque, ticket…"
+                /></div
+            ></label>
+          </div>
+        </section>
+        @if (error) {
+          <div class="api-error">! {{ error }}</div>
+        }
+      </div>
+      <footer>
+        <button type="button" class="cancel" (click)="modal = null">Annuler</button
+        ><button [disabled]="saving || Math.abs(paid - total) > 0.01">
+          {{ saving ? 'Clôture…' : 'Valider la clôture' }}
+        </button>
+      </footer>
+    </form>
+  </div>
+}
+@if (modal === 'delivery') {
+  <div class="fuel-modal" (click)="modal = null">
+    <form
+      class="small-form"
+      [formGroup]="deliveryForm"
+      (ngSubmit)="saveDelivery()"
+      (click)="$event.stopPropagation()"
+    >
+      <header>
+        <h2>Nouvelle livraison carburant</h2>
+        <button type="button" (click)="modal = null">×</button>
+      </header>
+      <div class="small-fields">
+        <label>Date<input type="date" formControlName="date" /></label
+        ><label
+          >Cuve *<app-dropdown
+            formControlName="tankId"
+            [options]="options(data?.tanks || [])" /></label
+        ><label
+          >Fournisseur *<app-dropdown
+            formControlName="supplierId"
+            [options]="suppliers"
+            [searchable]="true"
+            placeholder="Choisir un fournisseur" /></label
+        ><label>N° facture<input formControlName="invoiceNumber" /></label
+        ><label>Échéance<input type="date" formControlName="dueDate" /></label
+        ><label>Quantité livrée (L)<input type="number" formControlName="quantity" /></label
+        ><label
+          >Coût unitaire
+          <div class="money-field">
+            <input appMoney type="text" formControlName="unitCost" /><span>Ar</span>
+          </div></label
+        >
+        @if (error) {
+          <div class="api-error wide">{{ error }}</div>
+        }
+      </div>
+      <footer>
+        <button type="button" class="cancel" (click)="modal = null">Annuler</button
+        ><button [disabled]="saving">Enregistrer la livraison</button>
+      </footer>
+    </form>
+  </div>
+}
+@if (modal === 'setup') {
+  <div class="fuel-modal" (click)="modal = null">
+    <form
+      class="setup-form"
+      [formGroup]="setupForm"
+      (ngSubmit)="saveSetup()"
+      (click)="$event.stopPropagation()"
+    >
+      <header>
+        <div>
+          <h2>Configuration de la station</h2>
+          <p>Ajoutez vos référentiels dans l’ordre : carburant, cuve, pompe, pistolet, pompiste.</p>
+        </div>
+        <button type="button" (click)="modal = null">×</button>
+      </header>
+      <div class="setup-tabs">
+        @for (
+          t of [
+            { id: 'FUEL', l: 'Carburant' },
+            { id: 'TANK', l: 'Cuve' },
+            { id: 'PUMP', l: 'Pompe' },
+            { id: 'NOZZLE', l: 'Pistolet' },
+            { id: 'ATTENDANT', l: 'Pompiste' },
+          ];
+          track t.id
+        ) {
+          <button
+            type="button"
+            [class.active]="setupType === t.id"
+            (click)="setupType = t.id; setupForm.reset()"
+          >
+            {{ t.l }}
+          </button>
+        }
+      </div>
+      <div class="small-fields">
+        <label>Code *<input formControlName="code" /></label
+        ><label>Nom *<input formControlName="name" /></label>
+        @if (setupType === 'TANK') {
+          <label
+            >Carburant<app-dropdown
+              formControlName="fuelTypeId"
+              [options]="options(data?.fuelTypes || [])" /></label
+          ><label>Capacité (L)<input type="number" formControlName="capacity" /></label
+          ><label>Stock initial<input type="number" formControlName="currentStock" /></label
+          ><label>Seuil minimum<input type="number" formControlName="minimumStock" /></label>
+        }
+        @if (setupType === 'NOZZLE') {
+          <label
+            >Pompe<app-dropdown
+              formControlName="pumpId"
+              [options]="options(data?.pumps || [])" /></label
+          ><label
+            >Cuve<app-dropdown
+              formControlName="tankId"
+              [options]="options(data?.tanks || [])" /></label
+          ><label>Index actuel<input type="number" formControlName="currentIndex" /></label
+          ><label
+            >PU TTC
+            <div class="money-field">
+              <input appMoney type="text" formControlName="unitPrice" /><span>Ar</span>
+            </div></label
+          >
+        }
+        @if (setupType === 'ATTENDANT') {
+          <label>Contact<input formControlName="contact" /></label>
+        }
+        @if (error) {
+          <div class="api-error wide">{{ error }}</div>
+        }
+      </div>
+      <footer>
+        <button type="button" class="cancel" (click)="modal = null">Fermer</button
+        ><button [disabled]="saving">Ajouter</button>
+      </footer>
+    </form>
+  </div>
+}
+@if (modal === 'paymentMethod') {
+  <div class="fuel-modal">
+    <form class="small-form" [formGroup]="paymentMethodForm" (ngSubmit)="savePaymentMethod()">
+      <header>
+        <div>
+          <h2>Nouveau mode de paiement</h2>
+          <p>Ce mode sera disponible uniquement pour cette station.</p>
+        </div>
+        <button type="button" (click)="modal = 'reading'">×</button>
+      </header>
+      <div class="small-fields">
+        <label>Libellé *<input formControlName="name" placeholder="Ex. Mobile Money" /></label
+        ><label>Code<input formControlName="code" placeholder="Ex. MOBILE_MONEY" /></label>
+        @if (error) {
+          <div class="api-error wide">{{ error }}</div>
+        }
+      </div>
+      <footer>
+        <button type="button" class="cancel" (click)="modal = 'reading'">Annuler</button
+        ><button [disabled]="saving || paymentMethodForm.invalid">Ajouter le mode</button>
+      </footer>
+    </form>
+  </div>
+}

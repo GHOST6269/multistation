@@ -1,0 +1,4 @@
+export interface ArticleUnitInput { id?:number;articleUnitId?:number;unitName:string;unitSymbol:string;unitCode:string;conversionFactor:number;isBaseUnit:boolean;barcode:string;purchasePrice:number|null;salePrice:number;wholesalePrice:number;minimumSalePrice:number }
+export interface StationArticle { id:number;stationId:number;station:string;name:string;description:string|null;categoryId:number|null;category:string|null;unit:string;symbol:string|null;barcode:string|null;currentStock:number;minimumStock:number;purchasePrice:number|null;salePrice:number;wholesalePrice:number;minimumSalePrice:number;active:boolean;units:ArticleUnitInput[] }
+export interface ArticleOptions { stations:{id:number;name:string}[];categories:{id:number;name:string}[];units:{id:number;name:string;symbol:string|null}[] }
+export interface ArticleInput { stationId:number;name:string;description:string;categoryId:number;currentStock:number;minimumStock:number;units:ArticleUnitInput[] }

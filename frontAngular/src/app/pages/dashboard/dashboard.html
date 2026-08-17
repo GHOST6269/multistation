@@ -1,0 +1,30 @@
+<div class="page-heading">
+  <div><p class="eyebrow">PILOTAGE DU RÉSEAU</p><h1>Bonjour, Admin <span>👋</span></h1><p>Voici ce qui se passe sur votre réseau aujourd’hui.</p></div>
+  <a routerLink="/stations" class="primary-button"><span>＋</span> Nouvelle station</a>
+</div>
+
+@if (loading) { <div class="loading"><span></span><p>Synchronisation des stations…</p></div> }
+@else if (error) { <div class="empty-state"><span>!</span><h3>API momentanément indisponible</h3><p>Vérifiez que Symfony est lancé sur le port 8000.</p><button (click)="load()">Réessayer</button></div> }
+@else if (data) {
+  <div class="metrics">
+    <article><div class="metric-icon mint">◇</div><div><span>STATIONS ACTIVES</span><strong>{{ data.metrics.activeStations }} <small>/ {{ data.metrics.stations }}</small></strong></div><em>Réseau</em></article>
+    <article><div class="metric-icon blue">▦</div><div><span>ARTICLES RÉFÉRENCÉS</span><strong>{{ data.metrics.articles }}</strong></div><em>Catalogue</em></article>
+    <article><div class="metric-icon amber">△</div><div><span>ALERTES DE STOCK</span><strong>{{ data.metrics.lowStock }}</strong></div><em class="warning">À traiter</em></article>
+    <article><div class="metric-icon purple">♙</div><div><span>COLLABORATEURS</span><strong>{{ data.metrics.users }}</strong></div><em>Actifs</em></article>
+  </div>
+
+  <div class="dashboard-grid">
+    <section class="panel stations-panel"><header><div><h2>Activité des stations</h2><p>Vue consolidée de votre réseau</p></div><a routerLink="/stations">Voir toutes →</a></header>
+      <div class="station-list">
+        @for (station of data.stations; track station.id) {
+          <article><span class="station-logo">{{ initials(station.name) }}</span><div class="station-name"><strong>{{ station.name }}</strong><small>{{ station.city || 'Ville non renseignée' }} · {{ station.manager || 'Sans gérant' }}</small></div><div class="station-stat"><strong>{{ station.articlesCount }}</strong><small>articles</small></div><span class="status" [class.offline]="station.status !== 'ACTIVE'">{{ station.status === 'ACTIVE' ? 'Active' : station.status }}</span><button>›</button></article>
+        } @empty { <div class="inline-empty">Aucune station enregistrée pour le moment.</div> }
+      </div>
+    </section>
+    <section class="panel alerts-panel"><header><div><h2>Stock critique</h2><p>Articles sous le seuil minimum</p></div><a routerLink="/inventaire">Inventaire →</a></header>
+      @for (item of data.lowStock.slice(0, 5); track item.id) {
+        <article><span class="alert-icon">!</span><div><strong>{{ item.article }}</strong><small>{{ item.station }} · {{ item.category }}</small><div class="stock-bar"><i [style.width.%]="item.minimumStock ? (item.currentStock / item.minimumStock * 100) : 0"></i></div></div><p><strong>{{ item.currentStock }}</strong><small>min. {{ item.minimumStock }}</small></p></article>
+      } @empty { <div class="inline-empty success">✓ Aucun stock critique</div> }
+    </section>
+  </div>
+}

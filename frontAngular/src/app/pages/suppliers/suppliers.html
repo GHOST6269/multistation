@@ -1,0 +1,228 @@
+<div class="supplier-heading">
+  <div>
+    <p>COMPTES FOURNISSEURS</p>
+    <h1>Fournisseurs & factures</h1>
+    <span>Suivez les montants facturés, payés et restant à régler.</span>
+  </div>
+  <button (click)="modal = 'supplier'">＋ Nouveau fournisseur</button>
+</div>
+<div class="supplier-toolbar">
+  <app-dropdown [(ngModel)]="stationId" (ngModelChange)="load()" [options]="stations" />
+  <div>
+    <strong>{{ money(totalBalance) }} Ar</strong><small>DETTE FOURNISSEURS</small>
+  </div>
+</div>
+<section class="supplier-summary" aria-label="Résumé des fournisseurs">
+  <article>
+    <span class="summary-icon suppliers">♙</span>
+    <div>
+      <small>FOURNISSEURS ACTIFS</small><strong>{{ activeSuppliers }}</strong>
+      <p>sur {{ data?.suppliers?.length || 0 }} fournisseur(s)</p>
+    </div>
+  </article>
+  <article>
+    <span class="summary-icon invoices">▤</span>
+    <div>
+      <small>TOTAL FACTURÉ</small><strong>{{ money(totalBilled) }} <em>Ar</em></strong>
+      <p>{{ data?.invoices?.length || 0 }} facture(s) au total</p>
+    </div>
+  </article>
+  <article>
+    <span class="summary-icon balance">◒</span>
+    <div>
+      <small>SOLDE À PAYER</small><strong>{{ money(totalBalance) }} <em>Ar</em></strong>
+      <p>Montant restant à régler</p>
+    </div>
+  </article>
+</section>
+<div class="supplier-cards">
+  @for (s of data?.suppliers; track s.id) {
+    <article>
+      <header>
+        <span>{{ s.name.charAt(0) }}</span
+        ><i [class.off]="!s.active">{{ s.active ? 'Actif' : 'Inactif' }}</i>
+      </header>
+      <h3>{{ s.name }}</h3>
+      <p>{{ s.contactPerson || s.phone || 'Aucun contact' }}</p>
+      <div class="supplier-fuels">
+        <small>CARBURANTS FOURNIS</small>
+        <div>
+          @for (fuel of fuelsFor(s); track fuel) {
+            <span [class]="fuel.toLowerCase()">{{ fuel }}</span>
+          } @empty {
+            <i>Non renseigné</i>
+          }
+        </div>
+      </div>
+      <dl>
+        <div>
+          <dt>Facturé</dt>
+          <dd>{{ money(s.billed) }} Ar</dd>
+        </div>
+        <div>
+          <dt>Déjà payé</dt>
+          <dd class="paid">{{ money(s.paid) }} Ar</dd>
+        </div>
+        <div>
+          <dt>Reste à payer</dt>
+          <dd class="balance">{{ money(s.balance) }} Ar</dd>
+        </div>
+      </dl>
+    </article>
+  }
+</div>
+<section class="invoice-panel">
+  <header>
+    <div>
+      <h2>Factures fournisseur</h2>
+      <p>Suivez les échéances et enregistrez les règlements.</p>
+    </div>
+    <label class="invoice-search"
+      >⌕<input [(ngModel)]="invoiceQuery" placeholder="Rechercher une facture…"
+    /></label>
+    <span>{{ filteredInvoices.length }} facture(s)</span>
+  </header>
+  <table>
+    <thead>
+      <tr>
+        <th>FACTURE</th>
+        <th>FOURNISSEUR</th>
+        <th>DATE</th>
+        <th>ÉCHÉANCE</th>
+        <th>TOTAL</th>
+        <th>PAYÉ</th>
+        <th>RESTE</th>
+        <th>STATUT</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (i of filteredInvoices; track i.id) {
+        <tr>
+          <td>
+            <strong>{{ i.number }}</strong
+            ><small>{{ i.description }}</small>
+          </td>
+          <td>{{ i.supplier }}</td>
+          <td>{{ i.date | date: 'dd/MM/yyyy' }}</td>
+          <td>{{ i.dueDate ? (i.dueDate | date: 'dd/MM/yyyy') : '—' }}</td>
+          <td>{{ money(i.total) }} Ar</td>
+          <td class="paid">{{ money(i.paid) }} Ar</td>
+          <td class="balance">{{ money(i.remaining) }} Ar</td>
+          <td>
+            <span [class]="i.status.toLowerCase()">{{ i.status }}</span>
+          </td>
+          <td>
+            @if (i.remaining > 0) {
+              <button class="pay-button" (click)="openPayment(i)">Payer</button>
+            }
+          </td>
+        </tr>
+      } @empty {
+        <tr>
+          <td colspan="9" class="empty">Aucune facture.</td>
+        </tr>
+      }
+    </tbody>
+  </table>
+</section>
+<section class="invoice-panel payment-history">
+  <header>
+    <div>
+      <h2>Historique des paiements</h2>
+      <p>Chaque règlement partiel ou complet est conservé séparément.</p>
+    </div>
+    <span>{{ payments.length }} règlement(s)</span>
+  </header>
+  <table>
+    <thead>
+      <tr>
+        <th>DATE</th>
+        <th>FOURNISSEUR</th>
+        <th>FACTURE</th>
+        <th>MODE</th>
+        <th>RÉFÉRENCE</th>
+        <th>NOTE</th>
+        <th>MONTANT PAYÉ</th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (payment of payments; track payment.id) {
+        <tr>
+          <td>{{ payment.date | date: 'dd/MM/yyyy' }}</td>
+          <td>
+            <strong>{{ payment.supplier }}</strong>
+          </td>
+          <td>{{ payment.invoice || '—' }}</td>
+          <td>
+            <span class="payment-method">{{
+              paymentLabels[payment.method] || payment.method
+            }}</span>
+          </td>
+          <td>{{ payment.reference || '—' }}</td>
+          <td>{{ payment.note || '—' }}</td>
+          <td class="paid">
+            <strong>{{ money(payment.amount) }} Ar</strong>
+          </td>
+        </tr>
+      } @empty {
+        <tr>
+          <td colspan="7" class="empty">Aucun paiement enregistré.</td>
+        </tr>
+      }
+    </tbody>
+  </table>
+</section>
+@if (modal === 'supplier') {
+  <div class="supplier-modal">
+    <form [formGroup]="form" (ngSubmit)="saveSupplier()">
+      <header>
+        <h2>Nouveau fournisseur</h2>
+        <button type="button" (click)="modal = null">×</button>
+      </header>
+      <div class="fields">
+        <label>Code<input formControlName="code" /></label
+        ><label>Raison sociale *<input formControlName="name" /></label
+        ><label>Contact<input formControlName="contactPerson" /></label
+        ><label>Téléphone<input formControlName="phone" /></label
+        ><label>E-mail<input formControlName="email" /></label
+        ><label>Adresse<input formControlName="address" /></label>
+      </div>
+      <footer>
+        <button type="button" (click)="modal = null">Annuler</button><button>Créer</button>
+      </footer>
+    </form>
+  </div>
+}
+@if (modal === 'payment') {
+  <div class="supplier-modal">
+    <form [formGroup]="paymentForm" (ngSubmit)="savePayment()">
+      <header>
+        <div>
+          <h2>Paiement {{ invoice.number }}</h2>
+          <p>Reste : {{ money(invoice.remaining) }} Ar</p>
+        </div>
+        <button type="button" (click)="modal = null">×</button>
+      </header>
+      <div class="fields">
+        <label
+          >Montant à payer<input appMoney formControlName="amount" /><small
+            >Vous pouvez saisir un montant inférieur au reste dû pour payer petit à petit.</small
+          ></label
+        ><label>Date<input type="date" formControlName="date" /></label
+        ><label
+          >Mode<select formControlName="method">
+            <option value="BANK_TRANSFER">Virement</option>
+            <option value="DIRECT_DEBIT">Prélèvement</option>
+            <option value="CHEQUE">Chèque</option>
+          </select></label
+        ><label>Référence<input formControlName="reference" /></label
+        ><label class="wide">Note<input formControlName="note" /></label>
+      </div>
+      <footer>
+        <button type="button" (click)="modal = null">Annuler</button
+        ><button>Enregistrer le paiement</button>
+      </footer>
+    </form>
+  </div>
+}

@@ -1,0 +1,7 @@
+<?php
+namespace App\Entity;use Doctrine\DBAL\Types\Types;use Doctrine\ORM\Mapping as ORM;
+#[ORM\Entity]
+class FuelNozzle {
+ #[ORM\Id,ORM\GeneratedValue,ORM\Column] private ?int $id=null;#[ORM\ManyToOne,ORM\JoinColumn(nullable:false)] private ?FuelPump $pump=null;#[ORM\ManyToOne,ORM\JoinColumn(nullable:false)] private ?FuelTank $tank=null;#[ORM\Column(length:30)] private string $code='';#[ORM\Column(type:Types::DECIMAL,precision:15,scale:3)] private string $currentIndex='0';#[ORM\Column(type:Types::DECIMAL,precision:15,scale:2)] private string $unitPrice='0';#[ORM\Column(options:['default'=>true])] private bool $isActive=true;
+ public function getId():?int{return $this->id;}public function getPump():?FuelPump{return $this->pump;}public function setPump(FuelPump $v):static{$this->pump=$v;return $this;}public function getTank():?FuelTank{return $this->tank;}public function setTank(FuelTank $v):static{$this->tank=$v;return $this;}public function getCode():string{return $this->code;}public function setCode(string $v):static{$this->code=$v;return $this;}public function getCurrentIndex():string{return $this->currentIndex;}public function setCurrentIndex(string $v):static{$this->currentIndex=$v;return $this;}public function getUnitPrice():string{return $this->unitPrice;}public function setUnitPrice(string $v):static{$this->unitPrice=$v;return $this;}public function isActive():bool{return $this->isActive;}public function setIsActive(bool $v):static{$this->isActive=$v;return $this;}
+}

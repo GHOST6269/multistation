@@ -1,0 +1,93 @@
+<div class="stock-heading">
+  <div>
+    <p>STOCK CARBURANT</p>
+    <h1>État des cuves</h1>
+    <span>Suivez les niveaux disponibles et anticipez les ruptures.</span>
+  </div>
+  <a routerLink="/carburants">← Ventes & pompes</a>
+</div>
+<div class="stock-toolbar">
+  <label
+    >Station affichée<app-dropdown
+      [(ngModel)]="stationId"
+      (ngModelChange)="load()"
+      [options]="stations"
+      [searchable]="true" /></label
+  ><span><i></i>Mise à jour selon les livraisons et ventes enregistrées</span>
+</div>
+<section class="stock-summary">
+  <article>
+    <span>◒</span>
+    <div>
+      <small>STOCK TOTAL</small><strong>{{ totalStock | number: '1.0-0' }} <em>L</em></strong>
+    </div>
+  </article>
+  <article>
+    <span>▦</span>
+    <div>
+      <small>CAPACITÉ TOTALE</small
+      ><strong>{{ totalCapacity | number: '1.0-0' }} <em>L</em></strong>
+    </div>
+  </article>
+  <article [class.warning-card]="alerts">
+    <span>!</span>
+    <div>
+      <small>ALERTES ACTIVES</small><strong>{{ alerts }}</strong>
+    </div>
+  </article>
+</section>
+<section class="stock-table">
+  <header>
+    <div>
+      <h2>Niveaux de stock par carburant</h2>
+      <p>{{ tanks.length }} cuve(s) configurée(s)</p>
+    </div>
+    <a routerLink="/carburants">+ Enregistrer une livraison</a>
+  </header>
+  <table>
+    <thead>
+      <tr>
+        <th>CARBURANT</th>
+        <th>CUVE</th>
+        <th>STOCK ACTUEL</th>
+        <th>NIVEAU</th>
+        <th>CAPACITÉ</th>
+        <th>SEUIL D'ALERTE</th>
+        <th>ÉTAT</th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (tank of tanks; track tank.id) {
+        <tr [class.low-row]="tank.stock <= tank.minimum">
+          <td>
+            <span class="fuel-tag" [class]="tank.fuel?.toLowerCase()">{{ tank.fuel }}</span>
+          </td>
+          <td>
+            <strong>{{ tank.name }}</strong
+            ><small>{{ tank.code }}</small>
+          </td>
+          <td>
+            <strong>{{ tank.stock | number: '1.0-0' }} L</strong>
+          </td>
+          <td>
+            <div class="level"><i [style.width.%]="percentage(tank)"></i></div>
+            <small>{{ percentage(tank) | number: '1.0-0' }}% disponible</small>
+          </td>
+          <td>{{ tank.capacity | number: '1.0-0' }} L</td>
+          <td>{{ tank.minimum | number: '1.0-0' }} L</td>
+          <td>
+            <span class="state" [class.alert]="tank.stock <= tank.minimum">{{
+              tank.stock <= tank.minimum ? 'Stock faible' : 'Disponible'
+            }}</span>
+          </td>
+        </tr>
+      } @empty {
+        <tr>
+          <td colspan="7" class="empty">
+            {{ loading ? 'Chargement du stock…' : 'Aucune cuve configurée.' }}
+          </td>
+        </tr>
+      }
+    </tbody>
+  </table>
+</section>
