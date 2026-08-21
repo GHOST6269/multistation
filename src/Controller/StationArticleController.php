@@ -14,6 +14,7 @@ use App\Repository\ArticleCategorieRepository;
 use App\Repository\StationArticlesRepository;
 use App\Repository\StationsRepository;
 use App\Repository\UnitsRepository;
+use App\Service\UserAccessService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -24,30 +25,40 @@ use Symfony\Component\Routing\Attribute\Route;
 final class StationArticleController extends AbstractController
 {
     #[Route('', methods: ['GET'])]
-    public function index(Request $request, StationArticlesRepository $repository): JsonResponse
+    public function index(Request $request, StationArticlesRepository $repository, UserAccessService $access): JsonResponse
     {
+        if ($denied = $access->require([UserAccessService::ROLE_GERANT, UserAccessService::ROLE_QUALITY_MARSHALL])) return $denied;
         $stationId = (int) $request->query->get('station');
         if (!$stationId) return $this->json(['message' => 'La station est obligatoire.'], 422);
+        if (!$access->canAccessStation($stationId)) return $access->denyStation();
         $items = $repository->createQueryBuilder('sa')->join('sa.article', 'a')->andWhere('sa.station = :station')->setParameter('station', $stationId)
             ->orderBy('a.name', 'ASC')->getQuery()->getResult();
         return $this->json(array_map($this->row(...), $items));
     }
 
     #[Route('/options', methods: ['GET'])]
-    public function options(StationsRepository $stations, ArticleCategorieRepository $categories, UnitsRepository $units): JsonResponse
+    public function options(StationsRepository $stations, ArticleCategorieRepository $categories, UnitsRepository $units, UserAccessService $access): JsonResponse
     {
+        if ($denied = $access->require([UserAccessService::ROLE_GERANT, UserAccessService::ROLE_QUALITY_MARSHALL, UserAccessService::ROLE_ASSISTANT])) return $denied;
+        $stationRows = $stations->findBy(['status' => 'ACTIVE'], ['name' => 'ASC']);
+        if (!$access->isSuperAdmin()) {
+            $allowedIds = $access->allowedStationIds();
+            $stationRows = array_values(array_filter($stationRows, static fn (Stations $station): bool => in_array($station->getId(), $allowedIds, true)));
+        }
         return $this->json([
-            'stations' => array_map(static fn (Stations $s) => ['id' => $s->getId(), 'name' => $s->getName()], $stations->findBy(['status' => 'ACTIVE'], ['name' => 'ASC'])),
+            'stations' => array_map(static fn (Stations $s) => ['id' => $s->getId(), 'name' => $s->getName()], $stationRows),
             'categories' => array_map(static fn (ArticleCategorie $c) => ['id' => $c->getId(), 'name' => $c->getName()], $categories->findBy(['isActive' => true], ['name' => 'ASC'])),
             'units' => array_map(static fn (Units $u) => ['id' => $u->getId(), 'name' => $u->getName(), 'symbol' => $u->getSymbol()], $units->findBy(['isActive' => true], ['name' => 'ASC'])),
         ]);
     }
 
     #[Route('', methods: ['POST'])]
-    public function create(Request $request, EntityManagerInterface $em, StationsRepository $stations, ArticleCategorieRepository $categories, UnitsRepository $units): JsonResponse
+    public function create(Request $request, EntityManagerInterface $em, StationsRepository $stations, ArticleCategorieRepository $categories, UnitsRepository $units, UserAccessService $access): JsonResponse
     {
+        if ($denied = $access->require([UserAccessService::ROLE_GERANT, UserAccessService::ROLE_QUALITY_MARSHALL])) return $denied;
         $data = $request->toArray();
         $station = $stations->find((int) ($data['stationId'] ?? 0));
+        if ($station && !$access->canAccessStation($station)) return $access->denyStation();
         $unitRows = $data['units'] ?? [];
         if (!$station || trim((string) ($data['name'] ?? '')) === '' || !$unitRows || count(array_filter($unitRows, static fn(array $row) => (bool)($row['isBaseUnit'] ?? false))) !== 1)
             return $this->json(['message' => 'La station, le nom et une seule unité de base sont obligatoires.'], 422);
@@ -86,8 +97,9 @@ final class StationArticleController extends AbstractController
     }
 
     #[Route('/categories', methods: ['POST'])]
-    public function createCategory(Request $request, EntityManagerInterface $em, ArticleCategorieRepository $repository): JsonResponse
+    public function createCategory(Request $request, EntityManagerInterface $em, ArticleCategorieRepository $repository, UserAccessService $access): JsonResponse
     {
+        if ($denied = $access->require([UserAccessService::ROLE_GERANT, UserAccessService::ROLE_QUALITY_MARSHALL])) return $denied;
         $data=$request->toArray(); $name=trim((string)($data['name']??'')); if($name==='') return $this->json(['message'=>'Le nom est obligatoire.'],422);
         if($repository->findOneBy(['name'=>$name])) return $this->json(['message'=>'Cette catégorie existe déjà.'],409);
         $item=(new ArticleCategorie())->setName($name)->setCode(trim((string)($data['code']??''))?:null)->setIsActive(true);$em->persist($item);$em->flush();
@@ -95,16 +107,20 @@ final class StationArticleController extends AbstractController
     }
 
     #[Route('/{id}/deactivate', requirements: ['id' => '\\d+'], methods: ['PATCH'])]
-    public function deactivate(StationArticles $item, EntityManagerInterface $em): JsonResponse
+    public function deactivate(StationArticles $item, EntityManagerInterface $em, UserAccessService $access): JsonResponse
     {
+        if ($denied = $access->require([UserAccessService::ROLE_GERANT, UserAccessService::ROLE_QUALITY_MARSHALL])) return $denied;
+        if (!$access->canAccessStation($item->getStation())) return $access->denyStation();
         $item->setIsActive(false); $item->getArticle()?->setIsActive(false)->setUpdateAt(new \DateTime());
         foreach ($item->getStationArticleUnits() as $unit) { $unit->setIsActive(false)->setUpdatedAt(new \DateTime()); $unit->getArticleUnit()?->setIsActive(false); $unit->getArticleUnit()?->getUnit()?->setIsActive(false); }
         $em->flush(); return $this->json($this->row($item));
     }
 
     #[Route('/{id}', requirements: ['id' => '\\d+'], methods: ['PUT'])]
-    public function update(StationArticles $item, Request $request, EntityManagerInterface $em, ArticleCategorieRepository $categories): JsonResponse
+    public function update(StationArticles $item, Request $request, EntityManagerInterface $em, ArticleCategorieRepository $categories, UserAccessService $access): JsonResponse
     {
+        if ($denied = $access->require([UserAccessService::ROLE_GERANT, UserAccessService::ROLE_QUALITY_MARSHALL])) return $denied;
+        if (!$access->canAccessStation($item->getStation())) return $access->denyStation();
         $data = $request->toArray();
         $rows = $data['units'] ?? [];
         if (trim((string) ($data['name'] ?? '')) === '' || !$rows || count(array_filter($rows, static fn(array $row) => (bool)($row['isBaseUnit'] ?? false))) !== 1)

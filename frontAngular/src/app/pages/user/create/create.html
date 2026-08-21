@@ -1,1 +1,58 @@
-<p>create works!</p>
+<div class="page-heading">
+  <div>
+    <p class="eyebrow">ADMINISTRATION</p>
+    <h1>Utilisateurs</h1>
+    <p>Rôles, accès station et statut des comptes.</p>
+  </div>
+  <button (click)="open()">＋ Nouvel utilisateur</button>
+</div>
+
+@if (loading) {
+  <div class="loading strong-loader"><span></span><p>Chargement des utilisateurs...</p></div>
+} @else {
+  <section class="users-grid">
+    @for (user of users; track user.id) {
+      <article>
+        <span class="avatar">{{ initials(user) }}</span>
+        <div class="user-main">
+          <strong>{{ user.firstName }} {{ user.lastName }}</strong>
+          <small>{{ user.email }}</small>
+        </div>
+        <span class="role">{{ user.roleLabel }}</span>
+        <span class="station">{{ stationLabel(user) }}</span>
+        <span class="status" [class.offline]="!user.isActive">{{ user.isActive ? 'Actif' : 'Inactif' }}</span>
+        <div class="row-actions">
+          <button class="edit" (click)="open(user)">Modifier</button>
+          <button class="edit" (click)="toggle(user)">{{ user.isActive ? 'Désactiver' : 'Activer' }}</button>
+        </div>
+      </article>
+    } @empty {
+      <div class="empty-state"><span>+</span><h3>Aucun utilisateur</h3><p>Créez le premier compte pour verrouiller les accès.</p></div>
+    }
+  </section>
+}
+
+@if (modal) {
+  <div class="modal-backdrop">
+    <form class="user-form" [formGroup]="form" (ngSubmit)="save()">
+      <header>
+        <div><h2>{{ editing ? 'Modifier utilisateur' : 'Nouvel utilisateur' }}</h2><p>Un compte non super admin reste fixé à une station.</p></div>
+        <button type="button" (click)="close()">×</button>
+      </header>
+      <div class="fields">
+        <label><span>Email</span><input type="email" formControlName="email" /></label>
+        <label><span>Prénom</span><input formControlName="firstName" /></label>
+        <label><span>Nom</span><input formControlName="lastName" /></label>
+        <label><span>Contact</span><input formControlName="contact" /></label>
+        <label><span>Rôle</span><select formControlName="role"><option *ngFor="let role of roles" [value]="role.value">{{ role.label }}</option></select></label>
+        @if (form.value.role !== 'ROLE_SUPER_ADMIN') {
+          <label><span>Station</span><select formControlName="stationId"><option [value]="0">Sélectionner...</option><option *ngFor="let station of stations" [value]="station.value">{{ station.label }}</option></select></label>
+        }
+        <label><span>Mot de passe</span><input type="password" formControlName="password" [placeholder]="editing ? 'Laisser vide pour conserver' : ''" /></label>
+        <label class="toggle"><input type="checkbox" formControlName="isActive" /><span>Compte actif</span></label>
+      </div>
+      @if (error) { <p class="form-error">{{ error }}</p> }
+      <footer><button type="button" class="cancel" (click)="close()">Annuler</button><button [disabled]="saving">{{ saving ? 'Enregistrement...' : 'Enregistrer' }}</button></footer>
+    </form>
+  </div>
+}

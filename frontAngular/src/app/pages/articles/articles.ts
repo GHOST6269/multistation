@@ -1,11 +1,11 @@
 import {ChangeDetectorRef,Component,OnInit} from '@angular/core';
 import {FormArray,FormBuilder,Validators} from '@angular/forms';
-import {ArticleOptions,StationArticle} from '../../models/article.model';import {ArticleService} from '../../services/article.service';import {DropdownOption} from '../../shared/dropdown/dropdown';
+import {ArticleOptions,StationArticle} from '../../models/article.model';import {ArticleService} from '../../services/article.service';import {DropdownOption} from '../../shared/dropdown/dropdown';import {AuthService} from '../../services/auth.service';
 @Component({selector:'app-articles',standalone:false,templateUrl:'./articles.html',styleUrl:'./articles.scss'})
 export class Articles implements OnInit{
  items:StationArticle[]=[];options?:ArticleOptions;dropdownStations:DropdownOption[]=[];categoryOptions:DropdownOption[]=[];stationId=0;loading=true;showForm=false;saving=false;editing:StationArticle|null=null;toDeactivate:StationArticle|null=null;deactivating=false;quickType:'category'|null=null;quickForm;
  form;
- constructor(private service:ArticleService,private fb:FormBuilder,private cdr:ChangeDetectorRef){this.form=fb.group({stationId:[0,[Validators.required,Validators.min(1)]],name:['',[Validators.required,Validators.minLength(2)]],description:[''],categoryId:[0,[Validators.required,Validators.min(1)]],currentStock:[0,[Validators.required,Validators.min(0)]],minimumStock:[0,[Validators.required,Validators.min(0)]],units:fb.array([])});this.quickForm=fb.nonNullable.group({name:['',Validators.required],code:[''],symbol:['']})}
+ constructor(private service:ArticleService,private fb:FormBuilder,private cdr:ChangeDetectorRef,public auth:AuthService){this.form=fb.group({stationId:[0,[Validators.required,Validators.min(1)]],name:['',[Validators.required,Validators.minLength(2)]],description:[''],categoryId:[0,[Validators.required,Validators.min(1)]],currentStock:[0,[Validators.required,Validators.min(0)]],minimumStock:[0,[Validators.required,Validators.min(0)]],units:fb.array([])});this.quickForm=fb.nonNullable.group({name:['',Validators.required],code:[''],symbol:['']})}
  get units(){return this.form.controls.units as FormArray}
  ngOnInit(){this.refreshOptions()}
  refreshOptions(selectCategory?:number){this.service.options().subscribe(x=>{this.options=x;this.dropdownStations=x.stations.map(s=>({value:s.id,label:s.name,hint:'Point de vente actif'}));this.categoryOptions=x.categories.map(c=>({value:c.id,label:c.name}));if(!this.stationId){this.stationId=x.stations[0]?.id??0;this.form.patchValue({stationId:this.stationId});this.load()}if(selectCategory)this.form.patchValue({categoryId:selectCategory});this.cdr.detectChanges()})}

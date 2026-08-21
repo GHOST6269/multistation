@@ -12,7 +12,8 @@
       [(ngModel)]="stationId"
       (ngModelChange)="load()"
       [options]="stations"
-      [searchable]="true" /></label
+      [searchable]="true"
+      [disabled]="auth.stationLocked()" /></label
   ><span><i></i>Mise à jour selon les livraisons et ventes enregistrées</span>
 </div>
 <section class="stock-summary">

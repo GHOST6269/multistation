@@ -1,6 +1,6 @@
 <div class="page-heading">
   <div><p class="eyebrow">PILOTAGE DU RÉSEAU</p><h1>Bonjour, Admin <span>👋</span></h1><p>Voici ce qui se passe sur votre réseau aujourd’hui.</p></div>
-  <a routerLink="/stations" class="primary-button"><span>＋</span> Nouvelle station</a>
+  @if (auth.hasAnyRole(['ROLE_SUPER_ADMIN'])) { <a routerLink="/stations" class="primary-button"><span>＋</span> Nouvelle station</a> }
 </div>
 
 @if (loading) { <div class="loading"><span></span><p>Synchronisation des stations…</p></div> }
@@ -14,7 +14,7 @@
   </div>
 
   <div class="dashboard-grid">
-    <section class="panel stations-panel"><header><div><h2>Activité des stations</h2><p>Vue consolidée de votre réseau</p></div><a routerLink="/stations">Voir toutes →</a></header>
+    <section class="panel stations-panel"><header><div><h2>Activité des stations</h2><p>Vue consolidée de votre réseau</p></div>@if (auth.hasAnyRole(['ROLE_SUPER_ADMIN'])) { <a routerLink="/stations">Voir toutes →</a> }</header>
       <div class="station-list">
         @for (station of data.stations; track station.id) {
           <article><span class="station-logo">{{ initials(station.name) }}</span><div class="station-name"><strong>{{ station.name }}</strong><small>{{ station.city || 'Ville non renseignée' }} · {{ station.manager || 'Sans gérant' }}</small></div><div class="station-stat"><strong>{{ station.articlesCount }}</strong><small>articles</small></div><span class="status" [class.offline]="station.status !== 'ACTIVE'">{{ station.status === 'ACTIVE' ? 'Active' : station.status }}</span><button>›</button></article>

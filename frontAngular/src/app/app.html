@@ -1,3 +1,6 @@
+@if (loginPage) {
+  <router-outlet />
+} @else {
 <div class="app-shell" [class.sidebar-open]="menuOpen">
   <aside class="sidebar">
     <div class="brand">
@@ -11,7 +14,7 @@
     <nav aria-label="Navigation principale">
       <p class="nav-label">NAVIGATION</p>
       @for (item of navigation; track item.route) {
-        @if (item.visible !== false) {
+        @if (visible(item)) {
           <a
             [routerLink]="item.route"
             routerLinkActive="active"
@@ -47,9 +50,9 @@
         <span>?</span><strong>Besoin d'aide ?</strong><small>Consultez le guide rapide</small>
       </div>
       <div class="profile">
-        <span class="avatar">AR</span>
-        <div><strong>Admin réseau</strong><small>Administrateur</small></div>
-        <button aria-label="Menu utilisateur">•••</button>
+        <span class="avatar">{{ initials() }}</span>
+        <div><strong>{{ user?.firstName || 'Utilisateur' }}</strong><small>{{ user?.roleLabel || 'Session' }}</small></div>
+        <button aria-label="Déconnexion" (click)="logout()">↥</button>
       </div>
     </div>
   </aside>
@@ -62,16 +65,17 @@
       </button>
       <div class="station-switcher">
         <span class="live-dot"></span>
-        <div><small>VUE ACTUELLE</small><strong>Toutes les stations</strong></div>
+        <div><small>VUE ACTUELLE</small><strong>{{ auth.stationLocked() ? 'Station assignée' : 'Toutes les stations' }}</strong></div>
         <span class="chevron">⌄</span>
       </div>
       <div class="top-actions">
         <button aria-label="Rechercher">⌕</button
         ><button class="notification" aria-label="Notifications">♧<span>3</span></button
-        ><span class="top-avatar">AR</span>
-        <div class="user-name"><strong>Gérant 1</strong><small>⌄</small></div>
+        ><span class="top-avatar">{{ initials() }}</span>
+        <div class="user-name"><strong>{{ user?.firstName || 'Compte' }}</strong><small>{{ user?.roleLabel || '' }}</small></div>
       </div>
     </header>
     <section class="page-content"><router-outlet /></section>
   </main>
 </div>
+}

@@ -6,6 +6,7 @@ import { FuelService } from '../../services/fuel.service';
 import { SupplierService } from '../../services/supplier.service';
 import { DropdownOption } from '../../shared/dropdown/dropdown';
 import { ActivatedRoute } from '@angular/router';
+import { AuthService } from '../../services/auth.service';
 @Component({
   selector: 'app-fuel',
   standalone: false,
@@ -31,6 +32,7 @@ export class Fuel implements OnInit {
   saving = false;
   error = '';
   setupType = 'FUEL';
+  savingLabel = 'Traitement en cours...';
   readingForm;
   deliveryForm;
   setupForm;
@@ -52,6 +54,7 @@ export class Fuel implements OnInit {
     private fb: FormBuilder,
     private cdr: ChangeDetectorRef,
     private route: ActivatedRoute,
+    public readonly auth: AuthService,
   ) {
     this.readingForm = fb.group({
       date: [new Date().toISOString().slice(0, 10), Validators.required],
@@ -248,8 +251,9 @@ export class Fuel implements OnInit {
     return [...rows.values()].sort((a, b) => b.total - a.total);
   }
   saveReading() {
-    if (this.readingForm.invalid) return;
+    if (this.saving || this.readingForm.invalid) return;
     this.saving = true;
+    this.savingLabel = 'Enregistrement du relevé...';
     this.error = '';
     const v = this.readingForm.getRawValue();
     this.fuel.createSimpleReading({ ...v, stationId: this.stationId }).subscribe({
@@ -271,8 +275,9 @@ export class Fuel implements OnInit {
     this.modal = 'paymentMethod';
   }
   savePaymentMethod() {
-    if (this.paymentMethodForm.invalid) return;
+    if (this.saving || this.paymentMethodForm.invalid) return;
     this.saving = true;
+    this.savingLabel = 'Création du mode de paiement...';
     this.fuel
       .createPaymentMethod({ ...this.paymentMethodForm.getRawValue(), stationId: this.stationId })
       .subscribe({
@@ -303,8 +308,9 @@ export class Fuel implements OnInit {
     this.modal = 'delivery';
   }
   saveDelivery() {
-    if (this.deliveryForm.invalid) return;
+    if (this.saving || this.deliveryForm.invalid) return;
     this.saving = true;
+    this.savingLabel = 'Enregistrement de la livraison...';
     this.supplierService
       .delivery({ ...this.deliveryForm.getRawValue(), stationId: this.stationId })
       .subscribe({
@@ -326,11 +332,46 @@ export class Fuel implements OnInit {
     this.setupForm.reset();
     this.modal = 'setup';
   }
+  changeSetupType(type: string) {
+    if (this.saving) return;
+    this.setupType = type;
+    this.error = '';
+    this.setupForm.reset({
+      code: '',
+      name: '',
+      fuelTypeId: 0,
+      capacity: 0,
+      currentStock: 0,
+      minimumStock: 0,
+      pumpId: 0,
+      tankId: 0,
+      currentIndex: 0,
+      unitPrice: 0,
+      contact: '',
+    });
+  }
+  closeModal() {
+    if (!this.saving) this.modal = null;
+  }
   saveSetup() {
-    if (this.setupForm.invalid) return;
+    if (this.saving || this.setupForm.invalid) return;
+    const value = this.setupForm.getRawValue();
+    if (this.setupType === 'TANK' && !Number(value.fuelTypeId)) {
+      this.error = 'Choisissez le carburant de la cuve.';
+      return;
+    }
+    if (this.setupType === 'PUMP' && !Number(value.tankId)) {
+      this.error = 'Choisissez la cuve alimentant cette pompe.';
+      return;
+    }
+    if (this.setupType === 'NOZZLE' && (!Number(value.pumpId) || !Number(value.tankId))) {
+      this.error = 'Choisissez la pompe et la cuve du pistolet.';
+      return;
+    }
     this.saving = true;
+    this.savingLabel = 'Mise à jour de la configuration...';
     this.fuel
-      .setup({ ...this.setupForm.getRawValue(), stationId: this.stationId, type: this.setupType })
+      .setup({ ...value, stationId: this.stationId, type: this.setupType })
       .subscribe({
         next: () => {
           this.saving = false;

@@ -7,6 +7,7 @@ use App\Entity\FuelPaymentMethod;
 use App\Entity\FuelShiftReading;
 use App\Entity\PumpAttendant;
 use App\Entity\Stations;
+use App\Service\UserAccessService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -23,10 +24,12 @@ final class FuelPaymentController extends AbstractController
     ];
 
     #[Route('/payment-methods', methods: ['GET'])]
-    public function methods(Request $request, EntityManagerInterface $em): JsonResponse
+    public function methods(Request $request, EntityManagerInterface $em, UserAccessService $access): JsonResponse
     {
+        if ($denied = $access->require([UserAccessService::ROLE_GERANT, UserAccessService::ROLE_ASSISTANT])) return $denied;
         $station = $em->getRepository(Stations::class)->find((int) $request->query->get('station'));
         if (!$station) return $this->json(['message' => 'Station invalide'], 422);
+        if (!$access->canAccessStation($station)) return $access->denyStation();
         $items = $em->getRepository(FuelPaymentMethod::class)->findBy(['station' => $station], ['name' => 'ASC']);
         if (!$items) {
             foreach (self::DEFAULT_METHODS as $code => $name) {
@@ -40,12 +43,14 @@ final class FuelPaymentController extends AbstractController
     }
 
     #[Route('/payment-methods', methods: ['POST'])]
-    public function createMethod(Request $request, EntityManagerInterface $em): JsonResponse
+    public function createMethod(Request $request, EntityManagerInterface $em, UserAccessService $access): JsonResponse
     {
+        if ($denied = $access->require(UserAccessService::ROLE_GERANT)) return $denied;
         $data = $request->toArray();
         $station = $em->getRepository(Stations::class)->find((int) ($data['stationId'] ?? 0));
         $name = trim((string) ($data['name'] ?? ''));
         if (!$station || $name === '') return $this->json(['message' => 'Station et libellé obligatoires'], 422);
+        if (!$access->canAccessStation($station)) return $access->denyStation();
         $code = strtoupper(trim((string) ($data['code'] ?? '')));
         $code = preg_replace('/[^A-Z0-9_]+/', '_', $code ?: $name) ?: 'MODE';
         if ($em->getRepository(FuelPaymentMethod::class)->findOneBy(['station' => $station, 'code' => $code])) return $this->json(['message' => 'Ce code existe déjà'], 422);
@@ -55,20 +60,24 @@ final class FuelPaymentController extends AbstractController
     }
 
     #[Route('/payment-methods/{id}/deactivate', methods: ['PATCH'])]
-    public function deactivateMethod(FuelPaymentMethod $method, EntityManagerInterface $em): JsonResponse
+    public function deactivateMethod(FuelPaymentMethod $method, EntityManagerInterface $em, UserAccessService $access): JsonResponse
     {
+        if ($denied = $access->require(UserAccessService::ROLE_GERANT)) return $denied;
+        if (!$access->canAccessStation($method->getStation())) return $access->denyStation();
         $method->setIsActive(false); $em->flush();
         return $this->json($this->methodRow($method));
     }
 
     #[Route('/simple-readings', methods: ['POST'])]
-    public function createReading(Request $request, EntityManagerInterface $em): JsonResponse
+    public function createReading(Request $request, EntityManagerInterface $em, UserAccessService $access): JsonResponse
     {
+        if ($denied = $access->require([UserAccessService::ROLE_GERANT, UserAccessService::ROLE_ASSISTANT])) return $denied;
         $data = $request->toArray();
         $station = $em->getRepository(Stations::class)->find((int) ($data['stationId'] ?? 0));
         $nozzle = $em->getRepository(FuelNozzle::class)->find((int) ($data['nozzleId'] ?? 0));
         $attendant = $em->getRepository(PumpAttendant::class)->find((int) ($data['attendantId'] ?? 0));
         $method = $em->getRepository(FuelPaymentMethod::class)->find((int) ($data['paymentMethodId'] ?? 0));
+        if ($station && !$access->canAccessStation($station)) return $access->denyStation();
         if (!$station || !$nozzle || !$attendant || !$method || !$method->isActive() || $method->getStation()?->getId() !== $station->getId() || $nozzle->getPump()?->getStation()?->getId() !== $station->getId() || $attendant->getStation()?->getId() !== $station->getId()) return $this->json(['message' => 'Références invalides'], 422);
         $start = (float) ($data['startIndex'] ?? 0); $end = (float) ($data['endIndex'] ?? 0);
         $rc = max(0, (float) ($data['returnToTank'] ?? 0)); $output = $end - $start; $sold = $output - $rc;
@@ -86,9 +95,12 @@ final class FuelPaymentController extends AbstractController
     }
 
     #[Route('/payment-history', methods: ['GET'])]
-    public function history(Request $request, EntityManagerInterface $em): JsonResponse
+    public function history(Request $request, EntityManagerInterface $em, UserAccessService $access): JsonResponse
     {
-        $readings = $em->getRepository(FuelShiftReading::class)->findBy(['station' => (int) $request->query->get('station')], ['workDate' => 'DESC', 'id' => 'DESC'], 100);
+        if ($denied = $access->require([UserAccessService::ROLE_GERANT, UserAccessService::ROLE_ASSISTANT])) return $denied;
+        $stationId = (int) $request->query->get('station');
+        if (!$access->canAccessStation($stationId)) return $access->denyStation();
+        $readings = $em->getRepository(FuelShiftReading::class)->findBy(['station' => $stationId], ['workDate' => 'DESC', 'id' => 'DESC'], 100);
         $rows = [];
         foreach ($readings as $reading) foreach ($reading->getPayments() as $payment) $rows[] = ['id' => $reading->getId().'-'.($payment['type'] ?? ''), 'date' => $reading->getWorkDate()?->format('Y-m-d'), 'responsible' => $reading->getAttendant()?->getFullName(), 'nozzle' => $reading->getNozzle()?->getCode(), 'method' => $payment['label'] ?? $payment['type'] ?? '—', 'reference' => $payment['reference'] ?? null, 'amount' => (float) ($payment['amount'] ?? 0)];
         return $this->json(['payments' => $rows]);

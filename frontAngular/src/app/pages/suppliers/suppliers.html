@@ -7,7 +7,7 @@
   <button (click)="modal = 'supplier'">＋ Nouveau fournisseur</button>
 </div>
 <div class="supplier-toolbar">
-  <app-dropdown [(ngModel)]="stationId" (ngModelChange)="load()" [options]="stations" />
+  <app-dropdown [(ngModel)]="stationId" (ngModelChange)="load()" [options]="stations" [disabled]="auth.stationLocked()" />
   <div>
     <strong>{{ money(totalBalance) }} Ar</strong><small>DETTE FOURNISSEURS</small>
   </div>

@@ -2,6 +2,7 @@ import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { FormBuilder, Validators } from '@angular/forms';
 import { ArticleService } from '../../services/article.service';
 import { SupplierService } from '../../services/supplier.service';
+import { AuthService } from '../../services/auth.service';
 import { DropdownOption } from '../../shared/dropdown/dropdown';
 @Component({
   selector: 'app-suppliers',
@@ -24,6 +25,7 @@ export class Suppliers implements OnInit {
     private articles: ArticleService,
     fb: FormBuilder,
     private cdr: ChangeDetectorRef,
+    public readonly auth: AuthService,
   ) {
     this.form = fb.group({
       code: [''],

@@ -9,6 +9,7 @@ use App\Repository\ArticlesRepository;
 use App\Repository\StationArticlesRepository;
 use App\Repository\StationsRepository;
 use App\Repository\UserRepository;
+use App\Service\UserAccessService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -19,10 +20,13 @@ use Symfony\Component\Routing\Attribute\Route;
 final class ApiController extends AbstractController
 {
     #[Route('/dashboard', methods: ['GET'])]
-    public function dashboard(StationsRepository $stations, ArticlesRepository $articles, UserRepository $users, StationArticlesRepository $stock): JsonResponse
+    public function dashboard(StationsRepository $stations, ArticlesRepository $articles, UserRepository $users, StationArticlesRepository $stock, UserAccessService $access): JsonResponse
     {
-        $allStations = $stations->findAll();
-        $inventory = array_map($this->inventoryRow(...), $stock->findAll());
+        if ($denied = $access->require([UserAccessService::ROLE_GERANT, UserAccessService::ROLE_QUALITY_MARSHALL, UserAccessService::ROLE_ASSISTANT])) return $denied;
+        $allowedIds = $access->allowedStationIds();
+        $allStations = $access->isSuperAdmin() ? $stations->findAll() : array_filter($stations->findAll(), static fn (Stations $station): bool => in_array($station->getId(), $allowedIds, true));
+        $inventoryItems = $access->isSuperAdmin() ? $stock->findAll() : array_filter($stock->findAll(), static fn ($item): bool => in_array($item->getStation()?->getId(), $allowedIds, true));
+        $inventory = array_map($this->inventoryRow(...), $inventoryItems);
         $lowStock = array_values(array_filter($inventory, static fn (array $row): bool => $row['alert']));
 
         return $this->json([
@@ -42,18 +46,24 @@ final class ApiController extends AbstractController
     }
 
     #[Route('/stations', methods: ['GET'])]
-    public function stations(Request $request, StationsRepository $repository): JsonResponse
+    public function stations(Request $request, StationsRepository $repository, UserAccessService $access): JsonResponse
     {
+        if ($denied = $access->require([UserAccessService::ROLE_GERANT, UserAccessService::ROLE_QUALITY_MARSHALL, UserAccessService::ROLE_ASSISTANT])) return $denied;
         $search = trim((string) $request->query->get('search', ''));
         $stations = $search === '' ? $repository->findBy([], ['id' => 'DESC']) : $repository->createQueryBuilder('s')
             ->andWhere('LOWER(s.name) LIKE :search OR LOWER(s.city) LIKE :search OR LOWER(s.code) LIKE :search')
             ->setParameter('search', '%'.mb_strtolower($search).'%')->orderBy('s.id', 'DESC')->getQuery()->getResult();
+        if (!$access->isSuperAdmin()) {
+            $allowedIds = $access->allowedStationIds();
+            $stations = array_values(array_filter($stations, static fn (Stations $station): bool => in_array($station->getId(), $allowedIds, true)));
+        }
         return $this->json(array_map($this->stationRow(...), $stations));
     }
 
     #[Route('/stations', methods: ['POST'])]
-    public function createStation(Request $request, EntityManagerInterface $em): JsonResponse
+    public function createStation(Request $request, EntityManagerInterface $em, UserAccessService $access): JsonResponse
     {
+        if ($denied = $access->require(UserAccessService::ROLE_SUPER_ADMIN)) return $denied;
         $data = $request->toArray();
         if (trim((string) ($data['name'] ?? '')) === '') return $this->json(['message' => 'Le nom de la station est obligatoire.'], 422);
         $station = $this->applyStationData((new Stations())->setCreatAt(new \DateTime()), $data);
@@ -62,8 +72,9 @@ final class ApiController extends AbstractController
     }
 
     #[Route('/stations/{id}', requirements: ['id' => '\\d+'], methods: ['PUT'])]
-    public function updateStation(Stations $station, Request $request, EntityManagerInterface $em): JsonResponse
+    public function updateStation(Stations $station, Request $request, EntityManagerInterface $em, UserAccessService $access): JsonResponse
     {
+        if ($denied = $access->require(UserAccessService::ROLE_SUPER_ADMIN)) return $denied;
         $data = $request->toArray();
         if (trim((string) ($data['name'] ?? '')) === '') return $this->json(['message' => 'Le nom de la station est obligatoire.'], 422);
         $this->applyStationData($station, $data)->setUpdatedAt(new \DateTime());
@@ -72,23 +83,33 @@ final class ApiController extends AbstractController
     }
 
     #[Route('/stations/{id}/deactivate', requirements: ['id' => '\\d+'], methods: ['PATCH'])]
-    public function deactivateStation(Stations $station, EntityManagerInterface $em): JsonResponse
+    public function deactivateStation(Stations $station, EntityManagerInterface $em, UserAccessService $access): JsonResponse
     {
+        if ($denied = $access->require(UserAccessService::ROLE_SUPER_ADMIN)) return $denied;
         $station->setStatus('INACTIVE')->setUpdatedAt(new \DateTime());
         $em->flush();
         return $this->json($this->stationRow($station));
     }
 
     #[Route('/inventory', methods: ['GET'])]
-    public function inventory(Request $request, StationArticlesRepository $repository): JsonResponse
+    public function inventory(Request $request, StationArticlesRepository $repository, UserAccessService $access): JsonResponse
     {
+        if ($denied = $access->require([UserAccessService::ROLE_GERANT, UserAccessService::ROLE_QUALITY_MARSHALL])) return $denied;
         $criteria = $request->query->has('station') ? ['station' => (int) $request->query->get('station')] : [];
-        return $this->json(array_map($this->inventoryRow(...), $repository->findBy($criteria, ['id' => 'DESC'])));
+        if (isset($criteria['station']) && !$access->canAccessStation((int) $criteria['station'])) return $access->denyStation();
+        $items = $repository->findBy($criteria, ['id' => 'DESC']);
+        if (!$access->isSuperAdmin() && !$criteria) {
+            $allowedIds = $access->allowedStationIds();
+            $items = array_values(array_filter($items, static fn ($item): bool => in_array($item->getStation()?->getId(), $allowedIds, true)));
+        }
+        return $this->json(array_map($this->inventoryRow(...), $items));
     }
 
     #[Route('/inventory/{id}/adjust', requirements: ['id' => '\\d+'], methods: ['POST'])]
-    public function adjustInventory(StationArticles $item, Request $request, EntityManagerInterface $em): JsonResponse
+    public function adjustInventory(StationArticles $item, Request $request, EntityManagerInterface $em, UserAccessService $access): JsonResponse
     {
+        if ($denied = $access->require([UserAccessService::ROLE_GERANT, UserAccessService::ROLE_QUALITY_MARSHALL])) return $denied;
+        if (!$access->canAccessStation($item->getStation())) return $access->denyStation();
         $data=$request->toArray();$type=(string)($data['type']??'');$quantity=(float)($data['quantity']??0);$reason=trim((string)($data['reason']??''));
         if(!in_array($type,['ADD','REMOVE','SET'],true)||$quantity<0||$reason==='')return $this->json(['message'=>'Le type, la quantité et le motif sont obligatoires.'],422);
         $basePricing=null;foreach($item->getStationArticleUnits() as $pricing)if($pricing->isActive()&&$pricing->getArticleUnit()?->isBaseUnit()){$basePricing=$pricing;break;}
@@ -100,9 +121,11 @@ final class ApiController extends AbstractController
     }
 
     #[Route('/inventory/stocktake', methods: ['POST'])]
-    public function stocktake(Request $request, StationArticlesRepository $repository, EntityManagerInterface $em): JsonResponse
+    public function stocktake(Request $request, StationArticlesRepository $repository, EntityManagerInterface $em, UserAccessService $access): JsonResponse
     {
+        if ($denied = $access->require([UserAccessService::ROLE_GERANT, UserAccessService::ROLE_QUALITY_MARSHALL])) return $denied;
         $data=$request->toArray();$stationId=(int)($data['stationId']??0);$reason=trim((string)($data['reason']??''));$reference=trim((string)($data['reference']??''));$lines=$data['lines']??[];
+        if (!$access->canAccessStation($stationId)) return $access->denyStation();
         if(!$stationId||$reason===''||!preg_match('/^INV-\\d+-\\d{8}-\\d{6}$/',$reference)||!is_array($lines)||!$lines)return $this->json(['message'=>'La référence, la station, le motif et les lignes de comptage sont obligatoires.'],422);
         $validated=[];
         foreach($lines as $line){$item=$repository->find((int)($line['id']??0));$counts=$line['counts']??[];if(!$item||$item->getStation()?->getId()!==$stationId||!is_array($counts)||!$counts)return $this->json(['message'=>'Une ligne de comptage est invalide.'],422);$available=[];$base=null;foreach($item->getStationArticleUnits() as $pricing)if($pricing->isActive()&&$pricing->getArticleUnit()?->isActive()){$au=$pricing->getArticleUnit();$available[$au->getId()]=$au;if($au->isBaseUnit())$base=$au;}if(!$base)return $this->json(['message'=>'Une ligne ne possède aucune unité de base.'],422);$physical=0;$details=[];foreach($counts as $count){$unitId=(int)($count['articleUnitId']??0);$quantity=(float)($count['quantity']??-1);$au=$available[$unitId]??null;if(!$au||$quantity<0)return $this->json(['message'=>'Une unité ou quantité de comptage est invalide.'],422);$factor=(float)$au->getConverstionFactor();$physical+=$quantity*$factor;$details[]=['articleUnitId'=>$au->getId(),'unit'=>$au->getUnit()?->getName(),'symbol'=>$au->getUnit()?->getSymbol(),'quantity'=>$quantity,'conversionFactor'=>$factor,'baseQuantity'=>$quantity*$factor];}$validated[]=[$item,$base,$physical,$details];}

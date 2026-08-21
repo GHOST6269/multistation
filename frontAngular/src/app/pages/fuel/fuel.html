@@ -127,10 +127,10 @@
     <span>Stocks cuves, index pompistes et ventilation des encaissements.</span>
   </div>
   <div>
-    <button class="secondary" (click)="openSetup()">＋ Configurer</button
-    ><button class="secondary" routerLink="/carburants/configuration">⚙ Gérer les listes</button
-    ><button (click)="openDelivery()">＋ Livraison</button
-    ><button (click)="openReading()">＋ Relevé pompe</button>
+    @if (auth.hasAnyRole(['ROLE_GERANT', 'ROLE_QUALITY_MARSHALL'])) { <button class="secondary" [disabled]="saving" (click)="openSetup()">＋ Configurer</button
+    ><button class="secondary" routerLink="/carburants/configuration">⚙ Gérer les listes</button> }
+    @if (auth.hasAnyRole(['ROLE_GERANT'])) { <button [disabled]="saving" (click)="openDelivery()">＋ Livraison</button> }
+    <button [disabled]="saving" (click)="openReading()">＋ Relevé pompe</button>
   </div>
 </div>
 <div class="fuel-toolbar">
@@ -140,6 +140,7 @@
       (ngModelChange)="load()"
       [options]="stations"
       [searchable]="true"
+      [disabled]="auth.stationLocked()"
   /></label>
   <div class="legend"><i></i>Données mises à jour en temps réel</div>
 </div>
@@ -366,7 +367,7 @@
   </div>
 </section>
 @if (modal === 'reading') {
-  <div class="fuel-modal" (click)="modal = null">
+  <div class="fuel-modal" [class.busy]="saving" (click)="closeModal()">
     <form
       class="reading-form"
       [formGroup]="readingForm"
@@ -381,7 +382,7 @@
             <p>Clôture du poste et ventilation des règlements.</p>
           </div>
         </div>
-        <button type="button" (click)="modal = null">×</button>
+        <button type="button" [disabled]="saving" (click)="closeModal()">×</button>
       </header>
       <div class="reading-body">
         <section class="index-section">
@@ -470,6 +471,7 @@
                   type="button"
                   class="mini-add"
                   title="Ajouter un mode"
+                  [disabled]="saving"
                   (click)="openPaymentMethod()"
                 >
                   ＋
@@ -498,7 +500,10 @@
         }
       </div>
       <footer>
-        <button type="button" class="cancel" (click)="modal = null">Annuler</button
+        @if (saving) {
+          <div class="blocking-loader"><span></span><strong>{{ savingLabel }}</strong></div>
+        }
+        <button type="button" class="cancel" [disabled]="saving" (click)="closeModal()">Annuler</button
         ><button [disabled]="saving || Math.abs(paid - total) > 0.01">
           {{ saving ? 'Clôture…' : 'Valider la clôture' }}
         </button>
@@ -507,7 +512,7 @@
   </div>
 }
 @if (modal === 'delivery') {
-  <div class="fuel-modal" (click)="modal = null">
+  <div class="fuel-modal" [class.busy]="saving" (click)="closeModal()">
     <form
       class="small-form"
       [formGroup]="deliveryForm"
@@ -516,7 +521,7 @@
     >
       <header>
         <h2>Nouvelle livraison carburant</h2>
-        <button type="button" (click)="modal = null">×</button>
+        <button type="button" [disabled]="saving" (click)="closeModal()">×</button>
       </header>
       <div class="small-fields">
         <label>Date<input type="date" formControlName="date" /></label
@@ -544,14 +549,17 @@
         }
       </div>
       <footer>
-        <button type="button" class="cancel" (click)="modal = null">Annuler</button
-        ><button [disabled]="saving">Enregistrer la livraison</button>
+        @if (saving) {
+          <div class="blocking-loader"><span></span><strong>{{ savingLabel }}</strong></div>
+        }
+        <button type="button" class="cancel" [disabled]="saving" (click)="closeModal()">Annuler</button
+        ><button [disabled]="saving || deliveryForm.invalid">Enregistrer la livraison</button>
       </footer>
     </form>
   </div>
 }
 @if (modal === 'setup') {
-  <div class="fuel-modal" (click)="modal = null">
+  <div class="fuel-modal" [class.busy]="saving" (click)="closeModal()">
     <form
       class="setup-form"
       [formGroup]="setupForm"
@@ -563,7 +571,7 @@
           <h2>Configuration de la station</h2>
           <p>Ajoutez vos référentiels dans l’ordre : carburant, cuve, pompe, pistolet, pompiste.</p>
         </div>
-        <button type="button" (click)="modal = null">×</button>
+        <button type="button" [disabled]="saving" (click)="closeModal()">×</button>
       </header>
       <div class="setup-tabs">
         @for (
@@ -579,7 +587,8 @@
           <button
             type="button"
             [class.active]="setupType === t.id"
-            (click)="setupType = t.id; setupForm.reset()"
+            [disabled]="saving"
+            (click)="changeSetupType(t.id)"
           >
             {{ t.l }}
           </button>
@@ -596,6 +605,19 @@
           ><label>Capacité (L)<input type="number" formControlName="capacity" /></label
           ><label>Stock initial<input type="number" formControlName="currentStock" /></label
           ><label>Seuil minimum<input type="number" formControlName="minimumStock" /></label>
+        }
+        @if (setupType === 'PUMP') {
+          <label
+            >Cuve alimentée *<app-dropdown
+              formControlName="tankId"
+              [options]="options(data?.tanks || [])" /></label
+          ><label>Index départ<input type="number" formControlName="currentIndex" /></label
+          ><label
+            >PU TTC
+            <div class="money-field">
+              <input appMoney type="text" formControlName="unitPrice" /><span>Ar</span>
+            </div></label
+          >
         }
         @if (setupType === 'NOZZLE') {
           <label
@@ -622,8 +644,11 @@
         }
       </div>
       <footer>
-        <button type="button" class="cancel" (click)="modal = null">Fermer</button
-        ><button [disabled]="saving">Ajouter</button>
+        @if (saving) {
+          <div class="blocking-loader"><span></span><strong>{{ savingLabel }}</strong></div>
+        }
+        <button type="button" class="cancel" [disabled]="saving" (click)="closeModal()">Fermer</button
+        ><button [disabled]="saving || setupForm.invalid">Ajouter</button>
       </footer>
     </form>
   </div>
@@ -636,7 +661,7 @@
           <h2>Nouveau mode de paiement</h2>
           <p>Ce mode sera disponible uniquement pour cette station.</p>
         </div>
-        <button type="button" (click)="modal = 'reading'">×</button>
+        <button type="button" [disabled]="saving" (click)="modal = 'reading'">×</button>
       </header>
       <div class="small-fields">
         <label>Libellé *<input formControlName="name" placeholder="Ex. Mobile Money" /></label
@@ -646,7 +671,10 @@
         }
       </div>
       <footer>
-        <button type="button" class="cancel" (click)="modal = 'reading'">Annuler</button
+        @if (saving) {
+          <div class="blocking-loader"><span></span><strong>{{ savingLabel }}</strong></div>
+        }
+        <button type="button" class="cancel" [disabled]="saving" (click)="modal = 'reading'">Annuler</button
         ><button [disabled]="saving || paymentMethodForm.invalid">Ajouter le mode</button>
       </footer>
     </form>

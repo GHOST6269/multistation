@@ -31,6 +31,11 @@
   font-size: 8px;
   font-weight: 700;
 }
+.fuel-heading button:disabled,
+.fuel-modal button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
 .fuel-heading button.secondary {
   border: 1px solid #cbdbe9;
   background: #fff;
@@ -257,10 +262,14 @@
   background: #0a1d3299;
 }
 .fuel-modal form {
+  position: relative;
   max-height: 96vh;
   overflow: auto;
   border-radius: 14px;
   background: #fff;
+}
+.fuel-modal.busy form {
+  pointer-events: none;
 }
 .reading-form {
   width: min(1050px, 97vw);
@@ -407,11 +416,35 @@
   font-size: 7px;
 }
 .fuel-modal form > footer {
+  position: relative;
   display: flex;
   justify-content: end;
   gap: 7px;
   padding: 10px 19px;
   background: #f5f8fa;
+}
+.blocking-loader {
+  position: absolute;
+  left: 18px;
+  top: 50%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transform: translateY(-50%);
+  color: #397fc4;
+  font-size: 9px;
+  font-weight: 800;
+}
+.blocking-loader span {
+  width: 18px;
+  height: 18px;
+  border: 3px solid #d8e8f6;
+  border-top-color: #397fc4;
+  border-radius: 50%;
+  animation: spin .75s linear infinite;
+}
+.blocking-loader strong {
+  font-size: 9px;
 }
 .fuel-modal footer button {
   padding: 9px 12px;

@@ -1,6 +1,6 @@
 import { NgModule, provideBrowserGlobalErrorListeners } from '@angular/core';
 import { BrowserModule } from '@angular/platform-browser';
-import { HttpClientModule } from '@angular/common/http';
+import { HTTP_INTERCEPTORS, HttpClientModule } from '@angular/common/http';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 
 import { AppRoutingModule } from './app-routing-module';
@@ -15,6 +15,9 @@ import { Fuel } from './pages/fuel/fuel';
 import { FuelConfig } from './pages/fuel-config/fuel-config';
 import { Suppliers } from './pages/suppliers/suppliers';
 import { FuelStock } from './pages/fuel-stock/fuel-stock';
+import { Login } from './pages/login/login';
+import { Create } from './pages/user/create/create';
+import { AuthInterceptor } from './services/auth.interceptor';
 
 @NgModule({
   declarations: [
@@ -29,9 +32,14 @@ import { FuelStock } from './pages/fuel-stock/fuel-stock';
     FuelConfig,
     Suppliers,
     FuelStock,
+    Login,
+    Create,
   ],
   imports: [BrowserModule, HttpClientModule, FormsModule, ReactiveFormsModule, AppRoutingModule],
-  providers: [provideBrowserGlobalErrorListeners()],
+  providers: [
+    provideBrowserGlobalErrorListeners(),
+    { provide: HTTP_INTERCEPTORS, useClass: AuthInterceptor, multi: true },
+  ],
   bootstrap: [App],
 })
 export class AppModule {}

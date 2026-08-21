@@ -1,6 +1,7 @@
 import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { ArticleService } from '../../services/article.service';
 import { FuelService } from '../../services/fuel.service';
+import { AuthService } from '../../services/auth.service';
 import { DropdownOption } from '../../shared/dropdown/dropdown';
 
 @Component({
@@ -18,6 +19,7 @@ export class FuelStock implements OnInit {
     private articles: ArticleService,
     private fuel: FuelService,
     private cdr: ChangeDetectorRef,
+    public readonly auth: AuthService,
   ) {}
   ngOnInit() {
     this.articles.options().subscribe((data) => {

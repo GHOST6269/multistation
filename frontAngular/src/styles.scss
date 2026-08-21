@@ -5,6 +5,34 @@ button, input { font-family: inherit; }
 button, a { -webkit-tap-highlight-color: transparent; }
 button { cursor: pointer; }
 
+.loading {
+  min-height: 180px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 13px;
+  padding: 26px;
+  border: 1px solid #dbe8f3;
+  border-radius: 8px;
+  background: #fff;
+  color: #496177;
+  font-size: 11px;
+  font-weight: 800;
+  box-shadow: 0 12px 30px rgba(37, 75, 112, .08);
+}
+.loading span {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 4px solid #d9eaf8;
+  border-top-color: #397fc4;
+  border-right-color: #2fc18c;
+  animation: spin .82s linear infinite;
+}
+.loading p { margin: 0; }
+.strong-loader { min-height: 240px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
 /* Shared visual language: soft surfaces, precise fields, and one clear primary action. */
 input, textarea {
   border: 1px solid #d9e4ee;
