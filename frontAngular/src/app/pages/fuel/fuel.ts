@@ -93,7 +93,9 @@ export class Fuel implements OnInit {
     this.paymentMethodForm = fb.group({ code: [''], name: ['', Validators.required] });
   }
   ngOnInit() {
-    this.route.queryParams.subscribe((params) => this.openDeliveryFromMenu = params['action'] === 'delivery');
+    this.route.queryParams.subscribe(
+      (params) => (this.openDeliveryFromMenu = params['action'] === 'delivery'),
+    );
     this.articles.options().subscribe((x) => {
       this.stations = x.stations.map((s) => ({ value: s.id, label: s.name }));
       this.stationId = x.stations[0]?.id ?? 0;
@@ -117,7 +119,10 @@ export class Fuel implements OnInit {
     this.fuel.workspace(this.stationId).subscribe((x) => {
       this.data = x;
       this.loading = false;
-      if (this.openDeliveryFromMenu) { this.openDeliveryFromMenu = false; this.openDelivery(); }
+      if (this.openDeliveryFromMenu) {
+        this.openDeliveryFromMenu = false;
+        this.openDelivery();
+      }
       this.cdr.detectChanges();
     });
   }
@@ -370,21 +375,33 @@ export class Fuel implements OnInit {
     }
     this.saving = true;
     this.savingLabel = 'Mise à jour de la configuration...';
-    this.fuel
-      .setup({ ...value, stationId: this.stationId, type: this.setupType })
-      .subscribe({
-        next: () => {
-          this.saving = false;
-          this.setupForm.reset();
-          this.load();
-          this.cdr.detectChanges();
-        },
-        error: (e) => {
-          this.error = e.error?.message ?? 'Création impossible';
-          this.saving = false;
-          this.cdr.detectChanges();
-        },
-      });
+    this.fuel.setup({ ...value, stationId: this.stationId, type: this.setupType }).subscribe({
+      next: (created) => {
+        if (this.setupType === 'FUEL' && created?.id) {
+          this.fuel.update('fuel', created.id, value).subscribe({
+            next: () => this.finishSetup(),
+            error: (e) => {
+              this.error = e.error?.message ?? 'Enregistrement du prix impossible';
+              this.saving = false;
+              this.cdr.detectChanges();
+            },
+          });
+          return;
+        }
+        this.finishSetup();
+      },
+      error: (e) => {
+        this.error = e.error?.message ?? 'Création impossible';
+        this.saving = false;
+        this.cdr.detectChanges();
+      },
+    });
+  }
+  finishSetup() {
+    this.saving = false;
+    this.setupForm.reset();
+    this.load();
+    this.cdr.detectChanges();
   }
   money(v: number) {
     return new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(v);

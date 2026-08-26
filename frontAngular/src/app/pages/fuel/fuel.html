@@ -597,6 +597,14 @@
       <div class="small-fields">
         <label>Code *<input formControlName="code" /></label
         ><label>Nom *<input formControlName="name" /></label>
+        @if (setupType === 'FUEL') {
+          <label
+            >PU TTC
+            <div class="money-field">
+              <input appMoney type="text" formControlName="unitPrice" /><span>Ar</span>
+            </div></label
+          >
+        }
         @if (setupType === 'TANK') {
           <label
             >Carburant<app-dropdown
@@ -611,13 +619,7 @@
             >Cuve alimentée *<app-dropdown
               formControlName="tankId"
               [options]="options(data?.tanks || [])" /></label
-          ><label>Index départ<input type="number" formControlName="currentIndex" /></label
-          ><label
-            >PU TTC
-            <div class="money-field">
-              <input appMoney type="text" formControlName="unitPrice" /><span>Ar</span>
-            </div></label
-          >
+          ><label>Index départ<input type="number" formControlName="currentIndex" /></label>
         }
         @if (setupType === 'NOZZLE') {
           <label
@@ -628,13 +630,7 @@
             >Cuve<app-dropdown
               formControlName="tankId"
               [options]="options(data?.tanks || [])" /></label
-          ><label>Index actuel<input type="number" formControlName="currentIndex" /></label
-          ><label
-            >PU TTC
-            <div class="money-field">
-              <input appMoney type="text" formControlName="unitPrice" /><span>Ar</span>
-            </div></label
-          >
+          ><label>Index actuel<input type="number" formControlName="currentIndex" /></label>
         }
         @if (setupType === 'ATTENDANT') {
           <label>Contact<input formControlName="contact" /></label>

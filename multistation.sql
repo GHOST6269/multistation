@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Hôte : localhost
--- Généré le : jeu. 13 août 2026 à 12:27
+-- Généré le : ven. 21 août 2026 à 16:14
 -- Version du serveur : 10.4.28-MariaDB
 -- Version de PHP : 8.2.4
 
@@ -468,6 +468,13 @@ CREATE TABLE `station_users` (
   `user_id` int(11) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+--
+-- Déchargement des données de la table `station_users`
+--
+
+INSERT INTO `station_users` (`id`, `is_active`, `assigned_at`, `station_id`, `user_id`) VALUES
+(1, 1, '2026-08-21 15:59:46', 1, 3);
+
 -- --------------------------------------------------------
 
 --
@@ -595,6 +602,15 @@ CREATE TABLE `user` (
   `creat_at` datetime NOT NULL,
   `updated_at` datetime DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Déchargement des données de la table `user`
+--
+
+INSERT INTO `user` (`id`, `email`, `roles`, `password`, `first_name`, `last_name`, `contact`, `is_active`, `last_login`, `creat_at`, `updated_at`) VALUES
+(1, 'devtech@multistation.local', '[\"ROLE_SUPER_ADMIN\"]', '$2y$13$M3QaIae7K3lq8JmnybvgdOUrbcmJrL64A7srX375MsO5/pjYRLdK.', 'devtech', NULL, NULL, 1, '2026-08-21 15:47:27', '2026-08-21 16:35:12', NULL),
+(2, 'mamiirakotomamonjy@gmail.com', '[\"ROLE_SUPER_ADMIN\"]', '$2y$13$QjXr9aAbMwaJKIn5Ju22Puq1m6qi3sqUkDwGs7Okzlj41iZbCT/AK', 'mamisoa', 'rakotomamonjy', '0348346149', 1, '2026-08-21 15:39:06', '2026-08-21 15:38:49', NULL),
+(3, 'test@gmail.com', '[\"ROLE_ASSISTANT\"]', '$2y$13$Lif7eELPDCjMaCOYH.snuePde1fPstjLaQGuHuhs5ERdJ4X2CvIuO', 'test', 'test', 'test', 1, '2026-08-21 16:00:39', '2026-08-21 15:59:46', NULL);
 
 --
 -- Index pour les tables déchargées
@@ -813,7 +829,7 @@ ALTER TABLE `fuel_delivery`
 -- AUTO_INCREMENT pour la table `fuel_nozzle`
 --
 ALTER TABLE `fuel_nozzle`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT pour la table `fuel_payment_method`
@@ -825,7 +841,7 @@ ALTER TABLE `fuel_payment_method`
 -- AUTO_INCREMENT pour la table `fuel_pump`
 --
 ALTER TABLE `fuel_pump`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT pour la table `fuel_shift_reading`
@@ -891,7 +907,7 @@ ALTER TABLE `station_article_units`
 -- AUTO_INCREMENT pour la table `station_users`
 --
 ALTER TABLE `station_users`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
 -- AUTO_INCREMENT pour la table `supplier`
@@ -921,7 +937,7 @@ ALTER TABLE `units`
 -- AUTO_INCREMENT pour la table `user`
 --
 ALTER TABLE `user`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- Contraintes pour les tables déchargées

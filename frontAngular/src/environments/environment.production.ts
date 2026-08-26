@@ -1,1 +1,1 @@
-export const environment = { production: true, apiUrl: 'https://stationflow.webforge.mg/api' };
+export const environment = { production: true, apiUrl: 'https://api.stationflow.webforge.mg/api' };

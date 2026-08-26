@@ -27,7 +27,7 @@ interface NavItem {
   styleUrl: './app.scss',
 })
 export class App implements OnInit {
-  menuOpen = false;
+  menuOpen = true;
   stockMenuOpen = true;
   loginPage = false;
   user: AppUser | null = null;
@@ -35,21 +35,19 @@ export class App implements OnInit {
     { label: 'Vue d’ensemble', route: '/', icon: '⌂', roles: ['ROLE_GERANT', 'ROLE_QUALITY_MARSHALL', 'ROLE_ASSISTANT'] },
     { label: 'Stations', route: '/stations', icon: '◇', roles: ['ROLE_SUPER_ADMIN'] },
     {
-      label: 'Stock',
+      label: 'Stock & inventaire',
       route: '/stock-carburant',
       icon: '▦',
       roles: ['ROLE_GERANT', 'ROLE_QUALITY_MARSHALL'],
       children: [
-        { label: 'État du stock', route: '/stock-carburant' },
+        { label: 'État des cuves', route: '/stock-carburant' },
         { label: 'Entrées de stock', route: '/carburants', queryParams: { action: 'delivery' } },
         { label: 'Sorties de stock', route: '/stock-carburant', queryParams: { action: 'exit' } },
         { label: 'Mouvements de stock', route: '/stock-carburant', queryParams: { action: 'movements' } },
-        { label: 'Inventaire', route: '/inventaire' },
       ],
     },
     { label: 'Articles', route: '/articles', icon: '▤', visible: false },
-    { label: 'Carburants & Pompes', route: '/carburants', icon: '⛽', roles: ['ROLE_GERANT', 'ROLE_ASSISTANT'] },
-    { label: 'Stock carburant', route: '/stock-carburant', icon: '◒', roles: ['ROLE_GERANT', 'ROLE_QUALITY_MARSHALL'] },
+    { label: 'Opérations carburant', route: '/carburants', icon: '⛽', roles: ['ROLE_GERANT', 'ROLE_ASSISTANT'] },
     { label: 'Fournisseurs', route: '/fournisseurs', icon: '▱', roles: ['ROLE_GERANT'] },
     { label: 'Utilisateurs', route: '/utilisateurs', icon: '♙', roles: ['ROLE_SUPER_ADMIN'] },
   ];
