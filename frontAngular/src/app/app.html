@@ -15,19 +15,20 @@
       <p class="nav-label">NAVIGATION</p>
       @for (item of navigation; track item.route) {
         @if (visible(item)) {
-          <a
-            [routerLink]="item.route"
-            routerLinkActive="active"
-            [routerLinkActiveOptions]="{ exact: item.route === '/' }"
-            (click)="item.children ? stockMenuOpen = !stockMenuOpen : menuOpen = false"
-          >
+          @if (item.children) {
+          <button class="nav-parent" type="button" [class.active]="isMenuOpen(item)" (click)="toggleMenu(item)">
             <span class="nav-icon" [innerHTML]="item.icon"></span>
-            {{ item.label }} @if (item.children) { <span class="sub-chevron">{{ stockMenuOpen ? '⌃' : '⌄' }}</span> }
+            {{ item.label }} @if (item.children) { <span class="sub-chevron">{{ isMenuOpen(item) ? '⌃' : '⌄' }}</span> }
             @if (item.badge) {
               <span class="nav-badge">{{ item.badge }}</span>
             }
+          </button>
+          } @else {
+          <a [routerLink]="item.route" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: item.route === '/' }" (click)="menuOpen = false">
+            <span class="nav-icon" [innerHTML]="item.icon"></span>{{ item.label }}
           </a>
-          @if (item.children && stockMenuOpen) {
+          }
+          @if (item.children && isMenuOpen(item)) {
             <div class="nav-submenu">
               @for (child of item.children; track child.label) {
                 <a
@@ -46,9 +47,6 @@
     </nav>
 
     <div class="sidebar-footer">
-      <div class="help-card">
-        <span>?</span><strong>Besoin d'aide ?</strong><small>Consultez le guide rapide</small>
-      </div>
       <div class="profile">
         <span class="avatar">{{ initials() }}</span>
         <div><strong>{{ user?.firstName || 'Utilisateur' }}</strong><small>{{ user?.roleLabel || 'Session' }}</small></div>
@@ -67,12 +65,6 @@
         <span class="live-dot"></span>
         <div><small>VUE ACTUELLE</small><strong>{{ auth.stationLocked() ? 'Station assignée' : 'Toutes les stations' }}</strong></div>
         <span class="chevron">⌄</span>
-      </div>
-      <div class="top-actions">
-        <button aria-label="Rechercher">⌕</button
-        ><button class="notification" aria-label="Notifications">♧<span>3</span></button
-        ><span class="top-avatar">{{ initials() }}</span>
-        <div class="user-name"><strong>{{ user?.firstName || 'Compte' }}</strong><small>{{ user?.roleLabel || '' }}</small></div>
       </div>
     </header>
     <section class="page-content"><router-outlet /></section>

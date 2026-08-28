@@ -15,6 +15,9 @@ import { Fuel } from './pages/fuel/fuel';
 import { FuelConfig } from './pages/fuel-config/fuel-config';
 import { Suppliers } from './pages/suppliers/suppliers';
 import { FuelStock } from './pages/fuel-stock/fuel-stock';
+import { FuelSales } from './pages/fuel-sales/fuel-sales';
+import { FuelDeliveries } from './pages/fuel-deliveries/fuel-deliveries';
+import { FuelPayments } from './pages/fuel-payments/fuel-payments';
 import { Login } from './pages/login/login';
 import { Create } from './pages/user/create/create';
 import { AuthInterceptor } from './services/auth.interceptor';
@@ -32,6 +35,9 @@ import { AuthInterceptor } from './services/auth.interceptor';
     FuelConfig,
     Suppliers,
     FuelStock,
+    FuelSales,
+    FuelDeliveries,
+    FuelPayments,
     Login,
     Create,
   ],

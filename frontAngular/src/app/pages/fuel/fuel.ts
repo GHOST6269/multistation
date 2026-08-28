@@ -24,8 +24,13 @@ export class Fuel implements OnInit {
   salesView: 'journal' | 'attendants' = 'attendants';
   fromDate = '';
   toDate = '';
+  paymentFromDate = '';
+  paymentToDate = '';
   attendantFilter = 0;
   nozzleFilter = 0;
+  readingsPage = 1;
+  paymentsPage = 1;
+  readonly pageSize = 10;
   private openDeliveryFromMenu = false;
   loading = true;
   modal: 'reading' | 'delivery' | 'setup' | 'paymentMethod' | null = null;
@@ -93,9 +98,11 @@ export class Fuel implements OnInit {
     this.paymentMethodForm = fb.group({ code: [''], name: ['', Validators.required] });
   }
   ngOnInit() {
-    this.route.queryParams.subscribe(
-      (params) => (this.openDeliveryFromMenu = params['action'] === 'delivery'),
-    );
+    this.route.queryParams.subscribe((params) => {
+      this.openDeliveryFromMenu = params['action'] === 'delivery';
+      if (params['view'] === 'journal') this.salesView = 'journal';
+      if (params['action'] === 'reading') this.modal = 'reading';
+    });
     this.articles.options().subscribe((x) => {
       this.stations = x.stations.map((s) => ({ value: s.id, label: s.name }));
       this.stationId = x.stations[0]?.id ?? 0;
@@ -255,6 +262,36 @@ export class Fuel implements OnInit {
     }
     return [...rows.values()].sort((a, b) => b.total - a.total);
   }
+  get filteredPaymentHistory() {
+    return this.paymentHistory.filter(
+      (payment) =>
+        (!this.paymentFromDate || payment.date >= this.paymentFromDate) &&
+        (!this.paymentToDate || payment.date <= this.paymentToDate),
+    );
+  }
+  get salesTotalPages() {
+    const total = this.salesView === 'attendants' ? this.attendantSales.length : this.filteredReadings.length;
+    return Math.max(1, Math.ceil(total / this.pageSize));
+  }
+  get paymentTotalPages() {
+    return Math.max(1, Math.ceil(this.filteredPaymentHistory.length / this.pageSize));
+  }
+  get salesPages() { return Array.from({ length: this.salesTotalPages }, (_, index) => index + 1); }
+  get paymentPages() { return Array.from({ length: this.paymentTotalPages }, (_, index) => index + 1); }
+  get pagedReadings() {
+    const page = Math.min(this.readingsPage, this.salesTotalPages);
+    return this.filteredReadings.slice((page - 1) * this.pageSize, page * this.pageSize);
+  }
+  get pagedAttendantSales() {
+    const page = Math.min(this.readingsPage, this.salesTotalPages);
+    return this.attendantSales.slice((page - 1) * this.pageSize, page * this.pageSize);
+  }
+  get pagedPayments() {
+    const page = Math.min(this.paymentsPage, this.paymentTotalPages);
+    return this.filteredPaymentHistory.slice((page - 1) * this.pageSize, page * this.pageSize);
+  }
+  resetSalesPage() { this.readingsPage = 1; }
+  resetPaymentsPage() { this.paymentsPage = 1; }
   saveReading() {
     if (this.saving || this.readingForm.invalid) return;
     this.saving = true;

@@ -1,110 +1,78 @@
-<div class="config-heading">
-  <div>
-    <p>RÉFÉRENTIELS STATION-SERVICE</p>
-    <h1>Configuration carburants</h1>
-    <span>Modifiez ou désactivez les carburants, cuves, pompes, pistolets et pompistes.</span>
-  </div>
-  <a routerLink="/carburants">← Retour aux opérations</a>
-</div>
-<div class="config-toolbar">
-  <app-dropdown
-    [(ngModel)]="stationId"
-    (ngModelChange)="load()"
-    [options]="stations"
-    [disabled]="auth.stationLocked()"
-  />
-  <div class="config-tabs">
-    @for (
-      t of [
-        { id: 'fuel', l: 'Carburants' },
-        { id: 'tank', l: 'Cuves' },
-        { id: 'pump', l: 'Pompes' },
-        { id: 'nozzle', l: 'Pistolets' },
-        { id: 'attendant', l: 'Pompistes' },
-      ];
-      track t.id
-    ) {
-      <button [class.active]="tab === t.id" (click)="tab = t.id; editing = null">{{ t.l }}</button>
-    }
-  </div>
-</div>
-<section class="config-list">
-  <header>
-    <span>NOM / CODE</span><span>INFORMATIONS</span><span>ÉTAT</span><span>ACTIONS</span>
+<section class="settings-page">
+  <header class="settings-heading">
+    <div>
+      <p>PARAMÈTRES STATION-SERVICE</p>
+      <h1>Configuration carburant</h1>
+      <span>Gérez les référentiels nécessaires aux opérations quotidiennes de la station.</span>
+    </div>
+    <span class="settings-station">⚙ Paramètres opérationnels</span>
   </header>
-  @for (x of items; track x.id) {
-    <article [class.inactive]="!x.active">
-      <div>
-        <strong>{{ x.name || x.code }}</strong
-        ><small>{{ x.code }}</small>
-      </div>
-      <p>
-        @if (tab === 'tank') {
-          Carburant {{ x.fuel }} · {{ x.stock }} / {{ x.capacity }} L
-        } @else if (tab === 'pump') {
-          Cuve {{ x.tank || 'non liée' }}
-          @if (x.fuel) {
-            · {{ x.fuel }}
-          }
-        } @else if (tab === 'nozzle') {
-          Pompe {{ x.pump }} · Cuve {{ x.tank }}
-        } @else if (tab === 'attendant') {
-          Contact : {{ x.contact || '—' }}
-        } @else {
-          Référentiel opérationnel
-        }
-      </p>
-      <span>{{ x.active ? 'Actif' : 'Inactif' }}</span>
-      <div>
-        <button (click)="edit(x)">Modifier</button>
-        @if (x.active) {
-          <button class="danger" (click)="deactivate(x)">Désactiver</button>
-        }
-      </div>
-    </article>
-  } @empty {
-    <div class="empty">Aucun élément.</div>
-  }
-</section>
-@if (editing) {
-  <div class="config-modal" (click)="editing = null">
-    <form [formGroup]="form" (ngSubmit)="save()" (click)="$event.stopPropagation()">
-      <header>
-        <h2>Modifier {{ editing.name || editing.code }}</h2>
-        <button type="button" (click)="editing = null">×</button>
+
+  <section class="settings-toolbar">
+    <label>STATION À CONFIGURER<app-dropdown [(ngModel)]="stationId" (ngModelChange)="load()" [options]="stations" [searchable]="true" [disabled]="auth.stationLocked()" /></label>
+    <span><i></i>Les éléments créés sont immédiatement disponibles dans les opérations.</span>
+  </section>
+
+  <section class="settings-workspace">
+    <nav class="settings-tabs" aria-label="Rubriques de paramètres">
+      @for (item of [
+        { id: 'fuel', label: 'Carburants', icon: '⛽', text: 'Types et prix de vente' },
+        { id: 'tank', label: 'Cuves', icon: '▱', text: 'Capacités et seuils' },
+        { id: 'pump', label: 'Pompes', icon: '◉', text: 'Points de distribution' },
+        { id: 'nozzle', label: 'Pistolets', icon: '⌁', text: 'Index et affectations' },
+        { id: 'attendant', label: 'Pompistes', icon: '♙', text: 'Équipe opérationnelle' }
+      ]; track item.id) {
+        <button [class.active]="tab === item.id" (click)="changeTab(item.id)"><span>{{ item.icon }}</span><div><strong>{{ item.label }}</strong><small>{{ item.text }}</small></div></button>
+      }
+    </nav>
+
+    <section class="settings-content">
+      <header class="settings-content-heading">
+        <div>
+          <p>RÉFÉRENTIEL</p>
+          <h2>{{ tab === 'fuel' ? 'Carburants' : tab === 'tank' ? 'Cuves' : tab === 'pump' ? 'Pompes' : tab === 'nozzle' ? 'Pistolets' : 'Pompistes' }}</h2>
+          <span>{{ items.length }} élément(s) configuré(s)</span>
+        </div>
+        <button class="settings-add" [disabled]="saving" (click)="openCreate()">＋ Ajouter {{ tab === 'fuel' ? 'un carburant' : tab === 'tank' ? 'une cuve' : tab === 'pump' ? 'une pompe' : tab === 'nozzle' ? 'un pistolet' : 'un pompiste' }}</button>
       </header>
-      <div class="fields">
-        <label>Code<input formControlName="code" /></label
-        ><label>Nom<input formControlName="name" /></label>
-        @if (tab === 'fuel') {
-          <label>PU TTC<input appMoney type="text" formControlName="unitPrice" /></label>
-        }
-        @if (tab === 'tank') {
-          <label
-            >Carburant<app-dropdown
-              formControlName="fuelTypeId"
-              [options]="options(data?.fuels || [])" /></label
-          ><label>Capacité<input type="number" formControlName="capacity" /></label
-          ><label>Seuil minimum<input type="number" formControlName="minimumStock" /></label>
-        }
-        @if (tab === 'nozzle') {
-          <label
-            >Pompe<app-dropdown
-              formControlName="pumpId"
-              [options]="options(data?.pumps || [])" /></label
-          ><label
-            >Cuve<app-dropdown
-              formControlName="tankId"
-              [options]="options(data?.tanks || [])" /></label
-          ><label>Index actuel<input type="number" formControlName="currentIndex" /></label>
-        }
-        @if (tab === 'attendant') {
-          <label>Contact<input formControlName="contact" /></label>
+
+      <div class="settings-list">
+        @for (x of pagedItems; track x.id) {
+          <article [class.inactive]="!x.active">
+            <span class="item-icon">{{ tab === 'fuel' ? '⛽' : tab === 'tank' ? '▱' : tab === 'pump' ? '◉' : tab === 'nozzle' ? '⌁' : '♙' }}</span>
+            <div class="item-name"><strong>{{ x.name || x.code }}</strong><small>{{ x.code }}</small></div>
+            <p>
+              @if (tab === 'fuel') { Prix : {{ x.unitPrice | number:'1.0-0' }} Ar/L }
+              @else if (tab === 'tank') { {{ x.fuel }} · {{ x.stock | number:'1.0-0' }} / {{ x.capacity | number:'1.0-0' }} L · Seuil {{ x.minimum | number:'1.0-0' }} L }
+              @else if (tab === 'pump') { Cuve {{ x.tank || 'non liée' }} @if (x.fuel) { · {{ x.fuel }} } }
+              @else if (tab === 'nozzle') { Pompe {{ x.pump || 'non liée' }} · Cuve {{ x.tank || 'non liée' }} · Index {{ x.currentIndex | number:'1.0-3' }} }
+              @else { Contact : {{ x.contact || 'Non renseigné' }} }
+            </p>
+            <span class="item-status" [class.off]="!x.active"><i></i>{{ x.active ? 'Actif' : 'Inactif' }}</span>
+            <div class="item-actions"><button (click)="edit(x)">Modifier</button>@if (x.active) { <button class="danger" (click)="deactivate(x)">Désactiver</button> }</div>
+          </article>
+        } @empty {
+          <div class="settings-empty"><span>{{ tab === 'fuel' ? '⛽' : tab === 'tank' ? '▱' : tab === 'pump' ? '◉' : tab === 'nozzle' ? '⌁' : '♙' }}</span><strong>Aucun élément configuré</strong><p>Créez le premier élément pour cette rubrique.</p><button (click)="openCreate()">＋ Commencer la configuration</button></div>
         }
       </div>
-      <footer>
-        <button type="button" (click)="editing = null">Annuler</button><button>Enregistrer</button>
-      </footer>
+      <div class="table-pagination" [class.hidden]="totalPages <= 1"><span>Page {{ page > totalPages ? totalPages : page }} sur {{ totalPages }}</span><div><button [disabled]="page <= 1" (click)="page = page - 1">←</button>@for (current of pages; track current) {<button [class.active]="current === page" (click)="page = current">{{ current }}</button>}<button [disabled]="page >= totalPages" (click)="page = page + 1">→</button></div></div>
+    </section>
+  </section>
+</section>
+
+@if (formOpen) {
+  <div class="settings-modal" (click)="closeForm()">
+    <form [formGroup]="form" (ngSubmit)="save()" (click)="$event.stopPropagation()">
+      <header><div><p>{{ editing ? 'MODIFICATION' : 'NOUVEAU PARAMÈTRE' }}</p><h2>{{ editing ? 'Modifier' : 'Créer' }} {{ tab === 'fuel' ? 'un carburant' : tab === 'tank' ? 'une cuve' : tab === 'pump' ? 'une pompe' : tab === 'nozzle' ? 'un pistolet' : 'un pompiste' }}</h2><span>Complétez les informations nécessaires à son utilisation.</span></div><button type="button" (click)="closeForm()">×</button></header>
+      <div class="settings-form">
+        <label>Code *<input formControlName="code" placeholder="Ex. GO-01" /></label><label>Nom *<input formControlName="name" placeholder="Nom affiché" /></label>
+        @if (tab === 'fuel') { <label>Prix TTC (Ar/L)<input appMoney type="text" formControlName="unitPrice" /></label> }
+        @if (tab === 'tank') { <label>Carburant *<app-dropdown formControlName="fuelTypeId" [options]="options(data?.fuels || [])" /></label><label>Capacité (L) *<input type="number" formControlName="capacity" min="0" /></label><label>Seuil d'alerte (L)<input type="number" formControlName="minimumStock" min="0" /></label> }
+        @if (tab === 'pump') { <label>Cuve associée *<app-dropdown formControlName="tankId" [options]="options(data?.tanks || [])" /></label> }
+        @if (tab === 'nozzle') { <label>Pompe associée *<app-dropdown formControlName="pumpId" [options]="options(data?.pumps || [])" /></label><label>Cuve associée *<app-dropdown formControlName="tankId" [options]="options(data?.tanks || [])" /></label><label>Index initial<input type="number" formControlName="currentIndex" min="0" /></label> }
+        @if (tab === 'attendant') { <label>Contact<input formControlName="contact" placeholder="Téléphone ou e-mail" /></label> }
+      </div>
+      <footer><button type="button" class="cancel" [disabled]="saving" (click)="closeForm()">Annuler</button><button [disabled]="saving">{{ saving ? 'Enregistrement…' : (editing ? 'Enregistrer les modifications' : 'Créer') }}</button></footer>
     </form>
   </div>
 }

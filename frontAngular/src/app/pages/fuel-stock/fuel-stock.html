@@ -1,94 +1,78 @@
-<div class="stock-heading">
-  <div>
-    <p>STOCK CARBURANT</p>
-    <h1>État des cuves</h1>
-    <span>Suivez les niveaux disponibles et anticipez les ruptures.</span>
-  </div>
-  <a routerLink="/carburants">← Ventes & pompes</a>
-</div>
-<div class="stock-toolbar">
-  <label
-    >Station affichée<app-dropdown
-      [(ngModel)]="stationId"
-      (ngModelChange)="load()"
-      [options]="stations"
-      [searchable]="true"
-      [disabled]="auth.stationLocked()" /></label
-  ><span><i></i>Mise à jour selon les livraisons et ventes enregistrées</span>
-</div>
-<section class="stock-summary">
-  <article>
-    <span>◒</span>
-    <div>
-      <small>STOCK TOTAL</small><strong>{{ totalStock | number: '1.0-0' }} <em>L</em></strong>
+<section class="stock-page">
+  <header class="stock-heading">
+    <div class="heading-copy">
+      <p class="eyebrow">GESTION DES RÉSERVES</p>
+      <h1>État des cuves</h1>
+      <span>Une vue claire de vos niveaux pour anticiper chaque approvisionnement.</span>
     </div>
-  </article>
-  <article>
-    <span>▦</span>
-    <div>
-      <small>CAPACITÉ TOTALE</small
-      ><strong>{{ totalCapacity | number: '1.0-0' }} <em>L</em></strong>
+    <div class="heading-actions">
+      <a class="back-link" routerLink="/carburants"><span aria-hidden="true">←</span> Ventes &amp; pompes</a>
+      <a class="delivery-button" routerLink="/carburants"><span aria-hidden="true">+</span> Enregistrer une livraison</a>
     </div>
-  </article>
-  <article [class.warning-card]="alerts">
-    <span>!</span>
-    <div>
-      <small>ALERTES ACTIVES</small><strong>{{ alerts }}</strong>
-    </div>
-  </article>
-</section>
-<section class="stock-table">
-  <header>
-    <div>
-      <h2>Niveaux de stock par carburant</h2>
-      <p>{{ tanks.length }} cuve(s) configurée(s)</p>
-    </div>
-    <a routerLink="/carburants">+ Enregistrer une livraison</a>
   </header>
-  <table>
-    <thead>
-      <tr>
-        <th>CARBURANT</th>
-        <th>CUVE</th>
-        <th>STOCK ACTUEL</th>
-        <th>NIVEAU</th>
-        <th>CAPACITÉ</th>
-        <th>SEUIL D'ALERTE</th>
-        <th>ÉTAT</th>
-      </tr>
-    </thead>
-    <tbody>
-      @for (tank of tanks; track tank.id) {
-        <tr [class.low-row]="tank.stock <= tank.minimum">
-          <td>
-            <span class="fuel-tag" [class]="tank.fuel?.toLowerCase()">{{ tank.fuel }}</span>
-          </td>
-          <td>
-            <strong>{{ tank.name }}</strong
-            ><small>{{ tank.code }}</small>
-          </td>
-          <td>
-            <strong>{{ tank.stock | number: '1.0-0' }} L</strong>
-          </td>
-          <td>
-            <div class="level"><i [style.width.%]="percentage(tank)"></i></div>
-            <small>{{ percentage(tank) | number: '1.0-0' }}% disponible</small>
-          </td>
-          <td>{{ tank.capacity | number: '1.0-0' }} L</td>
-          <td>{{ tank.minimum | number: '1.0-0' }} L</td>
-          <td>
-            <span class="state" [class.alert]="tank.stock <= tank.minimum">{{
-              tank.stock <= tank.minimum ? 'Stock faible' : 'Disponible'
-            }}</span>
-          </td>
-        </tr>
-      } @empty {
-        <tr>
-          <td colspan="7" class="empty">
-            {{ loading ? 'Chargement du stock…' : 'Aucune cuve configurée.' }}
-          </td>
-        </tr>
-      }
-    </tbody>
-  </table>
+
+  <section class="stock-controls" aria-label="Filtres du stock">
+    <label class="station-picker">
+      <span>STATION AFFICHÉE</span>
+      <app-dropdown [(ngModel)]="stationId" (ngModelChange)="load()" [options]="stations" [searchable]="true" [disabled]="auth.stationLocked()" />
+    </label>
+    <div class="sync-status"><i></i><span>Données synchronisées avec les ventes et livraisons enregistrées</span></div>
+  </section>
+
+  <section class="stock-summary" aria-label="Résumé des stocks">
+    <article class="summary-card stock-card">
+      <span class="card-icon" aria-hidden="true">▱</span>
+      <div><small>STOCK DISPONIBLE</small><strong>{{ totalStock | number: '1.0-0' }} <em>L</em></strong><p>{{ fillRate | number: '1.0-0' }}% de la capacité totale</p></div>
+    </article>
+    <article class="summary-card capacity-card">
+      <span class="card-icon" aria-hidden="true">▦</span>
+      <div><small>CAPACITÉ TOTALE</small><strong>{{ totalCapacity | number: '1.0-0' }} <em>L</em></strong><p>{{ availableCapacity | number: '1.0-0' }} L disponibles</p></div>
+    </article>
+    <article class="summary-card alert-card" [class.has-alerts]="alerts">
+      <span class="card-icon" aria-hidden="true">!</span>
+      <div><small>VIGILANCE STOCK</small><strong>{{ alerts }}</strong><p>{{ alerts ? 'Cuve(s) à réapprovisionner' : 'Tous les niveaux sont maîtrisés' }}</p></div>
+    </article>
+  </section>
+
+  <section class="stock-overview">
+    <div class="capacity-panel">
+      <div class="panel-heading">
+        <div><p class="section-kicker">CAPACITÉ GLOBALE</p><h2>Disponibilité de la station</h2></div>
+        <strong>{{ fillRate | number: '1.0-0' }}<small>%</small></strong>
+      </div>
+      <div class="capacity-track" aria-label="Taux de remplissage global"><i [style.width.%]="fillRate"></i></div>
+      <div class="capacity-labels"><span>{{ totalStock | number: '1.0-0' }} L en cuve</span><span>{{ availableCapacity | number: '1.0-0' }} L à recevoir</span></div>
+    </div>
+    <aside class="attention-panel" [class.is-clear]="!alerts">
+      <span class="attention-icon" aria-hidden="true">{{ alerts ? '!' : '✓' }}</span>
+      <div><p>{{ alerts ? 'ACTION RECOMMANDÉE' : 'NIVEAUX STABLES' }}</p><strong>{{ alerts ? alerts + ' cuve(s) sous le seuil' : 'Aucune alerte en cours' }}</strong><span>{{ alerts ? 'Planifiez une livraison pour éviter toute rupture.' : 'Les seuils d’alerte sont tous respectés.' }}</span></div>
+    </aside>
+  </section>
+
+  <section class="stock-table">
+    <header>
+      <div><p class="section-kicker">DÉTAIL DES RÉSERVES</p><h2>Niveaux de stock par carburant</h2><span>{{ tanks.length }} cuve(s) configurée(s) pour cette station</span></div>
+      <div class="table-legend"><span><i class="normal-dot"></i>Niveau normal</span><span><i class="alert-dot"></i>À surveiller</span></div>
+    </header>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>CARBURANT</th><th>CUVE</th><th>STOCK ACTUEL</th><th>NIVEAU DISPONIBLE</th><th>CAPACITÉ</th><th>SEUIL D'ALERTE</th><th>ÉTAT</th></tr></thead>
+        <tbody>
+          @for (tank of pagedTanks; track tank.id) {
+            <tr [class.low-row]="tank.stock <= tank.minimum">
+              <td><span class="fuel-tag" [class]="tank.fuel?.toLowerCase()">{{ tank.fuel }}</span></td>
+              <td class="tank-name"><strong>{{ tank.name }}</strong><small>{{ tank.code }}</small></td>
+              <td class="stock-value"><strong>{{ tank.stock | number: '1.0-0' }}</strong><span>L</span></td>
+              <td><div class="level" [attr.aria-label]="percentage(tank) + '% disponible'"><i [style.width.%]="percentage(tank)"></i></div><small class="percentage">{{ percentage(tank) | number: '1.0-0' }}% disponible</small></td>
+              <td>{{ tank.capacity | number: '1.0-0' }} L</td><td>{{ tank.minimum | number: '1.0-0' }} L</td>
+              <td><span class="state" [class.alert]="tank.stock <= tank.minimum"><i></i>{{ tank.stock <= tank.minimum ? 'Stock faible' : 'Disponible' }}</span></td>
+            </tr>
+          } @empty {
+            <tr><td colspan="7" class="empty"><span aria-hidden="true">▱</span>{{ loading ? 'Chargement du stock…' : 'Aucune cuve configurée pour cette station.' }}</td></tr>
+          }
+        </tbody>
+      </table>
+      <div class="table-pagination" [class.hidden]="totalPages <= 1"><span>Page {{ page > totalPages ? totalPages : page }} sur {{ totalPages }}</span><div><button [disabled]="page <= 1" (click)="page = page - 1">←</button>@for (current of pages; track current) {<button [class.active]="current === page" (click)="page = current">{{ current }}</button>}<button [disabled]="page >= totalPages" (click)="page = page + 1">→</button></div></div>
+    </div>
+  </section>
 </section>

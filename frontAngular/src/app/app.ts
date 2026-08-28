@@ -27,28 +27,35 @@ interface NavItem {
   styleUrl: './app.scss',
 })
 export class App implements OnInit {
-  menuOpen = true;
-  stockMenuOpen = true;
+  // Desktop keeps the sidebar visible through CSS; on mobile it must start closed after a refresh.
+  menuOpen = false;
+  expandedMenu = '/carburants';
   loginPage = false;
   user: AppUser | null = null;
   readonly navigation: NavItem[] = [
     { label: 'Vue d’ensemble', route: '/', icon: '⌂', roles: ['ROLE_GERANT', 'ROLE_QUALITY_MARSHALL', 'ROLE_ASSISTANT'] },
     { label: 'Stations', route: '/stations', icon: '◇', roles: ['ROLE_SUPER_ADMIN'] },
     {
-      label: 'Stock & inventaire',
-      route: '/stock-carburant',
-      icon: '▦',
-      roles: ['ROLE_GERANT', 'ROLE_QUALITY_MARSHALL'],
+      label: 'Opérations',
+      route: '/carburants',
+      icon: '⛽',
+      roles: ['ROLE_GERANT', 'ROLE_ASSISTANT', 'ROLE_QUALITY_MARSHALL'],
       children: [
+        { label: 'Ventes & relevés', route: '/carburants/ventes' },
+        { label: 'Livraisons carburant', route: '/carburants/livraisons' },
+        { label: 'Encaissements', route: '/carburants/encaissements' },
         { label: 'État des cuves', route: '/stock-carburant' },
-        { label: 'Entrées de stock', route: '/carburants', queryParams: { action: 'delivery' } },
-        { label: 'Sorties de stock', route: '/stock-carburant', queryParams: { action: 'exit' } },
-        { label: 'Mouvements de stock', route: '/stock-carburant', queryParams: { action: 'movements' } },
       ],
     },
+    { label: 'Paramètres', route: '/carburants/configuration', icon: '⚙', roles: ['ROLE_GERANT', 'ROLE_QUALITY_MARSHALL'] },
     { label: 'Articles', route: '/articles', icon: '▤', visible: false },
-    { label: 'Opérations carburant', route: '/carburants', icon: '⛽', roles: ['ROLE_GERANT', 'ROLE_ASSISTANT'] },
-    { label: 'Fournisseurs', route: '/fournisseurs', icon: '▱', roles: ['ROLE_GERANT'] },
+    {
+      label: 'Fournisseurs', route: '/fournisseurs', icon: '▱', roles: ['ROLE_GERANT'],
+      children: [
+        { label: 'Factures fournisseur', route: '/fournisseurs/factures' },
+        { label: 'Historique des paiements', route: '/fournisseurs/historique' },
+      ],
+    },
     { label: 'Utilisateurs', route: '/utilisateurs', icon: '♙', roles: ['ROLE_SUPER_ADMIN'] },
   ];
 
@@ -65,6 +72,14 @@ export class App implements OnInit {
 
   visible(item: { visible?: boolean; roles?: UserRole[] }): boolean {
     return item.visible !== false && (!item.roles || this.auth.hasAnyRole(item.roles));
+  }
+
+  isMenuOpen(item: NavItem): boolean {
+    return this.expandedMenu === item.route;
+  }
+
+  toggleMenu(item: NavItem): void {
+    this.expandedMenu = this.isMenuOpen(item) ? '' : item.route;
   }
 
   initials(): string {

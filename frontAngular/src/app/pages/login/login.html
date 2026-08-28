@@ -1,4 +1,11 @@
 <main class="login-page">
+  <section class="login-showcase" aria-hidden="true">
+    <div class="showcase-mark">⛽</div>
+    <p>STATIONFLOW</p>
+    <h2>Pilotez votre station<br />en toute simplicité.</h2>
+    <span>Ventes, livraisons, encaissements et suivi des cuves réunis dans un même espace.</span>
+    <div class="showcase-points"><i></i><span>Suivi des opérations en temps réel</span><i></i><span>Accès sécurisé par rôle</span></div>
+  </section>
   <section class="login-panel">
     <div class="brand-lockup">
       <span>SF</span>
@@ -7,7 +14,8 @@
         <small>Gestion station carburant</small>
       </div>
     </div>
-    <h1>Connexion</h1>
+    <p class="login-eyebrow">ESPACE SÉCURISÉ</p>
+    <h1>Bon retour</h1>
     <form [formGroup]="form" (ngSubmit)="submit()">
       <label>
         <span>Email</span>

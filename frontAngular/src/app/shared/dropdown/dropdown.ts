@@ -56,11 +56,14 @@ export class Dropdown implements ControlValueAccessor {
   private positionMenu(): void {
     const box = this.element.nativeElement.getBoundingClientRect();
     const maxHeight = 250;
+    const viewportGutter = 8;
+    const width = Math.min(box.width, window.innerWidth - viewportGutter * 2);
+    const left = Math.min(Math.max(viewportGutter, box.left), window.innerWidth - width - viewportGutter);
     const spaceBelow = window.innerHeight - box.bottom;
     const openAbove = spaceBelow < maxHeight && box.top > spaceBelow;
     this.menuStyle = {
-      left: `${box.left}px`,
-      width: `${box.width}px`,
+      left: `${left}px`,
+      width: `${width}px`,
       top: openAbove ? `${Math.max(8, box.top - maxHeight - 7)}px` : `${box.bottom + 7}px`,
     };
   }

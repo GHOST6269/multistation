@@ -1,8 +1,8 @@
 <div class="supplier-heading">
   <div>
     <p>COMPTES FOURNISSEURS</p>
-    <h1>Fournisseurs & factures</h1>
-    <span>Suivez les montants facturés, payés et restant à régler.</span>
+    <h1>{{ view === 'invoices' ? 'Factures fournisseurs' : 'Historique des paiements' }}</h1>
+    <span>{{ view === 'invoices' ? 'Suivez les échéances, les montants facturés et les règlements.' : 'Consultez chaque règlement fournisseur et sa référence.' }}</span>
   </div>
   <button (click)="modal = 'supplier'">＋ Nouveau fournisseur</button>
 </div>
@@ -71,6 +71,7 @@
     </article>
   }
 </div>
+@if (view === 'invoices') {
 <section class="invoice-panel">
   <header>
     <div>
@@ -78,10 +79,11 @@
       <p>Suivez les échéances et enregistrez les règlements.</p>
     </div>
     <label class="invoice-search"
-      >⌕<input [(ngModel)]="invoiceQuery" placeholder="Rechercher une facture…"
+      >⌕<input [(ngModel)]="invoiceQuery" (ngModelChange)="resetInvoicePage()" placeholder="Rechercher une facture…"
     /></label>
     <span>{{ filteredInvoices.length }} facture(s)</span>
   </header>
+  <div class="history-date-filters"><label>Du<input type="date" [(ngModel)]="invoiceFromDate" (ngModelChange)="resetInvoicePage()" /></label><label>Au<input type="date" [(ngModel)]="invoiceToDate" (ngModelChange)="resetInvoicePage()" /></label></div>
   <table>
     <thead>
       <tr>
@@ -97,7 +99,7 @@
       </tr>
     </thead>
     <tbody>
-      @for (i of filteredInvoices; track i.id) {
+      @for (i of pagedInvoices; track i.id) {
         <tr>
           <td>
             <strong>{{ i.number }}</strong
@@ -110,7 +112,7 @@
           <td class="paid">{{ money(i.paid) }} Ar</td>
           <td class="balance">{{ money(i.remaining) }} Ar</td>
           <td>
-            <span [class]="i.status.toLowerCase()">{{ i.status }}</span>
+            <span [class]="i.status.toLowerCase()">{{ statusLabel(i.status) }}</span>
           </td>
           <td>
             @if (i.remaining > 0) {
@@ -125,15 +127,19 @@
       }
     </tbody>
   </table>
+  <div class="table-pagination" [class.hidden]="invoiceTotalPages <= 1"><span>Page {{ invoicePage > invoiceTotalPages ? invoiceTotalPages : invoicePage }} sur {{ invoiceTotalPages }}</span><div><button [disabled]="invoicePage <= 1" (click)="invoicePage = invoicePage - 1">←</button>@for (page of invoicePages; track page) {<button [class.active]="page === invoicePage" (click)="invoicePage = page">{{ page }}</button>}<button [disabled]="invoicePage >= invoiceTotalPages" (click)="invoicePage = invoicePage + 1">→</button></div></div>
 </section>
+}
+@if (view === 'payments') {
 <section class="invoice-panel payment-history">
   <header>
     <div>
       <h2>Historique des paiements</h2>
       <p>Chaque règlement partiel ou complet est conservé séparément.</p>
     </div>
-    <span>{{ payments.length }} règlement(s)</span>
+    <span>{{ filteredPayments.length }} règlement(s)</span>
   </header>
+  <div class="history-date-filters"><label>Du<input type="date" [(ngModel)]="paymentFromDate" (ngModelChange)="resetPaymentPage()" /></label><label>Au<input type="date" [(ngModel)]="paymentToDate" (ngModelChange)="resetPaymentPage()" /></label></div>
   <table>
     <thead>
       <tr>
@@ -147,7 +153,7 @@
       </tr>
     </thead>
     <tbody>
-      @for (payment of payments; track payment.id) {
+      @for (payment of pagedPayments; track payment.id) {
         <tr>
           <td>{{ payment.date | date: 'dd/MM/yyyy' }}</td>
           <td>
@@ -172,7 +178,9 @@
       }
     </tbody>
   </table>
+  <div class="table-pagination" [class.hidden]="paymentTotalPages <= 1"><span>Page {{ paymentPage > paymentTotalPages ? paymentTotalPages : paymentPage }} sur {{ paymentTotalPages }}</span><div><button [disabled]="paymentPage <= 1" (click)="paymentPage = paymentPage - 1">←</button>@for (page of paymentPages; track page) {<button [class.active]="page === paymentPage" (click)="paymentPage = page">{{ page }}</button>}<button [disabled]="paymentPage >= paymentTotalPages" (click)="paymentPage = paymentPage + 1">→</button></div></div>
 </section>
+}
 @if (modal === 'supplier') {
   <div class="supplier-modal">
     <form [formGroup]="form" (ngSubmit)="saveSupplier()">

@@ -222,11 +222,11 @@
     </div>
   </header>
   <div class="sales-filters">
-    <label>Du<input type="date" [(ngModel)]="fromDate" /></label
-    ><label>Au<input type="date" [(ngModel)]="toDate" /></label
+    <label>Du<input type="date" [(ngModel)]="fromDate" (ngModelChange)="resetSalesPage()" /></label
+    ><label>Au<input type="date" [(ngModel)]="toDate" (ngModelChange)="resetSalesPage()" /></label
     ><label
-      >Pompiste<app-dropdown [(ngModel)]="attendantFilter" [options]="attendantOptions" /></label
-    ><label>Pompe<app-dropdown [(ngModel)]="nozzleFilter" [options]="nozzleOptions" /></label
+      >Pompiste<app-dropdown [(ngModel)]="attendantFilter" (ngModelChange)="resetSalesPage()" [options]="attendantOptions" /></label
+    ><label>Pompe<app-dropdown [(ngModel)]="nozzleFilter" (ngModelChange)="resetSalesPage()" [options]="nozzleOptions" /></label
     ><span>{{ filteredReadings.length }} relevé(s)</span>
   </div>
   <div class="reading-table">
@@ -245,7 +245,7 @@
           </tr>
         </thead>
         <tbody>
-          @for (sale of attendantSales; track sale.name) {
+          @for (sale of pagedAttendantSales; track sale.name) {
             <tr>
               <td>
                 <strong>{{ sale.name }}</strong>
@@ -287,7 +287,7 @@
           </tr>
         </thead>
         <tbody>
-          @for (r of filteredReadings; track r.id) {
+          @for (r of pagedReadings; track r.id) {
             <tr>
               <td>{{ r.date | date: 'dd/MM/yyyy' }}</td>
               <td>
@@ -320,6 +320,10 @@
       </table>
     }
   </div>
+  <div class="table-pagination" [class.hidden]="salesTotalPages <= 1">
+    <span>Page {{ readingsPage > salesTotalPages ? salesTotalPages : readingsPage }} sur {{ salesTotalPages }}</span>
+    <div><button [disabled]="readingsPage <= 1" (click)="readingsPage = readingsPage - 1">←</button>@for (page of salesPages; track page) {<button [class.active]="page === readingsPage" (click)="readingsPage = page">{{ page }}</button>}<button [disabled]="readingsPage >= salesTotalPages" (click)="readingsPage = readingsPage + 1">→</button></div>
+  </div>
 </section>
 <section class="reading-panel payment-history-panel">
   <header>
@@ -327,8 +331,9 @@
       <h2>Historique des encaissements</h2>
       <p>Modes de paiement utilisés lors des clôtures de pompe.</p>
     </div>
-    <span>{{ paymentHistory.length }} paiement(s)</span>
+    <span>{{ filteredPaymentHistory.length }} paiement(s)</span>
   </header>
+  <div class="history-date-filters"><label>Du<input type="date" [(ngModel)]="paymentFromDate" (ngModelChange)="resetPaymentsPage()" /></label><label>Au<input type="date" [(ngModel)]="paymentToDate" (ngModelChange)="resetPaymentsPage()" /></label></div>
   <div class="reading-table">
     <table class="payment-history-table">
       <thead>
@@ -342,7 +347,7 @@
         </tr>
       </thead>
       <tbody>
-        @for (payment of paymentHistory; track payment.id) {
+        @for (payment of pagedPayments; track payment.id) {
           <tr>
             <td>{{ payment.date | date: 'dd/MM/yyyy' }}</td>
             <td>
@@ -364,6 +369,10 @@
         }
       </tbody>
     </table>
+  </div>
+  <div class="table-pagination" [class.hidden]="paymentTotalPages <= 1">
+    <span>Page {{ paymentsPage > paymentTotalPages ? paymentTotalPages : paymentsPage }} sur {{ paymentTotalPages }}</span>
+    <div><button [disabled]="paymentsPage <= 1" (click)="paymentsPage = paymentsPage - 1">←</button>@for (page of paymentPages; track page) {<button [class.active]="page === paymentsPage" (click)="paymentsPage = page">{{ page }}</button>}<button [disabled]="paymentsPage >= paymentTotalPages" (click)="paymentsPage = paymentsPage + 1">→</button></div>
   </div>
 </section>
 @if (modal === 'reading') {

@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { Router } from '@angular/router';
-import { BehaviorSubject, Observable, tap } from 'rxjs';
+import { BehaviorSubject, Observable, catchError, finalize, map, of, shareReplay, tap } from 'rxjs';
 import { AppUser, UserRole } from '../models/user';
 import { ApiService } from './api.service';
 
@@ -9,6 +9,7 @@ const TOKEN_KEY = 'stationflow_token';
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly userSubject = new BehaviorSubject<AppUser | null>(null);
+  private sessionRequest?: Observable<AppUser | null>;
   readonly user$ = this.userSubject.asObservable();
 
   constructor(private readonly api: ApiService, private readonly router: Router) {}
@@ -30,12 +31,26 @@ export class AuthService {
     );
   }
 
+  ensureUser(): Observable<AppUser | null> {
+    if (!this.token) return of(null);
+    if (this.user) return of(this.user);
+    if (!this.sessionRequest) {
+      this.sessionRequest = this.api.get<{ user: AppUser }>('auth/me').pipe(
+        map((data) => data.user),
+        tap((user) => this.userSubject.next(user)),
+        catchError(() => {
+          this.logout(false);
+          return of(null);
+        }),
+        finalize(() => this.sessionRequest = undefined),
+        shareReplay(1),
+      );
+    }
+    return this.sessionRequest;
+  }
+
   loadMe(): void {
-    if (!this.token || this.user) return;
-    this.api.get<{ user: AppUser }>('auth/me').subscribe({
-      next: (data) => this.userSubject.next(data.user),
-      error: () => this.logout(false),
-    });
+    this.ensureUser().subscribe();
   }
 
   logout(navigate = true): void {

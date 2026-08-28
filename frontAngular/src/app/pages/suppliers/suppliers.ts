@@ -4,6 +4,7 @@ import { ArticleService } from '../../services/article.service';
 import { SupplierService } from '../../services/supplier.service';
 import { AuthService } from '../../services/auth.service';
 import { DropdownOption } from '../../shared/dropdown/dropdown';
+import { ActivatedRoute } from '@angular/router';
 @Component({
   selector: 'app-suppliers',
   standalone: false,
@@ -18,6 +19,14 @@ export class Suppliers implements OnInit {
   modal: 'supplier' | 'payment' | null = null;
   invoice: any;
   invoiceQuery = '';
+  invoiceFromDate = '';
+  invoiceToDate = '';
+  paymentFromDate = '';
+  paymentToDate = '';
+  invoicePage = 1;
+  paymentPage = 1;
+  readonly pageSize = 10;
+  view: 'invoices' | 'payments' = 'invoices';
   form;
   paymentForm;
   constructor(
@@ -25,6 +34,7 @@ export class Suppliers implements OnInit {
     private articles: ArticleService,
     fb: FormBuilder,
     private cdr: ChangeDetectorRef,
+    private route: ActivatedRoute,
     public readonly auth: AuthService,
   ) {
     this.form = fb.group({
@@ -60,11 +70,32 @@ export class Suppliers implements OnInit {
   }
   get filteredInvoices() {
     const query = this.invoiceQuery.trim().toLocaleLowerCase();
-    if (!query) return this.data?.invoices ?? [];
     return (this.data?.invoices ?? []).filter((invoice: any) =>
-      `${invoice.number} ${invoice.supplier} ${invoice.status}`.toLocaleLowerCase().includes(query),
+      (!query || `${invoice.number} ${invoice.supplier} ${invoice.status}`.toLocaleLowerCase().includes(query)) &&
+      (!this.invoiceFromDate || invoice.date >= this.invoiceFromDate) &&
+      (!this.invoiceToDate || invoice.date <= this.invoiceToDate),
     );
   }
+  get filteredPayments() {
+    return this.payments.filter((payment) =>
+      (!this.paymentFromDate || payment.date >= this.paymentFromDate) &&
+      (!this.paymentToDate || payment.date <= this.paymentToDate),
+    );
+  }
+  get invoiceTotalPages() { return Math.max(1, Math.ceil(this.filteredInvoices.length / this.pageSize)); }
+  get paymentTotalPages() { return Math.max(1, Math.ceil(this.filteredPayments.length / this.pageSize)); }
+  get invoicePages() { return Array.from({ length: this.invoiceTotalPages }, (_, index) => index + 1); }
+  get paymentPages() { return Array.from({ length: this.paymentTotalPages }, (_, index) => index + 1); }
+  get pagedInvoices() {
+    const page = Math.min(this.invoicePage, this.invoiceTotalPages);
+    return this.filteredInvoices.slice((page - 1) * this.pageSize, page * this.pageSize);
+  }
+  get pagedPayments() {
+    const page = Math.min(this.paymentPage, this.paymentTotalPages);
+    return this.filteredPayments.slice((page - 1) * this.pageSize, page * this.pageSize);
+  }
+  resetInvoicePage() { this.invoicePage = 1; }
+  resetPaymentPage() { this.paymentPage = 1; }
   fuelsFor(supplier: any): string[] {
     return [
       ...new Set(
@@ -84,6 +115,7 @@ export class Suppliers implements OnInit {
     CHEQUE: 'Chèque',
   };
   ngOnInit() {
+    this.route.data.subscribe(data => this.view = data['view'] === 'payments' ? 'payments' : 'invoices');
     this.articles.options().subscribe((x) => {
       this.stations = x.stations.map((s) => ({ value: s.id, label: s.name }));
       this.stationId = x.stations[0]?.id ?? 0;
@@ -133,5 +165,13 @@ export class Suppliers implements OnInit {
   }
   money(v: number) {
     return new Intl.NumberFormat('fr-FR').format(v);
+  }
+  statusLabel(status: string): string {
+    const labels: Record<string, string> = {
+      DRAFT: 'Brouillon', PENDING: 'En attente', OPEN: 'Ouverte', UNPAID: 'Non payée',
+      PARTIAL: 'Partiellement payée', PARTIALLY_PAID: 'Partiellement payée', PAID: 'Payée',
+      OVERDUE: 'En retard', CANCELLED: 'Annulée', CANCELED: 'Annulée',
+    };
+    return labels[String(status || '').toUpperCase()] ?? status;
   }
 }

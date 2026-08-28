@@ -16,6 +16,10 @@ export class FuelConfig implements OnInit {
   data: any;
   tab = 'fuel';
   editing: any = null;
+  formOpen = false;
+  saving = false;
+  page = 1;
+  readonly pageSize = 10;
   form;
   constructor(
     private service: FuelService,
@@ -45,6 +49,7 @@ export class FuelConfig implements OnInit {
     });
   }
   load() {
+    this.page = 1;
     this.service.config(this.stationId).subscribe((x) => {
       this.data = x;
       this.cdr.detectChanges();
@@ -53,6 +58,9 @@ export class FuelConfig implements OnInit {
   get items() {
     return this.data?.[`${this.tab}s`] ?? [];
   }
+  get totalPages() { return Math.max(1, Math.ceil(this.items.length / this.pageSize)); }
+  get pages() { return Array.from({ length: this.totalPages }, (_, index) => index + 1); }
+  get pagedItems() { const page = Math.min(this.page, this.totalPages); return this.items.slice((page - 1) * this.pageSize, page * this.pageSize); }
   options(items: any[]): DropdownOption[] {
     return (items ?? [])
       .filter((x) => x.active)
@@ -60,6 +68,7 @@ export class FuelConfig implements OnInit {
   }
   edit(x: any) {
     this.editing = x;
+    this.formOpen = true;
     this.form.patchValue({
       code: x.code,
       name: x.name,
@@ -73,11 +82,40 @@ export class FuelConfig implements OnInit {
       contact: x.contact ?? '',
     });
   }
+  changeTab(tab: string) {
+    this.tab = tab;
+    this.page = 1;
+    this.formOpen = false;
+    this.editing = null;
+  }
+  openCreate() {
+    if (this.saving) return;
+    this.editing = null;
+    this.form.reset({ code: '', name: '', fuelTypeId: 0, capacity: 0, minimumStock: 0, pumpId: 0, tankId: 0, currentIndex: 0, unitPrice: 0, contact: '' });
+    this.formOpen = true;
+  }
+  closeForm() {
+    if (this.saving) return;
+    this.formOpen = false;
+    this.editing = null;
+  }
   save() {
-    if (!this.editing || this.form.invalid) return;
-    this.service.update(this.tab, this.editing.id, this.form.getRawValue()).subscribe(() => {
-      this.editing = null;
-      this.load();
+    if (this.form.invalid || this.saving) return;
+    this.saving = true;
+    const request = this.editing
+      ? this.service.update(this.tab, this.editing.id, this.form.getRawValue())
+      : this.service.setup({ ...this.form.getRawValue(), stationId: this.stationId, type: this.tab.toUpperCase() });
+    request.subscribe({
+      next: () => {
+        this.saving = false;
+        this.formOpen = false;
+        this.editing = null;
+        this.load();
+      },
+      error: () => {
+        this.saving = false;
+        this.cdr.detectChanges();
+      },
     });
   }
   deactivate(x: any) {

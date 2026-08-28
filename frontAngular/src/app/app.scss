@@ -4,8 +4,10 @@
 }
 .app-shell {
   min-height: 100vh;
-  background: #f4f7fb;
-  color: #18283c;
+  background:
+    radial-gradient(circle at 100% 0, rgba(208, 231, 248, .52), transparent 32rem),
+    #f4f8fc;
+  color: #1d3656;
 }
 .sidebar {
   position: fixed;
@@ -13,12 +15,12 @@
   z-index: 20;
   width: 256px;
   padding: 24px 14px 18px;
-  background: linear-gradient(180deg, #102d4f 0%, #09213b 100%);
+  background: linear-gradient(180deg, #173e67 0%, #0d2b4a 55%, #09243f 100%);
   color: #fff;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
-  box-shadow: 3px 0 18px rgba(8, 29, 51, 0.13);
+  box-shadow: 8px 0 28px rgba(8, 36, 65, 0.13);
 }
 .brand {
   display: flex;
@@ -33,7 +35,7 @@
   width: 42px;
   height: 42px;
   border-radius: 11px;
-  background: linear-gradient(145deg, #1e70d0, #4e9cea);
+  background: linear-gradient(145deg, #74b4e6, #397fc4);
   color: #fff;
   font: 17px/1 sans-serif;
   box-shadow: 0 6px 13px rgba(0, 0, 0, 0.18);
@@ -61,7 +63,7 @@
   padding: 0 12px;
   margin: 25px 0 10px;
 }
-nav a {
+nav :is(a, .nav-parent) {
   display: flex;
   align-items: center;
   position: relative;
@@ -81,16 +83,17 @@ nav a {
     transform 0.2s ease,
     border-color 0.2s ease;
 }
-nav a:hover {
+nav .nav-parent { width: 100%; border: 1px solid transparent; background: transparent; text-align: left; cursor: pointer; }
+nav :is(a, .nav-parent):hover {
   color: #fff;
   border-color: rgba(118, 177, 232, 0.16);
   background: rgba(61, 125, 193, 0.2);
   transform: translateX(2px);
 }
-nav a.active {
+nav :is(a, .nav-parent).active {
   color: #fff;
   border-color: rgba(157, 207, 255, 0.25);
-  background: linear-gradient(100deg, #176fd4, #3289e5);
+  background: linear-gradient(100deg, #397fc4, #5a9fda);
   box-shadow: 0 8px 18px rgba(4, 40, 85, 0.32);
 }
 .nav-icon {
@@ -114,27 +117,30 @@ nav a.active {
 }
 .nav-submenu {
   display: grid;
-  gap: 3px;
-  margin: 0 0 8px 25px;
-  padding: 3px 0 3px 17px;
-  border-left: 1px solid #365d82;
+  gap: 4px;
+  margin: 1px 0 9px 12px;
+  padding: 7px 7px 7px 13px;
+  border: 1px solid rgba(130, 184, 231, .12);
+  border-left: 2px solid rgba(115, 178, 229, .52);
+  border-radius: 0 10px 10px 0;
+  background: rgba(4, 31, 57, .22);
 }
 .nav-submenu a {
   min-height: 34px;
   margin: 0;
   padding: 0 9px;
   border-radius: 7px;
-  color: #b0c8de;
+  color: #c2d7e9;
   font-size: 12px;
   font-weight: 600;
 }
 .nav-submenu a::before {
-  content: '–';
+  content: '›';
   margin-right: 6px;
   color: #78a6d0;
 }
 .nav-submenu a.active {
-  background: rgba(49, 122, 209, 0.28);
+  background: linear-gradient(90deg, rgba(68, 143, 211, .34), rgba(68, 143, 211, .08));
   box-shadow: none;
   color: #fff;
 }
@@ -213,13 +219,15 @@ main {
   min-height: 100vh;
 }
 .topbar {
-  height: 68px;
+  height: 72px;
   padding: 0 35px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: #fff;
-  border-bottom: 1px solid #e6edf4;
+  background: rgba(255, 255, 255, .88);
+  border-bottom: 1px solid #dfeaf4;
+  box-shadow: 0 2px 14px rgba(43, 89, 130, .035);
+  backdrop-filter: blur(12px);
 }
 .station-switcher {
   display: flex;
@@ -300,7 +308,8 @@ main {
   font-size: 8px;
 }
 .page-content {
-  padding: 29px 35px 55px;
+  max-width: 1680px;
+  padding: 31px 38px 60px;
 }
 .menu-button {
   display: none;
@@ -317,7 +326,12 @@ main {
     transform: none;
   }
   .sidebar-open .mobile-overlay {
-    display: none;
+    display: block;
+    position: fixed;
+    z-index: 19;
+    inset: 0;
+    background: rgba(7, 25, 43, .42);
+    cursor: pointer;
   }
   .app-shell main {
     margin-left: 0;

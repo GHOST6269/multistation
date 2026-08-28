@@ -14,7 +14,7 @@ export class Stations implements OnInit {
   constructor(private readonly service: Station, fb: FormBuilder, private readonly cdr: ChangeDetectorRef) {
     this.form = fb.group({
       name: ['', [Validators.required, Validators.minLength(3), Validators.maxLength(100)]],
-      code: ['', [Validators.required, Validators.pattern(/^[A-Z0-9-]{2,20}$/)]],
+      code: [''],
       city: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(100)]],
       address: ['', Validators.maxLength(255)], manager: ['', Validators.maxLength(100)],
       contact: ['', Validators.pattern(/^\+?[0-9][0-9 ()-]{7,19}$/)],

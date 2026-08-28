@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Hôte : localhost
--- Généré le : ven. 21 août 2026 à 16:14
+-- Généré le : ven. 28 août 2026 à 13:12
 -- Version du serveur : 10.4.28-MariaDB
 -- Version de PHP : 8.2.4
 
@@ -37,14 +37,6 @@ CREATE TABLE `articles` (
   `categorie_id` int(11) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
---
--- Déchargement des données de la table `articles`
---
-
-INSERT INTO `articles` (`id`, `name`, `description`, `is_active`, `creat_at`, `update_at`, `categorie_id`) VALUES
-(1, 'COCA-COLA', NULL, 1, '2026-08-13 07:49:18', '2026-08-13 08:03:43', 1),
-(2, 'FANTA', 'Fanta pomme', 1, '2026-08-13 07:59:16', NULL, 1);
-
 -- --------------------------------------------------------
 
 --
@@ -61,16 +53,6 @@ CREATE TABLE `articles_units` (
   `unit_id` int(11) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
---
--- Déchargement des données de la table `articles_units`
---
-
-INSERT INTO `articles_units` (`id`, `converstion_factor`, `is_base_unit`, `barcode`, `is_active`, `article_id`, `unit_id`) VALUES
-(1, 1.000000, 1, '00000112121', 1, 1, 1),
-(2, 10.000000, 0, '000121212', 1, 1, 2),
-(3, 1.000000, 1, '0020910291', 1, 2, 3),
-(4, 10.000000, 0, '009138031831', 1, 2, 4);
-
 -- --------------------------------------------------------
 
 --
@@ -84,13 +66,6 @@ CREATE TABLE `article_categorie` (
   `is_active` tinyint(4) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
---
--- Déchargement des données de la table `article_categorie`
---
-
-INSERT INTO `article_categorie` (`id`, `code`, `name`, `is_active`) VALUES
-(1, 'B-1', 'BOISSON', 1);
-
 -- --------------------------------------------------------
 
 --
@@ -102,22 +77,6 @@ CREATE TABLE `doctrine_migration_versions` (
   `executed_at` datetime DEFAULT NULL,
   `execution_time` int(11) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
---
--- Déchargement des données de la table `doctrine_migration_versions`
---
-
-INSERT INTO `doctrine_migration_versions` (`version`, `executed_at`, `execution_time`) VALUES
-('DoctrineMigrations\\Version20260805124017', '2026-08-05 12:40:25', 2936),
-('DoctrineMigrations\\Version20260813074000', '2026-08-13 07:45:19', 146),
-('DoctrineMigrations\\Version20260813081500', '2026-08-13 08:11:17', 255),
-('DoctrineMigrations\\Version20260813081600', '2026-08-13 08:11:34', 12),
-('DoctrineMigrations\\Version20260813083000', '2026-08-13 08:26:22', 112),
-('DoctrineMigrations\\Version20260813084000', '2026-08-13 08:30:48', 23),
-('DoctrineMigrations\\Version20260813084519', '2026-08-13 08:48:20', 3251),
-('DoctrineMigrations\\Version20260813085000', '2026-08-13 08:48:41', 4),
-('DoctrineMigrations\\Version20260813091131', '2026-08-13 09:11:36', 1595),
-('DoctrineMigrations\\Version20260813093203', '2026-08-13 09:32:04', 243);
 
 -- --------------------------------------------------------
 
@@ -143,8 +102,9 @@ CREATE TABLE `fuel_delivery` (
 --
 
 INSERT INTO `fuel_delivery` (`id`, `supplier`, `invoice_number`, `delivery_date`, `quantity`, `unit_cost`, `total_amount`, `created_at`, `station_id`, `tank_id`) VALUES
-(1, 'FRS CARBURANT', 'FACT 001', '2026-08-13', 20000.000, 5000.00, 100000000.00, '2026-08-13 09:14:31', 1, 1),
-(2, 'FRS CARBURANT', 'fact 002', '2026-08-13', 10.000, 5000.00, 50000.00, '2026-08-13 09:18:35', 1, 1);
+(1, 'VIVO ENERGY', 'F-2026001', '2026-08-28', 1000.000, 4500.00, 4500000.00, '2026-08-28 13:02:00', 1, 3),
+(2, 'VIVO ENERGY', 'F2026002', '2026-08-28', 1500.000, 3500.00, 5250000.00, '2026-08-28 13:04:13', 1, 2),
+(3, 'VIVO ENERGY', 'F2026003', '2026-08-28', 4000.000, 4500.00, 18000000.00, '2026-08-28 13:05:15', 1, 1);
 
 -- --------------------------------------------------------
 
@@ -156,7 +116,6 @@ CREATE TABLE `fuel_nozzle` (
   `id` int(11) NOT NULL,
   `code` varchar(30) NOT NULL,
   `current_index` decimal(15,3) NOT NULL,
-  `unit_price` decimal(15,2) NOT NULL,
   `is_active` tinyint(4) NOT NULL DEFAULT 1,
   `pump_id` int(11) NOT NULL,
   `tank_id` int(11) NOT NULL
@@ -166,8 +125,10 @@ CREATE TABLE `fuel_nozzle` (
 -- Déchargement des données de la table `fuel_nozzle`
 --
 
-INSERT INTO `fuel_nozzle` (`id`, `code`, `current_index`, `unit_price`, `is_active`, `pump_id`, `tank_id`) VALUES
-(1, 'PISTOL-001', 1.000, 5000.00, 1, 1, 1);
+INSERT INTO `fuel_nozzle` (`id`, `code`, `current_index`, `is_active`, `pump_id`, `tank_id`) VALUES
+(1, 'GO', 23.000, 1, 1, 1),
+(2, 'PL', 0.000, 1, 2, 2),
+(3, 'SP95', 0.000, 1, 3, 3);
 
 -- --------------------------------------------------------
 
@@ -189,8 +150,14 @@ CREATE TABLE `fuel_payment_method` (
 --
 
 INSERT INTO `fuel_payment_method` (`id`, `code`, `name`, `is_active`, `created_at`, `station_id`) VALUES
-(1, 'TEST', 'test', 1, '2026-08-13 09:32:15', 1),
-(2, 'BANCAIRE', 'Virement', 1, '2026-08-13 09:36:03', 1);
+(1, 'CASH', 'Espèces', 1, '2026-08-28 12:33:47', 1),
+(2, 'CHEQUE', 'Chèque', 1, '2026-08-28 12:33:47', 1),
+(3, 'TPE', 'Carte TPE', 1, '2026-08-28 12:33:47', 1),
+(4, 'FANILO', 'Carte FANILO', 1, '2026-08-28 12:33:47', 1),
+(5, 'VISA', 'Carte Visa', 1, '2026-08-28 12:33:47', 1),
+(6, 'FMS', 'FMS', 1, '2026-08-28 12:33:47', 1),
+(7, 'CLIENT_VOUCHER', 'Bons clients', 1, '2026-08-28 12:33:47', 1),
+(8, 'STATION_OPERATION', 'Fonctionnement station', 1, '2026-08-28 12:33:47', 1);
 
 -- --------------------------------------------------------
 
@@ -211,7 +178,9 @@ CREATE TABLE `fuel_pump` (
 --
 
 INSERT INTO `fuel_pump` (`id`, `code`, `name`, `is_active`, `station_id`) VALUES
-(1, 'POMPE1', 'POMPE GASOIL', 1, 1);
+(1, 'GO', 'GASOIL', 1, 1),
+(2, 'PL', 'Petrole Lampant', 1, 1),
+(3, 'SP95', 'Essence Sans Plomb 95', 1, 1);
 
 -- --------------------------------------------------------
 
@@ -236,6 +205,14 @@ CREATE TABLE `fuel_shift_reading` (
   `attendant_id` int(11) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+--
+-- Déchargement des données de la table `fuel_shift_reading`
+--
+
+INSERT INTO `fuel_shift_reading` (`id`, `work_date`, `start_index`, `end_index`, `return_to_tank`, `quantity_sold`, `unit_price`, `total_amount`, `payments`, `status`, `created_at`, `station_id`, `nozzle_id`, `attendant_id`) VALUES
+(1, '2026-08-28', 0.000, 20.000, 0.000, 20.000, 4860.00, 97200.00, '[{\"type\":\"CLIENT_VOUCHER\",\"label\":\"Bons clients\",\"amount\":97200.0,\"reference\":null}]', 'CLOSED', '2026-08-28 13:10:14', 1, 1, 4),
+(2, '2026-08-28', 20.000, 23.000, 0.000, 3.000, 4860.00, 14580.00, '[{\"type\":\"CLIENT_VOUCHER\",\"label\":\"Bons clients\",\"amount\":14580.0,\"reference\":null}]', 'CLOSED', '2026-08-28 13:11:26', 1, 1, 4);
+
 -- --------------------------------------------------------
 
 --
@@ -259,7 +236,9 @@ CREATE TABLE `fuel_tank` (
 --
 
 INSERT INTO `fuel_tank` (`id`, `code`, `name`, `capacity`, `current_stock`, `minimum_stock`, `is_active`, `station_id`, `fuel_type_id`) VALUES
-(1, 'CUVE-001', 'CUVE GASOIL', 30000.000, 20010.000, 0.000, 1, 1, 4);
+(1, 'GO', 'GASOIL', 5000.000, 3977.000, 1000.000, 1, 1, 1),
+(2, 'PL', 'Petrole Lampant', 3000.000, 1500.000, 500.000, 1, 1, 4),
+(3, 'SP95', 'Essence Sans Plomb 95', 5000.000, 1000.000, 1000.000, 1, 1, 3);
 
 -- --------------------------------------------------------
 
@@ -271,18 +250,18 @@ CREATE TABLE `fuel_type` (
   `id` int(11) NOT NULL,
   `code` varchar(20) NOT NULL,
   `name` varchar(100) NOT NULL,
-  `is_active` tinyint(4) NOT NULL DEFAULT 1
+  `is_active` tinyint(4) NOT NULL DEFAULT 1,
+  `unit_price` decimal(15,2) NOT NULL DEFAULT 0.00
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Déchargement des données de la table `fuel_type`
 --
 
-INSERT INTO `fuel_type` (`id`, `code`, `name`, `is_active`) VALUES
-(1, 'SP', 'Super sans plomb', 1),
-(2, 'GO', 'Gasoil', 1),
-(3, 'PL', 'Pétrole lampant', 1),
-(4, '0001', 'GASOIL', 1);
+INSERT INTO `fuel_type` (`id`, `code`, `name`, `is_active`, `unit_price`) VALUES
+(1, 'GO', 'GASOIL', 1, 4860.00),
+(3, 'SP95', 'Essence Sans Plomb 95', 1, 5100.00),
+(4, 'PL', 'Pétrole Lampant', 1, 3710.00);
 
 -- --------------------------------------------------------
 
@@ -322,15 +301,6 @@ CREATE TABLE `mouvement_stock` (
   `details` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`details`))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
---
--- Déchargement des données de la table `mouvement_stock`
---
-
-INSERT INTO `mouvement_stock` (`id`, `entered_quantity`, `conversion_factor`, `base_quantity`, `previous_stock_base`, `new_stock_base`, `mouvement_type`, `station_article_id`, `article_unit_id`, `reason`, `created_at`, `reference`, `details`) VALUES
-(1, 0.000000, 1.000000, 0.000000, 0.000000, 0.000000, 'ADJUSTMENT', 1, 1, NULL, '2026-08-13 11:11:17', NULL, NULL),
-(2, 5.000000, 1.000000, 5.000000, 0.000000, 5.000000, 'STOCKTAKE', 2, 3, 'Inventaire physique', '2026-08-13 08:18:54', NULL, NULL),
-(3, 10.000000, 1.000000, 10.000000, 0.000000, 10.000000, 'STOCKTAKE', 1, 1, 'Inventaire physique', '2026-08-13 08:18:54', NULL, NULL);
-
 -- --------------------------------------------------------
 
 --
@@ -351,7 +321,11 @@ CREATE TABLE `pump_attendant` (
 --
 
 INSERT INTO `pump_attendant` (`id`, `code`, `full_name`, `contact`, `is_active`, `station_id`) VALUES
-(1, 'POMPISTE-001', 'RAKOTO', '034 55 671 88', 1, 1);
+(1, 'Rakoto', 'Rakoto', 'rakoto@gmail.com', 1, 1),
+(2, 'Rabe', 'rabe', 'rabe@gmail.com', 1, 1),
+(3, 'Martin', 'Martin', 'martin@gmail.com', 1, 1),
+(4, 'Fidy', 'Fidy', 'fidy@gmail.com', 1, 1),
+(5, 'Juevin', 'Juevin', 'juev@gmail.com', 1, 1);
 
 -- --------------------------------------------------------
 
@@ -399,8 +373,7 @@ CREATE TABLE `stations` (
 --
 
 INSERT INTO `stations` (`id`, `code`, `name`, `address`, `city`, `contact`, `email`, `status`, `creat_at`, `updated_at`, `gerant`) VALUES
-(1, 'ST-001', 'Analakely', 'Analakely III Terc', 'Antananarivo', '0348346149', 'mamiirakotomamonjy@gmail.com', 'ACTIVE', '2026-08-13 07:03:21', '2026-08-13 07:11:55', 'Mamy'),
-(2, 'ST-002', 'ANTANIMENA', 'ANTANIMENA BRED MADA', 'ANTANANARIVO', '+261 34 000 99', 'antanimenajov@gmail.com', 'ACTIVE', '2026-08-13 07:12:59', NULL, 'GERANT ANTANIMENA');
+(1, 'ST-001', 'ANALAKELY', 'III TERC ANALAKELY', 'ANTANANARIVO', '+261 34 00 000 00', 'station@gmail.com', 'ACTIVE', '2026-08-28 12:33:36', NULL, NULL);
 
 -- --------------------------------------------------------
 
@@ -416,14 +389,6 @@ CREATE TABLE `station_articles` (
   `station_id` int(11) NOT NULL,
   `article_id` int(11) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
---
--- Déchargement des données de la table `station_articles`
---
-
-INSERT INTO `station_articles` (`id`, `current_sock_base`, `minimum_stock_base`, `is_active`, `station_id`, `article_id`) VALUES
-(1, 10.000000, 0.000000, 1, 1, 1),
-(2, 5.000000, 0.000000, 1, 1, 2);
 
 -- --------------------------------------------------------
 
@@ -444,16 +409,6 @@ CREATE TABLE `station_article_units` (
   `article_unit_id` int(11) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
---
--- Déchargement des données de la table `station_article_units`
---
-
-INSERT INTO `station_article_units` (`id`, `purchase_price`, `sale_price`, `wholesale_price`, `minimum_sale_price`, `is_active`, `creat_at`, `updated_at`, `station_article_id`, `article_unit_id`) VALUES
-(1, 1500.00, 1800.00, 1700.00, 1800.00, 1, '2026-08-13 07:49:18', '2026-08-13 08:03:43', 1, 1),
-(2, 15000.00, 18000.00, 17000.00, 18000.00, 1, '2026-08-13 07:49:18', '2026-08-13 08:03:43', 1, 2),
-(3, 2000.00, 2500.00, 2300.00, 2500.00, 1, '2026-08-13 07:59:16', NULL, 2, 3),
-(4, 18000.00, 25000.00, 23000.00, 25000.00, 1, '2026-08-13 07:59:16', NULL, 2, 4);
-
 -- --------------------------------------------------------
 
 --
@@ -467,13 +422,6 @@ CREATE TABLE `station_users` (
   `station_id` int(11) NOT NULL,
   `user_id` int(11) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
---
--- Déchargement des données de la table `station_users`
---
-
-INSERT INTO `station_users` (`id`, `is_active`, `assigned_at`, `station_id`, `user_id`) VALUES
-(1, 1, '2026-08-21 15:59:46', 1, 3);
 
 -- --------------------------------------------------------
 
@@ -499,7 +447,7 @@ CREATE TABLE `supplier` (
 --
 
 INSERT INTO `supplier` (`id`, `code`, `name`, `contact_person`, `phone`, `email`, `address`, `is_active`, `created_at`, `station_id`) VALUES
-(1, 'FRS-001', 'FRS CARBURANT', '032', '034', 'frs@gmail.com', 'faefefa', 1, '2026-08-13 09:13:52', 1);
+(1, 'VIVO', 'VIVO ENERGY', '034 83 461 49', NULL, NULL, NULL, 1, '2026-08-28 13:01:21', 1);
 
 -- --------------------------------------------------------
 
@@ -527,8 +475,9 @@ CREATE TABLE `supplier_invoice` (
 --
 
 INSERT INTO `supplier_invoice` (`id`, `invoice_number`, `invoice_date`, `due_date`, `total_amount`, `invoice_type`, `description`, `is_active`, `created_at`, `supplier_id`, `station_id`, `delivery_id`) VALUES
-(1, 'FACT 001', '2026-08-13', '2026-09-06', 100000000.00, 'FUEL', 'Livraison 0001 - 20000 L', 1, '2026-08-13 09:14:31', 1, 1, 1),
-(2, 'fact 002', '2026-08-13', '2026-08-29', 50000.00, 'FUEL', 'Livraison 0001 - 10 L', 1, '2026-08-13 09:18:35', 1, 1, 2);
+(1, 'F-2026001', '2026-08-28', NULL, 4500000.00, 'FUEL', 'Livraison SP95 - 1000 L', 1, '2026-08-28 13:02:00', 1, 1, 1),
+(2, 'F2026002', '2026-08-28', '2026-10-30', 5250000.00, 'FUEL', 'Livraison PL - 1500 L', 1, '2026-08-28 13:04:13', 1, 1, 2),
+(3, 'F2026003', '2026-08-28', NULL, 18000000.00, 'FUEL', 'Livraison GO - 4000 L', 1, '2026-08-28 13:05:15', 1, 1, 3);
 
 -- --------------------------------------------------------
 
@@ -555,9 +504,7 @@ CREATE TABLE `supplier_payment` (
 --
 
 INSERT INTO `supplier_payment` (`id`, `payment_date`, `amount`, `payment_method`, `reference`, `status`, `note`, `created_at`, `supplier_id`, `invoice_id`, `station_id`) VALUES
-(1, '2026-08-13', 100000000.00, 'BANK_TRANSFER', 'VIREMENT 001', 'EXECUTED', 'payement', '2026-08-13 09:14:57', 1, 1, 1),
-(2, '2026-08-13', 20000.00, 'DIRECT_DEBIT', 'FTAFTFSTAFS', 'EXECUTED', 'payement de 20 000 Ar', '2026-08-13 09:19:03', 1, 2, 1),
-(3, '2026-08-13', 30000.00, 'BANK_TRANSFER', NULL, 'EXECUTED', NULL, '2026-08-13 09:19:19', 1, 2, 1);
+(1, '2026-08-28', 500000.00, 'BANK_TRANSFER', 'Payement 500 000 Ar', 'EXECUTED', 'Payement de 500 000 Ar', '2026-08-28 13:06:17', 1, 1, 1);
 
 -- --------------------------------------------------------
 
@@ -572,16 +519,6 @@ CREATE TABLE `units` (
   `symbol` varchar(255) DEFAULT NULL,
   `is_active` tinyint(4) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
---
--- Déchargement des données de la table `units`
---
-
-INSERT INTO `units` (`id`, `code`, `name`, `symbol`, `is_active`) VALUES
-(1, 'COCA-P-1', 'PIECE', 'U', 1),
-(2, 'COCA-P-10', 'PAQUET', 'P', 1),
-(3, 'PCS', 'PIECE', 'PCS', 1),
-(4, 'PQT', 'PAQUET', 'PQT', 1);
 
 -- --------------------------------------------------------
 
@@ -608,9 +545,8 @@ CREATE TABLE `user` (
 --
 
 INSERT INTO `user` (`id`, `email`, `roles`, `password`, `first_name`, `last_name`, `contact`, `is_active`, `last_login`, `creat_at`, `updated_at`) VALUES
-(1, 'devtech@multistation.local', '[\"ROLE_SUPER_ADMIN\"]', '$2y$13$M3QaIae7K3lq8JmnybvgdOUrbcmJrL64A7srX375MsO5/pjYRLdK.', 'devtech', NULL, NULL, 1, '2026-08-21 15:47:27', '2026-08-21 16:35:12', NULL),
-(2, 'mamiirakotomamonjy@gmail.com', '[\"ROLE_SUPER_ADMIN\"]', '$2y$13$QjXr9aAbMwaJKIn5Ju22Puq1m6qi3sqUkDwGs7Okzlj41iZbCT/AK', 'mamisoa', 'rakotomamonjy', '0348346149', 1, '2026-08-21 15:39:06', '2026-08-21 15:38:49', NULL),
-(3, 'test@gmail.com', '[\"ROLE_ASSISTANT\"]', '$2y$13$Lif7eELPDCjMaCOYH.snuePde1fPstjLaQGuHuhs5ERdJ4X2CvIuO', 'test', 'test', 'test', 1, '2026-08-21 16:00:39', '2026-08-21 15:59:46', NULL);
+(2, 'mamiirakotomamonjy@gmail.com', '[\"ROLE_SUPER_ADMIN\"]', '$2y$13$QjXr9aAbMwaJKIn5Ju22Puq1m6qi3sqUkDwGs7Okzlj41iZbCT/AK', 'mamisoa', 'rakotomamonjy', '0348346149', 1, '2026-08-28 12:44:48', '2026-08-21 15:38:49', NULL),
+(4, 'devtech@gmail.com', '[\"ROLE_SUPER_ADMIN\"]', '$2y$13$75/AulUxj25pSTplnff4au2NJP2lRYmVrXoyK0hr4eRWy7XihCj9G', 'devtech', NULL, NULL, 1, '2026-08-28 13:12:26', '2026-08-28 13:12:14', NULL);
 
 --
 -- Index pour les tables déchargées
@@ -805,55 +741,55 @@ ALTER TABLE `user`
 -- AUTO_INCREMENT pour la table `articles`
 --
 ALTER TABLE `articles`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT pour la table `articles_units`
 --
 ALTER TABLE `articles_units`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT pour la table `article_categorie`
 --
 ALTER TABLE `article_categorie`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT pour la table `fuel_delivery`
 --
 ALTER TABLE `fuel_delivery`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- AUTO_INCREMENT pour la table `fuel_nozzle`
 --
 ALTER TABLE `fuel_nozzle`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- AUTO_INCREMENT pour la table `fuel_payment_method`
 --
 ALTER TABLE `fuel_payment_method`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
 
 --
 -- AUTO_INCREMENT pour la table `fuel_pump`
 --
 ALTER TABLE `fuel_pump`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- AUTO_INCREMENT pour la table `fuel_shift_reading`
 --
 ALTER TABLE `fuel_shift_reading`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT pour la table `fuel_tank`
 --
 ALTER TABLE `fuel_tank`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- AUTO_INCREMENT pour la table `fuel_type`
@@ -871,13 +807,13 @@ ALTER TABLE `messenger_messages`
 -- AUTO_INCREMENT pour la table `mouvement_stock`
 --
 ALTER TABLE `mouvement_stock`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT pour la table `pump_attendant`
 --
 ALTER TABLE `pump_attendant`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
 -- AUTO_INCREMENT pour la table `shop_sale_items`
@@ -889,25 +825,25 @@ ALTER TABLE `shop_sale_items`
 -- AUTO_INCREMENT pour la table `stations`
 --
 ALTER TABLE `stations`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
 -- AUTO_INCREMENT pour la table `station_articles`
 --
 ALTER TABLE `station_articles`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT pour la table `station_article_units`
 --
 ALTER TABLE `station_article_units`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT pour la table `station_users`
 --
 ALTER TABLE `station_users`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT pour la table `supplier`
@@ -919,25 +855,25 @@ ALTER TABLE `supplier`
 -- AUTO_INCREMENT pour la table `supplier_invoice`
 --
 ALTER TABLE `supplier_invoice`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- AUTO_INCREMENT pour la table `supplier_payment`
 --
 ALTER TABLE `supplier_payment`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
 -- AUTO_INCREMENT pour la table `units`
 --
 ALTER TABLE `units`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT pour la table `user`
 --
 ALTER TABLE `user`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
 -- Contraintes pour les tables déchargées
