@@ -6,8 +6,8 @@
       <span>Une vue claire de vos niveaux pour anticiper chaque approvisionnement.</span>
     </div>
     <div class="heading-actions">
-      <a class="back-link" routerLink="/carburants"><span aria-hidden="true">←</span> Ventes &amp; pompes</a>
-      <a class="delivery-button" routerLink="/carburants"><span aria-hidden="true">+</span> Enregistrer une livraison</a>
+      <a class="back-link" routerLink="/carburants/ventes"><span aria-hidden="true">←</span> Ventes &amp; pompes</a>
+      <a class="delivery-button" routerLink="/carburants/livraisons"><span aria-hidden="true">+</span> Enregistrer une livraison</a>
     </div>
   </header>
 
@@ -49,30 +49,29 @@
     </aside>
   </section>
 
-  <section class="stock-table">
+  <section class="tank-cards-section">
     <header>
       <div><p class="section-kicker">DÉTAIL DES RÉSERVES</p><h2>Niveaux de stock par carburant</h2><span>{{ tanks.length }} cuve(s) configurée(s) pour cette station</span></div>
       <div class="table-legend"><span><i class="normal-dot"></i>Niveau normal</span><span><i class="alert-dot"></i>À surveiller</span></div>
     </header>
-    <div class="table-scroll">
-      <table>
-        <thead><tr><th>CARBURANT</th><th>CUVE</th><th>STOCK ACTUEL</th><th>NIVEAU DISPONIBLE</th><th>CAPACITÉ</th><th>SEUIL D'ALERTE</th><th>ÉTAT</th></tr></thead>
-        <tbody>
-          @for (tank of pagedTanks; track tank.id) {
-            <tr [class.low-row]="tank.stock <= tank.minimum">
-              <td><span class="fuel-tag" [class]="tank.fuel?.toLowerCase()">{{ tank.fuel }}</span></td>
-              <td class="tank-name"><strong>{{ tank.name }}</strong><small>{{ tank.code }}</small></td>
-              <td class="stock-value"><strong>{{ tank.stock | number: '1.0-0' }}</strong><span>L</span></td>
-              <td><div class="level" [attr.aria-label]="percentage(tank) + '% disponible'"><i [style.width.%]="percentage(tank)"></i></div><small class="percentage">{{ percentage(tank) | number: '1.0-0' }}% disponible</small></td>
-              <td>{{ tank.capacity | number: '1.0-0' }} L</td><td>{{ tank.minimum | number: '1.0-0' }} L</td>
-              <td><span class="state" [class.alert]="tank.stock <= tank.minimum"><i></i>{{ tank.stock <= tank.minimum ? 'Stock faible' : 'Disponible' }}</span></td>
-            </tr>
-          } @empty {
-            <tr><td colspan="7" class="empty"><span aria-hidden="true">▱</span>{{ loading ? 'Chargement du stock…' : 'Aucune cuve configurée pour cette station.' }}</td></tr>
-          }
-        </tbody>
-      </table>
-      <div class="table-pagination" [class.hidden]="totalPages <= 1"><span>Page {{ page > totalPages ? totalPages : page }} sur {{ totalPages }}</span><div><button [disabled]="page <= 1" (click)="page = page - 1">←</button>@for (current of pages; track current) {<button [class.active]="current === page" (click)="page = current">{{ current }}</button>}<button [disabled]="page >= totalPages" (click)="page = page + 1">→</button></div></div>
+    <div class="tank-cards">
+      @for (tank of pagedTanks; track tank.id) {
+        <article class="tank-card" [class.is-low]="tank.stock <= tank.minimum">
+          <div class="tank-gauge" [attr.aria-label]="percentage(tank) + '% disponible'">
+            <div class="tank-gauge-fill" [style.height.%]="percentage(tank)"><strong>{{ percentage(tank) | number: '1.0-0' }}%</strong></div>
+          </div>
+          <div class="tank-card-content">
+            <div class="tank-card-tags"><span>{{ tank.code || 'CUVE-' + tank.id }}</span><b>{{ tank.stock <= tank.minimum ? 'FAIBLE' : 'OK' }} {{ percentage(tank) | number: '1.0-0' }}%</b></div>
+            <h3>{{ tank.name }} <small>– {{ tank.fuel }}</small></h3>
+            <p class="tank-volume"><strong>{{ tank.stock | number: '1.0-0' }} L</strong><span>/ {{ tank.capacity | number: '1.0-0' }} L cap.</span></p>
+            <div class="tank-progress"><i [style.width.%]="percentage(tank)"></i></div>
+            <p class="tank-threshold">Seuil d’alerte : {{ tank.minimum | number: '1.0-0' }} L</p>
+          </div>
+        </article>
+      } @empty {
+        <div class="tank-cards-empty"><span aria-hidden="true">▱</span>{{ loading ? 'Chargement du stock…' : 'Aucune cuve configurée pour cette station.' }}</div>
+      }
     </div>
+    <div class="table-pagination" [class.hidden]="totalPages <= 1"><span>Page {{ page > totalPages ? totalPages : page }} sur {{ totalPages }}</span><div><button [disabled]="page <= 1" (click)="page = page - 1">←</button>@for (current of pages; track current) {<button [class.active]="current === page" (click)="page = current">{{ current }}</button>}<button [disabled]="page >= totalPages" (click)="page = page + 1">→</button></div></div>
   </section>
 </section>

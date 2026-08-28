@@ -12,6 +12,7 @@ import { AuthService } from '../../services/auth.service';
 export class Login implements OnInit {
   loading = false;
   error = '';
+  passwordVisible = false;
   readonly form;
 
   constructor(
@@ -28,6 +29,10 @@ export class Login implements OnInit {
 
   ngOnInit(): void {
     this.auth.ensureUser().subscribe((user) => { if (user) this.router.navigate(['/']); });
+  }
+
+  togglePasswordVisibility(): void {
+    this.passwordVisible = !this.passwordVisible;
   }
 
   submit(): void {

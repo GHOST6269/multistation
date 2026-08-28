@@ -5,6 +5,7 @@ import { SupplierService } from '../../services/supplier.service';
 import { AuthService } from '../../services/auth.service';
 import { DropdownOption } from '../../shared/dropdown/dropdown';
 import { ActivatedRoute } from '@angular/router';
+import { formatMoney } from '../../shared/money-format';
 @Component({
   selector: 'app-suppliers',
   standalone: false,
@@ -164,7 +165,7 @@ export class Suppliers implements OnInit {
       });
   }
   money(v: number) {
-    return new Intl.NumberFormat('fr-FR').format(v);
+    return formatMoney(v);
   }
   statusLabel(status: string): string {
     const labels: Record<string, string> = {

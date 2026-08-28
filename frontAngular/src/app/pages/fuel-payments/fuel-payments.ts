@@ -3,6 +3,7 @@ import { ArticleService } from '../../services/article.service';
 import { FuelService } from '../../services/fuel.service';
 import { AuthService } from '../../services/auth.service';
 import { DropdownOption } from '../../shared/dropdown/dropdown';
+import { formatMoney } from '../../shared/money-format';
 
 @Component({ selector: 'app-fuel-payments', standalone: false, templateUrl: './fuel-payments.html', styleUrl: './fuel-payments.scss' })
 export class FuelPayments implements OnInit {
@@ -14,5 +15,5 @@ export class FuelPayments implements OnInit {
   get totalAmount() { return this.filtered.reduce((sum, row) => sum + Number(row.amount || 0), 0); }
   get methods() { return new Set(this.filtered.map(row => row.method)).size; }
   get totalPages() { return Math.max(1, Math.ceil(this.filtered.length / this.pageSize)); } get pages() { return Array.from({ length: this.totalPages }, (_, index) => index + 1); } get rows() { const page = Math.min(this.page, this.totalPages); return this.filtered.slice((page - 1) * this.pageSize, page * this.pageSize); } resetPage() { this.page = 1; }
-  money(value: number) { return new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(value); }
+  money(value: number) { return formatMoney(value); }
 }

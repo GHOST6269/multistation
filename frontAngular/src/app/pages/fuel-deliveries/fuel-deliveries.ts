@@ -5,6 +5,7 @@ import { AuthService } from '../../services/auth.service';
 import { DropdownOption } from '../../shared/dropdown/dropdown';
 import { FuelService } from '../../services/fuel.service';
 import { FormBuilder, Validators } from '@angular/forms';
+import { formatMoney } from '../../shared/money-format';
 
 @Component({ selector: 'app-fuel-deliveries', standalone: false, templateUrl: './fuel-deliveries.html', styleUrl: './fuel-deliveries.scss' })
 export class FuelDeliveries implements OnInit {
@@ -22,5 +23,5 @@ export class FuelDeliveries implements OnInit {
   openQuickSupplier() { if (this.saving) return; this.supplierForm.reset({ code: '', name: '', contactPerson: '', phone: '' }); this.quickSupplierOpen = true; }
   saveQuickSupplier() { if (this.supplierForm.invalid || this.savingSupplier) { this.supplierForm.markAllAsTouched(); return; } this.savingSupplier = true; this.suppliers.create({ ...this.supplierForm.getRawValue(), stationId: this.stationId }).subscribe({ next: (supplier) => { const option = { value: supplier.id, label: supplier.name, hint: supplier.code ?? '' }; this.supplierOptions = [...this.supplierOptions, option]; this.form.patchValue({ supplierId: supplier.id }); this.savingSupplier = false; this.quickSupplierOpen = false; this.cdr.detectChanges(); }, error: () => { this.savingSupplier = false; this.cdr.detectChanges(); } }); }
   save() { if (this.form.invalid || this.saving) { this.form.markAllAsTouched(); return; } this.saving = true; this.suppliers.delivery({ ...this.form.getRawValue(), stationId: this.stationId }).subscribe({ next: () => { this.saving = false; this.modalOpen = false; this.load(); }, error: () => { this.saving = false; this.cdr.detectChanges(); } }); }
-  money(value: number) { return new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(value); }
+  money(value: number) { return formatMoney(value); }
 }

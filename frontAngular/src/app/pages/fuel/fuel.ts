@@ -6,6 +6,7 @@ import { FuelService } from '../../services/fuel.service';
 import { SupplierService } from '../../services/supplier.service';
 import { DropdownOption } from '../../shared/dropdown/dropdown';
 import { ActivatedRoute } from '@angular/router';
+import { formatMoney } from '../../shared/money-format';
 import { AuthService } from '../../services/auth.service';
 @Component({
   selector: 'app-fuel',
@@ -441,6 +442,6 @@ export class Fuel implements OnInit {
     this.cdr.detectChanges();
   }
   money(v: number) {
-    return new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(v);
+    return formatMoney(v);
   }
 }

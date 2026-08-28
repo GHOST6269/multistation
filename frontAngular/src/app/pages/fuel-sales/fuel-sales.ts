@@ -4,6 +4,7 @@ import { FuelService } from '../../services/fuel.service';
 import { AuthService } from '../../services/auth.service';
 import { DropdownOption } from '../../shared/dropdown/dropdown';
 import { FormBuilder, Validators } from '@angular/forms';
+import { formatMoney } from '../../shared/money-format';
 
 @Component({ selector: 'app-fuel-sales', standalone: false, templateUrl: './fuel-sales.html', styleUrl: './fuel-sales.scss' })
 export class FuelSales implements OnInit {
@@ -60,5 +61,5 @@ export class FuelSales implements OnInit {
     if (Math.abs(Number(this.form.value.paymentAmount || 0) - this.total) > 0.01) return `Le montant encaissé doit correspondre au montant théorique (${this.money(this.total)} Ar).`;
     return '';
   }
-  money(value: number) { return new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(value); }
+  money(value: number) { return formatMoney(value); }
 }

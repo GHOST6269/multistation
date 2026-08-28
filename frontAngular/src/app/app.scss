@@ -196,10 +196,19 @@ nav :is(a, .nav-parent).active {
 }
 .profile button {
   margin-left: auto;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
   background: none;
   border: 0;
+  border-radius: 8px;
   color: #8297ae;
+  cursor: pointer;
 }
+.profile button:hover { background: rgba(255, 255, 255, .08); color: #d6e8f8; }
+.profile button svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
 .avatar,
 .top-avatar {
   display: grid;
@@ -259,7 +268,7 @@ main {
 .top-actions {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 9px;
 }
 .top-actions button,
 .menu-button {
@@ -295,6 +304,21 @@ main {
   height: 32px;
   margin-left: 7px;
 }
+.top-logout {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid #d9e7f2;
+  border-radius: 8px;
+  background: #f7fafc;
+  color: #4e6d89;
+  cursor: pointer;
+  transition: background .18s, border-color .18s, color .18s;
+}
+.top-logout svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
+.top-logout:hover { border-color: #f1c9c6; background: #fff5f4; color: #bb5d54; }
 .user-name {
   display: grid;
   gap: 2px;
@@ -344,4 +368,8 @@ main {
     padding-left: 20px;
     padding-right: 20px;
   }
+  .user-name { display: none; }
+}
+@media (max-width: 480px) {
+  .top-avatar { display: none; }
 }

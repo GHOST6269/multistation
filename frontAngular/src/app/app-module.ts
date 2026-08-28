@@ -11,6 +11,7 @@ import { Inventory } from './pages/inventory/inventory';
 import { Articles } from './pages/articles/articles';
 import { Dropdown } from './shared/dropdown/dropdown';
 import { MoneyInputDirective } from './shared/money-input.directive';
+import { MoneyPipe } from './shared/money.pipe';
 import { Fuel } from './pages/fuel/fuel';
 import { FuelConfig } from './pages/fuel-config/fuel-config';
 import { Suppliers } from './pages/suppliers/suppliers';
@@ -31,6 +32,7 @@ import { AuthInterceptor } from './services/auth.interceptor';
     Articles,
     Dropdown,
     MoneyInputDirective,
+    MoneyPipe,
     Fuel,
     FuelConfig,
     Suppliers,

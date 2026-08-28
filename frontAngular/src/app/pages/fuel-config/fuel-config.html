@@ -42,7 +42,7 @@
             <span class="item-icon">{{ tab === 'fuel' ? '⛽' : tab === 'tank' ? '▱' : tab === 'pump' ? '◉' : tab === 'nozzle' ? '⌁' : '♙' }}</span>
             <div class="item-name"><strong>{{ x.name || x.code }}</strong><small>{{ x.code }}</small></div>
             <p>
-              @if (tab === 'fuel') { Prix : {{ x.unitPrice | number:'1.0-0' }} Ar/L }
+              @if (tab === 'fuel') { Prix : {{ x.unitPrice | money }} Ar/L }
               @else if (tab === 'tank') { {{ x.fuel }} · {{ x.stock | number:'1.0-0' }} / {{ x.capacity | number:'1.0-0' }} L · Seuil {{ x.minimum | number:'1.0-0' }} L }
               @else if (tab === 'pump') { Cuve {{ x.tank || 'non liée' }} @if (x.fuel) { · {{ x.fuel }} } }
               @else if (tab === 'nozzle') { Pompe {{ x.pump || 'non liée' }} · Cuve {{ x.tank || 'non liée' }} · Index {{ x.currentIndex | number:'1.0-3' }} }
