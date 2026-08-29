@@ -66,6 +66,10 @@ export class AuthService {
     return roles.includes(user.role);
   }
 
+  isSuperAdmin(): boolean {
+    return this.user?.role === 'ROLE_SUPER_ADMIN';
+  }
+
   stationLocked(): boolean {
     return !!this.user && this.user.role !== 'ROLE_SUPER_ADMIN';
   }

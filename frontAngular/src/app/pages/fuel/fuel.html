@@ -437,9 +437,9 @@
               <input type="number" formControlName="returnToTank" step=".001" />
             </label>
             <label
-              >PU TTC
+              >PU TTC (Ar/L)
               <div class="money-field">
-                <input appMoney type="text" formControlName="unitPrice" />
+                <input appMoney type="text" formControlName="unitPrice" [disabled]="!auth.isSuperAdmin()" />
                 <span>Ar</span>
               </div>
             </label>

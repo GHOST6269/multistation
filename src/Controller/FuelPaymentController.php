@@ -81,7 +81,9 @@ final class FuelPaymentController extends AbstractController
         if (!$station || !$nozzle || !$attendant || !$method || !$method->isActive() || $method->getStation()?->getId() !== $station->getId() || $nozzle->getPump()?->getStation()?->getId() !== $station->getId() || $attendant->getStation()?->getId() !== $station->getId()) return $this->json(['message' => 'Références invalides'], 422);
         $start = (float) ($data['startIndex'] ?? 0); $end = (float) ($data['endIndex'] ?? 0);
         $rc = max(0, (float) ($data['returnToTank'] ?? 0)); $output = $end - $start; $sold = $output - $rc;
-        $price = max(0, (float) ($data['unitPrice'] ?? $nozzle->getUnitPrice())); $total = round($sold * $price, 2);
+        $price = (float) $nozzle->getUnitPrice();
+        if ($access->isSuperAdmin() && array_key_exists('unitPrice', $data)) $price = max(0, (float) $data['unitPrice']);
+        $total = round($sold * $price, 2);
         $paid = max(0, (float) ($data['paymentAmount'] ?? 0));
         if ($output < 0 || $sold < 0) return $this->json(['message' => 'Les index ou le RC sont incohérents'], 422);
         if (abs($paid - $total) > .01) return $this->json(['message' => sprintf('Le paiement doit être de %.2f Ar', $total)], 422);
