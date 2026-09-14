@@ -39,6 +39,7 @@ export class FuelConfig implements OnInit {
       currentIndex: [0],
       unitPrice: [0],
       contact: [''],
+      allowedRoles: fb.nonNullable.control<string[]>([]),
     });
   }
   ngOnInit() {
@@ -51,12 +52,16 @@ export class FuelConfig implements OnInit {
   load() {
     this.page = 1;
     this.service.config(this.stationId).subscribe((x) => {
-      this.data = x;
+      this.data = { ...x, paymentMethods: this.data?.paymentMethods ?? [] };
+      this.cdr.detectChanges();
+    });
+    if (this.auth.hasAnyRole(['ROLE_GERANT'])) this.service.paymentMethods(this.stationId, true).subscribe((x) => {
+      this.data = { ...(this.data ?? {}), paymentMethods: x.methods ?? [] };
       this.cdr.detectChanges();
     });
   }
   get items() {
-    return this.data?.[`${this.tab}s`] ?? [];
+    return this.tab === 'payment' ? this.data?.paymentMethods ?? [] : this.data?.[`${this.tab}s`] ?? [];
   }
   get totalPages() { return Math.max(1, Math.ceil(this.items.length / this.pageSize)); }
   get pages() { return Array.from({ length: this.totalPages }, (_, index) => index + 1); }
@@ -80,9 +85,11 @@ export class FuelConfig implements OnInit {
       currentIndex: x.currentIndex ?? 0,
       unitPrice: x.unitPrice ?? 0,
       contact: x.contact ?? '',
+      allowedRoles: x.allowedRoles ?? [],
     });
   }
   changeTab(tab: string) {
+    if (tab === 'payment' && !this.auth.hasAnyRole(['ROLE_GERANT'])) return;
     this.tab = tab;
     this.page = 1;
     this.formOpen = false;
@@ -91,7 +98,7 @@ export class FuelConfig implements OnInit {
   openCreate() {
     if (this.saving) return;
     this.editing = null;
-    this.form.reset({ code: '', name: '', fuelTypeId: 0, capacity: 0, minimumStock: 0, pumpId: 0, tankId: 0, currentIndex: 0, unitPrice: 0, contact: '' });
+    this.form.reset({ code: '', name: '', fuelTypeId: 0, capacity: 0, minimumStock: 0, pumpId: 0, tankId: 0, currentIndex: 0, unitPrice: 0, contact: '', allowedRoles: ['ROLE_GERANT'] });
     this.formOpen = true;
   }
   closeForm() {
@@ -102,9 +109,10 @@ export class FuelConfig implements OnInit {
   save() {
     if (this.form.invalid || this.saving) return;
     this.saving = true;
-    const request = this.editing
-      ? this.service.update(this.tab, this.editing.id, this.form.getRawValue())
-      : this.service.setup({ ...this.form.getRawValue(), stationId: this.stationId, type: this.tab.toUpperCase() });
+    const value = this.form.getRawValue();
+    const request = this.tab === 'payment'
+      ? (this.editing ? this.service.updatePaymentMethod(this.editing.id, value) : this.service.createPaymentMethod({ ...value, stationId: this.stationId }))
+      : (this.editing ? this.service.update(this.tab, this.editing.id, value) : this.service.setup({ ...value, stationId: this.stationId, type: this.tab.toUpperCase() }));
     request.subscribe({
       next: () => {
         this.saving = false;
@@ -120,6 +128,19 @@ export class FuelConfig implements OnInit {
   }
   deactivate(x: any) {
     if (confirm(`Désactiver ${x.name || x.code} ?`))
-      this.service.deactivate(this.tab, x.id).subscribe(() => this.load());
+      (this.tab === 'payment' ? this.service.deactivatePaymentMethod(x.id) : this.service.deactivate(this.tab, x.id)).subscribe(() => this.load());
+  }
+
+  readonly paymentRoles = [
+    { value: 'ROLE_GERANT', label: 'Gérant' },
+    { value: 'ROLE_QUALITY_MARSHALL', label: 'Quality Marshal' },
+    { value: 'ROLE_ASSISTANT', label: 'Assistant' },
+  ];
+  roleAllowed(role: string): boolean { return (this.form.value.allowedRoles ?? []).includes(role); }
+  roleLabels(roles: string[]): string { return this.paymentRoles.filter(role => (roles ?? []).includes(role.value)).map(role => role.label).join(', '); }
+  toggleRole(role: string, checked: boolean) {
+    const roles = new Set<string>(this.form.value.allowedRoles ?? []);
+    checked ? roles.add(role) : roles.delete(role);
+    this.form.patchValue({ allowedRoles: [...roles] });
   }
 }

@@ -263,7 +263,7 @@
 }
 .fuel-modal form {
   position: relative;
-  max-height: 96vh;
+  max-height: 98vh;
   overflow: auto;
   border-radius: 14px;
   background: #fff;
@@ -272,7 +272,7 @@
   pointer-events: none;
 }
 .reading-form {
-  width: min(1050px, 97vw);
+  width: min(1180px, 98vw);
 }
 .fuel-modal form > header {
   display: flex;
@@ -391,12 +391,15 @@
   gap: 8px;
   margin-top: 9px;
 }
+.payment-grid > button { align-self: end; height: 37px; border: 1px solid #efcdca; border-radius: 7px; background: #fff7f5; color: #bd645b; font-size: 8px; font-weight: 800; }
+.payment-section > .mini-add { min-height: 37px; margin-top: 9px; margin-right: 7px; padding: 0 11px; border: 1px solid #bcd8ed; border-radius: 7px; background: #f1f8fe; color: #397fc4; font-size: 8px; font-weight: 800; }
 .payment-grid label {
   display: grid;
   gap: 4px;
   color: #607387;
   font-size: 7px;
 }
+.payment-grid > label > input { width: 100%; height: 37px; padding: 8px; border: 1px solid #dbe5ed; border-radius: 7px; }
 .money-field {
   position: relative;
 }
@@ -407,6 +410,12 @@
   border: 1px solid #dbe5ed;
   border-radius: 7px;
   text-align: right;
+}
+.money-field input:disabled {
+  border-color: #dfe6ec;
+  background: #eef2f5;
+  color: #8b9aa8;
+  cursor: not-allowed;
 }
 .money-field span,
 .money-field small {

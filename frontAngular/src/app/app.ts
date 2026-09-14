@@ -8,6 +8,7 @@ interface NavChild {
   label: string;
   route: string;
   queryParams?: Record<string, string>;
+  roles?: UserRole[];
 }
 
 interface NavItem {
@@ -41,9 +42,9 @@ export class App implements OnInit {
       icon: '⛽',
       roles: ['ROLE_GERANT', 'ROLE_ASSISTANT', 'ROLE_QUALITY_MARSHALL'],
       children: [
-        { label: 'Ventes & relevés', route: '/carburants/ventes' },
-        { label: 'Livraisons carburant', route: '/carburants/livraisons' },
-        { label: 'Encaissements', route: '/carburants/encaissements' },
+        { label: 'Ventes & relevés', route: '/carburants/ventes', roles: ['ROLE_GERANT', 'ROLE_ASSISTANT'] },
+        { label: 'Livraisons carburant', route: '/carburants/livraisons', roles: ['ROLE_GERANT', 'ROLE_QUALITY_MARSHALL', 'ROLE_ASSISTANT'] },
+        { label: 'Encaissements', route: '/carburants/encaissements', roles: ['ROLE_GERANT', 'ROLE_ASSISTANT'] },
         { label: 'État des cuves', route: '/stock-carburant' },
       ],
     },
@@ -56,7 +57,7 @@ export class App implements OnInit {
         { label: 'Historique des paiements', route: '/fournisseurs/historique' },
       ],
     },
-    { label: 'Utilisateurs', route: '/utilisateurs', icon: '♙', roles: ['ROLE_SUPER_ADMIN'] },
+    { label: 'Utilisateurs', route: '/utilisateurs', icon: '♙', roles: ['ROLE_SUPER_ADMIN', 'ROLE_GERANT'] },
   ];
 
   constructor(public readonly auth: AuthService, private readonly router: Router) {}

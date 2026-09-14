@@ -24,6 +24,9 @@ class FuelPaymentMethod
     private bool $isActive = true;
 
     #[ORM\Column]
+    private array $allowedRoles = ['ROLE_GERANT'];
+
+    #[ORM\Column]
     private ?\DateTimeImmutable $createdAt = null;
 
     public function getId(): ?int { return $this->id; }
@@ -35,6 +38,8 @@ class FuelPaymentMethod
     public function setName(string $name): static { $this->name = $name; return $this; }
     public function isActive(): bool { return $this->isActive; }
     public function setIsActive(bool $active): static { $this->isActive = $active; return $this; }
+    public function getAllowedRoles(): array { return $this->allowedRoles; }
+    public function setAllowedRoles(array $roles): static { $this->allowedRoles = array_values($roles); return $this; }
     public function getCreatedAt(): ?\DateTimeImmutable { return $this->createdAt; }
     public function setCreatedAt(\DateTimeImmutable $createdAt): static { $this->createdAt = $createdAt; return $this; }
 }

@@ -21,10 +21,10 @@
         <span class="role">{{ user.roleLabel }}</span>
         <span class="station">{{ stationLabel(user) }}</span>
         <span class="status" [class.offline]="!user.isActive">{{ user.isActive ? 'Actif' : 'Inactif' }}</span>
-        <div class="row-actions">
+        @if (auth.isSuperAdmin()) { <div class="row-actions">
           <button class="edit" (click)="open(user)">Modifier</button>
           <button class="edit" (click)="toggle(user)">{{ user.isActive ? 'Désactiver' : 'Activer' }}</button>
-        </div>
+        </div> }
       </article>
     } @empty {
       <div class="empty-state"><span>+</span><h3>Aucun utilisateur</h3><p>Créez le premier compte pour verrouiller les accès.</p></div>
@@ -35,24 +35,17 @@
 @if (modal) {
   <div class="modal-backdrop">
     <form class="user-form" [formGroup]="form" (ngSubmit)="save()">
-      <header>
-        <div><h2>{{ editing ? 'Modifier utilisateur' : 'Nouvel utilisateur' }}</h2><p>Un compte non super admin reste fixé à une station.</p></div>
-        <button type="button" (click)="close()">×</button>
+      <header class="user-form__header">
+        <div class="user-form__title"><span class="user-form__icon">{{ editing ? '✎' : '+' }}</span><div><p>{{ editing ? 'MISE À JOUR DU COMPTE' : 'NOUVEAU COMPTE' }}</p><h2>{{ editing ? 'Modifier utilisateur' : 'Créer un utilisateur' }}</h2></div></div>
+        <button type="button" class="user-form__close" (click)="close()" aria-label="Fermer">×</button>
       </header>
-      <div class="fields">
-        <label><span>Email</span><input type="email" formControlName="email" /></label>
-        <label><span>Prénom</span><input formControlName="firstName" /></label>
-        <label><span>Nom</span><input formControlName="lastName" /></label>
-        <label><span>Contact</span><input formControlName="contact" /></label>
-        <label><span>Rôle</span><select formControlName="role"><option *ngFor="let role of roles" [value]="role.value">{{ role.label }}</option></select></label>
-        @if (form.value.role !== 'ROLE_SUPER_ADMIN') {
-          <label><span>Station</span><select formControlName="stationId"><option [value]="0">Sélectionner...</option><option *ngFor="let station of stations" [value]="station.value">{{ station.label }}</option></select></label>
-        }
-        <label><span>Mot de passe</span><input type="password" formControlName="password" [placeholder]="editing ? 'Laisser vide pour conserver' : ''" /></label>
-        <label class="toggle"><input type="checkbox" formControlName="isActive" /><span>Compte actif</span></label>
+      <div class="user-form__body">
+        <section class="user-form__section"><div class="section-heading"><span>01</span><div><h3>Informations personnelles</h3><p>Identité et coordonnées du collaborateur.</p></div></div><div class="user-fields"><label class="wide"><span>Adresse e-mail</span><input type="email" formControlName="email" placeholder="nom@entreprise.com" /></label><label><span>Prénom</span><input formControlName="firstName" placeholder="Prénom" /></label><label><span>Nom</span><input formControlName="lastName" placeholder="Nom" /></label><label class="wide"><span>Contact</span><input formControlName="contact" placeholder="Téléphone ou autre contact" /></label></div></section>
+        <section class="user-form__section access-section"><div class="section-heading"><span>02</span><div><h3>Accès et affectation</h3><p>Définissez le périmètre de travail de cet utilisateur.</p></div></div><div class="user-fields"><label><span>Rôle</span><select formControlName="role"><option *ngFor="let role of roles" [value]="role.value">{{ role.label }}</option></select></label>@if (auth.isSuperAdmin()) {@if (form.value.role !== 'ROLE_SUPER_ADMIN') {<label><span>Station</span><select formControlName="stationId"><option [value]="0">Sélectionner une station...</option><option *ngFor="let station of stations" [value]="station.value">{{ station.label }}</option></select></label>} @else {<div class="all-stations"><span>◈</span><div><strong>Toutes les stations</strong><small>Le super administrateur dispose d’un accès global.</small></div></div>}} @else {<div class="all-stations"><span>⌖</span><div><strong>Votre station</strong><small>L’utilisateur sera automatiquement affecté à votre station.</small></div></div>}</div></section>
+        <section class="user-form__section security-section"><div class="section-heading"><span>03</span><div><h3>Sécurité du compte</h3><p>{{ editing ? 'Laissez le mot de passe vide pour le conserver.' : 'Choisissez un mot de passe d’au moins 6 caractères.' }}</p></div></div><div class="user-fields"><label><span>Mot de passe</span><input type="password" formControlName="password" [placeholder]="editing ? 'Conserver le mot de passe actuel' : '6 caractères minimum'" /></label>@if (auth.isSuperAdmin()) {<label class="account-status"><input type="checkbox" formControlName="isActive" /><span><strong>Compte actif</strong><small>L’utilisateur peut se connecter immédiatement.</small></span></label>}</div></section>
       </div>
       @if (error) { <p class="form-error">{{ error }}</p> }
-      <footer><button type="button" class="cancel" (click)="close()">Annuler</button><button [disabled]="saving">{{ saving ? 'Enregistrement...' : 'Enregistrer' }}</button></footer>
+      <footer><button type="button" class="cancel" (click)="close()">Annuler</button><button [disabled]="saving">{{ saving ? 'Enregistrement...' : (editing ? 'Enregistrer les modifications' : 'Créer le compte') }}</button></footer>
     </form>
   </div>
 }

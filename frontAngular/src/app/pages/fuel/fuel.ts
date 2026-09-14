@@ -1,5 +1,5 @@
 import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
-import { FormBuilder, Validators } from '@angular/forms';
+import { FormArray, FormBuilder, Validators } from '@angular/forms';
 import { FuelWorkspace } from '../../models/fuel.model';
 import { ArticleService } from '../../services/article.service';
 import { FuelService } from '../../services/fuel.service';
@@ -70,10 +70,9 @@ export class Fuel implements OnInit {
       endIndex: [0, Validators.min(0)],
       returnToTank: [0, Validators.min(0)],
       unitPrice: [0, Validators.min(0)],
-      paymentMethodId: [0, Validators.min(1)],
-      paymentAmount: [0, Validators.min(0)],
-      paymentReference: [''],
+      payments: fb.array([]),
     });
+    if (!this.auth.hasAnyRole(['ROLE_GERANT'])) this.readingForm.controls.unitPrice.disable({ emitEvent: false });
     this.deliveryForm = fb.group({
       date: [new Date().toISOString().slice(0, 10), Validators.required],
       tankId: [0, Validators.min(1)],
@@ -155,6 +154,7 @@ export class Fuel implements OnInit {
   }
   openReading() {
     this.error = '';
+    this.payments.clear();
     this.readingForm.reset({
       date: new Date().toISOString().slice(0, 10),
       nozzleId: 0,
@@ -163,11 +163,9 @@ export class Fuel implements OnInit {
       endIndex: 0,
       returnToTank: 0,
       unitPrice: 0,
-      paymentMethodId:
-        this.paymentMethods[0]?.value != null ? Number(this.paymentMethods[0].value) : 0,
-      paymentAmount: 0,
-      paymentReference: '',
+      payments: [],
     });
+    this.addPayment();
     this.modal = 'reading';
   }
   selectNozzle() {
@@ -189,11 +187,19 @@ export class Fuel implements OnInit {
     return Math.max(0, this.output - Number(this.readingForm.value.returnToTank));
   }
   get total() {
-    return this.sold * Number(this.readingForm.value.unitPrice);
+    return this.sold * Number(this.readingForm.getRawValue().unitPrice);
   }
   get paid() {
-    return Number(this.readingForm.value.paymentAmount || 0);
+    return this.payments.controls.reduce((sum, payment) => sum + Number(payment.value.amount || 0), 0);
   }
+  get payments(): FormArray { return this.readingForm.get('payments') as FormArray; }
+  addPayment() {
+    this.payments.push(this.fb.group({
+      paymentMethodId: [this.paymentMethods[0]?.value != null ? Number(this.paymentMethods[0].value) : 0, Validators.min(1)],
+      amount: [0, Validators.min(0.01)], reference: [''],
+    }));
+  }
+  removePayment(index: number) { if (this.payments.length > 1) this.payments.removeAt(index); }
   get totalTankStock() {
     return (this.data?.tanks ?? []).reduce((total, tank) => total + Number(tank.stock || 0), 0);
   }
@@ -295,6 +301,7 @@ export class Fuel implements OnInit {
   resetPaymentsPage() { this.paymentsPage = 1; }
   saveReading() {
     if (this.saving || this.readingForm.invalid) return;
+    if (Math.abs(this.paid - this.total) > 0.01) { this.error = `La somme des paiements doit être de ${this.money(this.total)} Ar.`; return; }
     this.saving = true;
     this.savingLabel = 'Enregistrement du relevé...';
     this.error = '';
@@ -327,7 +334,7 @@ export class Fuel implements OnInit {
         next: (method) => {
           this.saving = false;
           this.loadPaymentData();
-          this.readingForm.patchValue({ paymentMethodId: method.id });
+          this.payments.at(0)?.patchValue({ paymentMethodId: method.id });
           this.modal = 'reading';
         },
         error: (e) => {
@@ -401,10 +408,6 @@ export class Fuel implements OnInit {
     const value = this.setupForm.getRawValue();
     if (this.setupType === 'TANK' && !Number(value.fuelTypeId)) {
       this.error = 'Choisissez le carburant de la cuve.';
-      return;
-    }
-    if (this.setupType === 'PUMP' && !Number(value.tankId)) {
-      this.error = 'Choisissez la cuve alimentant cette pompe.';
       return;
     }
     if (this.setupType === 'NOZZLE' && (!Number(value.pumpId) || !Number(value.tankId))) {

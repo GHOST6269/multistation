@@ -439,7 +439,7 @@
             <label
               >PU TTC (Ar/L)
               <div class="money-field">
-                <input appMoney type="text" formControlName="unitPrice" [disabled]="!auth.isSuperAdmin()" />
+                <input appMoney type="text" formControlName="unitPrice" />
                 <span>Ar</span>
               </div>
             </label>
@@ -458,51 +458,28 @@
             </div>
           </div>
         </section>
-        <section class="payment-section simple-payment">
+        <section class="payment-section">
           <div class="payment-title">
             <div>
               <h3>Paiement</h3>
-              <p>Choisissez le mode puis saisissez le montant encaissé.</p>
+              <p>Répartissez le règlement entre un ou plusieurs modes de paiement.</p>
             </div>
             <strong [class.bad]="Math.abs(paid - total) > 0.01"
               >{{ money(paid) }} / {{ money(total) }} Ar</strong
             >
           </div>
-          <div class="single-payment-row">
-            <label
-              >Mode de paiement *
-              <div class="field-with-action">
-                <app-dropdown
-                  formControlName="paymentMethodId"
-                  [options]="paymentMethods"
-                  placeholder="Choisir"
-                /><button
-                  type="button"
-                  class="mini-add"
-                  title="Ajouter un mode"
-                  [disabled]="saving"
-                  (click)="openPaymentMethod()"
-                >
-                  ＋
-                </button>
-              </div></label
-            >
-            <label
-              >Montant encaissé
-              <div class="money-field">
-                <input appMoney type="text" formControlName="paymentAmount" /><small>Ar</small>
-              </div></label
-            >
-            <label
-              >Référence (facultatif)
-              <div class="money-field">
-                <input
-                  type="text"
-                  formControlName="paymentReference"
-                  placeholder="N° chèque, ticket…"
-                /></div
-            ></label>
+          <div formArrayName="payments">
+            @for (payment of payments.controls; track $index; let index = $index) {
+              <div class="payment-grid" [formGroupName]="index">
+                <label>Mode de paiement *<app-dropdown formControlName="paymentMethodId" [options]="paymentMethods" placeholder="Choisir" /></label>
+                <label>Montant encaissé<div class="money-field"><input appMoney type="text" formControlName="amount" /><small>Ar</small></div></label>
+                <label>Référence (facultatif)<input type="text" formControlName="reference" placeholder="N° chèque, ticket…" /></label>
+                <button type="button" class="cancel" [disabled]="saving || payments.length === 1" (click)="removePayment(index)">Retirer</button>
+              </div>
+            }
           </div>
+          <button type="button" class="mini-add" [disabled]="saving" (click)="addPayment()">＋ Ajouter un paiement</button>
+          <button type="button" class="mini-add" [disabled]="saving" (click)="openPaymentMethod()">＋ Nouveau mode</button>
         </section>
         @if (error) {
           <div class="api-error">! {{ error }}</div>
@@ -622,13 +599,6 @@
           ><label>Capacité (L)<input type="number" formControlName="capacity" /></label
           ><label>Stock initial<input type="number" formControlName="currentStock" /></label
           ><label>Seuil minimum<input type="number" formControlName="minimumStock" /></label>
-        }
-        @if (setupType === 'PUMP') {
-          <label
-            >Cuve alimentée *<app-dropdown
-              formControlName="tankId"
-              [options]="options(data?.tanks || [])" /></label
-          ><label>Index départ<input type="number" formControlName="currentIndex" /></label>
         }
         @if (setupType === 'NOZZLE') {
           <label

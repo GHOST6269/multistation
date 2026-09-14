@@ -56,6 +56,12 @@ final class UserAccessService
         return in_array(self::ROLE_SUPER_ADMIN, ($user ?? $this->currentUser())?->getRoles() ?? [], true);
     }
 
+    public function canEditFuelUnitPrice(?User $user = null): bool
+    {
+        $roles = ($user ?? $this->currentUser())?->getRoles() ?? [];
+        return $this->isSuperAdmin($user) || in_array(self::ROLE_GERANT, $roles, true);
+    }
+
     public function require(array|string $roles): ?JsonResponse
     {
         $user = $this->currentUser();

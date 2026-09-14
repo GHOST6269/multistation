@@ -31,6 +31,7 @@
           @if (item.children && isMenuOpen(item)) {
             <div class="nav-submenu">
               @for (child of item.children; track child.label) {
+                @if (visible(child)) {
                 <a
                   [routerLink]="child.route"
                   [queryParams]="child.queryParams"
@@ -39,6 +40,7 @@
                   (click)="menuOpen = false"
                   >{{ child.label }}</a
                 >
+                }
               }
             </div>
           }
@@ -49,7 +51,7 @@
     <div class="sidebar-footer">
       <div class="profile">
         <span class="avatar">{{ initials() }}</span>
-        <div><strong>{{ user?.firstName || 'Utilisateur' }}</strong><small>{{ user?.roleLabel || 'Session' }}</small></div>
+        <a class="profile-link" routerLink="/profil" (click)="menuOpen = false"><strong>{{ user?.firstName || 'Utilisateur' }}</strong><small>{{ user?.roleLabel || 'Session' }}</small></a>
         <button type="button" aria-label="Déconnexion" title="Se déconnecter" (click)="logout()"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 5H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h4M14 16l4-4-4-4M18 12H9" /></svg></button>
       </div>
     </div>
@@ -67,11 +69,11 @@
         <span class="chevron">⌄</span>
       </div>
       <div class="top-actions">
-        <div class="user-name">
+        <a class="user-name" routerLink="/profil">
           <strong>{{ user?.firstName || 'Utilisateur' }}</strong>
           <small>{{ user?.roleLabel || 'Session active' }}</small>
-        </div>
-        <span class="top-avatar">{{ initials() }}</span>
+        </a>
+        <a class="top-avatar" routerLink="/profil" aria-label="Ouvrir mon profil">{{ initials() }}</a>
         <button type="button" class="top-logout" (click)="logout()" aria-label="Se déconnecter" title="Se déconnecter">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 5H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h4M14 16l4-4-4-4M18 12H9" /></svg>
         </button>

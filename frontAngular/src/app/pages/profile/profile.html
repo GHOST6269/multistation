@@ -1,0 +1,40 @@
+<div class="page-heading">
+  <div>
+    <p class="eyebrow">COMPTE UTILISATEUR</p>
+    <h1>Mon profil</h1>
+    <p>Mettez à jour vos informations personnelles et votre mot de passe.</p>
+  </div>
+</div>
+
+<section class="profile-card">
+  <aside>
+    <span class="profile-avatar">{{ user?.firstName?.[0] }}{{ user?.lastName?.[0] }}</span>
+    <strong>{{ user?.firstName }} {{ user?.lastName }}</strong>
+    <small>{{ user?.roleLabel }}</small>
+  </aside>
+
+  <form [formGroup]="form" (ngSubmit)="save()">
+    <div class="profile-fields locked-fields">
+      <label><span>Email de connexion</span><input formControlName="email" [readonly]="!isSuperAdmin()" /></label>
+      @if (isSuperAdmin()) {
+        <label><span>Rôle</span><select formControlName="role"><option *ngFor="let role of roles" [value]="role.value">{{ role.label }}</option></select></label>
+        @if (form.value.role !== 'ROLE_SUPER_ADMIN') { <label><span>Station</span><select formControlName="stationId"><option [value]="0">Sélectionner...</option><option *ngFor="let station of stations" [value]="station.value">{{ station.label }}</option></select></label> }
+      } @else {
+        <label><span>Rôle</span><input [value]="user?.roleLabel" readonly /></label>
+        <label><span>Station</span><input [value]="stationLabel()" readonly /></label>
+      }
+    </div>
+    <p class="profile-note">@if (isSuperAdmin()) { Vous disposez des droits de modification complets. } @else { L’adresse e-mail, le rôle et la station sont définis par l’administrateur. }</p>
+
+    <div class="profile-fields">
+      <label><span>Prénom</span><input formControlName="firstName" /></label>
+      <label><span>Nom</span><input formControlName="lastName" /></label>
+      <label><span>Contact</span><input formControlName="contact" /></label>
+      <label><span>Nouveau mot de passe</span><input type="password" formControlName="password" placeholder="Laisser vide pour conserver" /></label>
+      <label><span>Confirmer le mot de passe</span><input type="password" formControlName="passwordConfirmation" /></label>
+    </div>
+    @if (error) { <p class="form-error">{{ error }}</p> }
+    @if (saved) { <p class="profile-success">Profil mis à jour.</p> }
+    <footer><button [disabled]="saving">{{ saving ? 'Enregistrement...' : 'Enregistrer les modifications' }}</button></footer>
+  </form>
+</section>

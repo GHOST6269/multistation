@@ -10,8 +10,19 @@ export interface AppUser {
   roleLabel: string;
   roles: UserRole[];
   stationIds: number[];
+  stationNames?: string[];
   isActive: boolean;
   lastLogin: string | null;
+}
+
+export interface ProfileInput {
+  email?: string;
+  firstName: string;
+  lastName: string;
+  contact: string;
+  role?: UserRole;
+  stationIds?: number[];
+  password?: string;
 }
 
 export interface RoleOption {

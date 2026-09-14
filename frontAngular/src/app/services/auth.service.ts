@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { Router } from '@angular/router';
 import { BehaviorSubject, Observable, catchError, finalize, map, of, shareReplay, tap } from 'rxjs';
-import { AppUser, UserRole } from '../models/user';
+import { AppUser, ProfileInput, UserRole } from '../models/user';
 import { ApiService } from './api.service';
 
 const TOKEN_KEY = 'stationflow_token';
@@ -51,6 +51,13 @@ export class AuthService {
 
   loadMe(): void {
     this.ensureUser().subscribe();
+  }
+
+  updateProfile(data: ProfileInput): Observable<AppUser> {
+    return this.api.put<{ user: AppUser }>('auth/profile', data).pipe(
+      map((response) => response.user),
+      tap((user) => this.userSubject.next(user)),
+    );
   }
 
   logout(navigate = true): void {

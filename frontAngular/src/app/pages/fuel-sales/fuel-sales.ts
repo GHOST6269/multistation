@@ -3,11 +3,12 @@ import { ArticleService } from '../../services/article.service';
 import { FuelService } from '../../services/fuel.service';
 import { AuthService } from '../../services/auth.service';
 import { DropdownOption } from '../../shared/dropdown/dropdown';
-import { FormBuilder, Validators } from '@angular/forms';
+import { FormArray, FormBuilder, Validators } from '@angular/forms';
 import { formatMoney } from '../../shared/money-format';
 
 @Component({ selector: 'app-fuel-sales', standalone: false, templateUrl: './fuel-sales.html', styleUrl: './fuel-sales.scss' })
 export class FuelSales implements OnInit {
+  readonly Math = Math;
   stations: DropdownOption[] = [];
   stationId = 0;
   readings: any[] = [];
@@ -24,7 +25,8 @@ export class FuelSales implements OnInit {
   paymentMethods: DropdownOption[] = [];
   form;
   constructor(private articles: ArticleService, private fuel: FuelService, private fb: FormBuilder, private cdr: ChangeDetectorRef, public auth: AuthService) {
-    this.form = fb.group({ date: [new Date().toISOString().slice(0, 10), Validators.required], nozzleId: [0, Validators.min(1)], attendantId: [0, Validators.min(1)], startIndex: [0, Validators.min(0)], endIndex: [0, Validators.min(0)], returnToTank: [0, Validators.min(0)], unitPrice: [0, Validators.min(0)], paymentMethodId: [0, Validators.min(1)], paymentAmount: [0, Validators.min(0)], paymentReference: [''] });
+    this.form = fb.group({ date: [new Date().toISOString().slice(0, 10), Validators.required], nozzleId: [0, Validators.min(1)], attendantId: [0, Validators.min(1)], startIndex: [0, Validators.min(0)], endIndex: [0, Validators.min(0)], returnToTank: [0, Validators.min(0)], unitPrice: [0, Validators.min(0)], payments: fb.array([]) });
+    if (!this.auth.hasAnyRole(['ROLE_GERANT'])) this.form.controls.unitPrice.disable({ emitEvent: false });
   }
   ngOnInit() { this.articles.options().subscribe(data => { this.stations = data.stations.map(s => ({ value: s.id, label: s.name })); this.stationId = data.stations[0]?.id ?? 0; this.load(); }); }
   load() { if (!this.stationId) return; this.loading = true; this.page = 1; this.fuel.workspace(this.stationId).subscribe({ next: data => { this.readings = data.readings ?? []; this.nozzles = data.nozzles ?? []; this.attendants = data.attendants ?? []; this.loading = false; this.cdr.detectChanges(); }, error: () => { this.readings = []; this.loading = false; } }); this.fuel.paymentMethods(this.stationId).subscribe(data => { this.paymentMethods = (data.methods ?? []).filter((method: any) => method.active).map((method: any) => ({ value: method.id, label: method.name, hint: method.code })); }); }
@@ -38,8 +40,12 @@ export class FuelSales implements OnInit {
   get nozzleOptions(): DropdownOption[] { return this.nozzles.map(nozzle => ({ value: nozzle.id, label: `${nozzle.code} · ${nozzle.fuel ?? ''}`, hint: nozzle.tank ?? '' })); }
   get attendantOptions(): DropdownOption[] { return this.attendants.map(attendant => ({ value: attendant.id, label: attendant.name })); }
   get sold() { return Math.max(0, Number(this.form.value.endIndex) - Number(this.form.value.startIndex) - Number(this.form.value.returnToTank)); }
-  get total() { return this.sold * Number(this.form.value.unitPrice); }
-  openReading() { this.error = ''; this.form.reset({ date: new Date().toISOString().slice(0, 10), nozzleId: 0, attendantId: 0, startIndex: 0, endIndex: 0, returnToTank: 0, unitPrice: 0, paymentMethodId: Number(this.paymentMethods[0]?.value ?? 0), paymentAmount: 0, paymentReference: '' }); this.modalOpen = true; }
+  get total() { return this.sold * Number(this.form.getRawValue().unitPrice); }
+  get payments(): FormArray { return this.form.get('payments') as FormArray; }
+  get paid() { return this.payments.controls.reduce((sum, payment) => sum + Number(payment.value.amount || 0), 0); }
+  addPayment() { this.payments.push(this.fb.group({ paymentMethodId: [Number(this.paymentMethods[0]?.value ?? 0), Validators.min(1)], amount: [0, Validators.min(0.01)], reference: [''] })); }
+  removePayment(index: number) { if (this.payments.length > 1) this.payments.removeAt(index); }
+  openReading() { this.error = ''; this.form.reset({ date: new Date().toISOString().slice(0, 10), nozzleId: 0, attendantId: 0, startIndex: 0, endIndex: 0, returnToTank: 0, unitPrice: 0, payments: [] }); this.payments.clear(); this.addPayment(); this.modalOpen = true; }
   selectNozzle() { const nozzle = this.nozzles.find(item => item.id === Number(this.form.value.nozzleId)); if (nozzle) this.form.patchValue({ startIndex: nozzle.currentIndex, endIndex: nozzle.currentIndex, unitPrice: nozzle.unitPrice }); }
   save() {
     if (this.saving) return;
@@ -58,7 +64,7 @@ export class FuelSales implements OnInit {
     const returnToTank = Number(this.form.value.returnToTank || 0);
     if (end < start) return 'L’index final ne peut pas être inférieur à l’index de départ.';
     if (returnToTank > end - start) return 'Le retour cuve ne peut pas être supérieur à la sortie de pompe.';
-    if (Math.abs(Number(this.form.value.paymentAmount || 0) - this.total) > 0.01) return `Le montant encaissé doit correspondre au montant théorique (${this.money(this.total)} Ar).`;
+    if (Math.abs(this.paid - this.total) > 0.01) return `La somme des paiements doit correspondre au montant théorique (${this.money(this.total)} Ar).`;
     return '';
   }
   money(value: number) { return formatMoney(value); }

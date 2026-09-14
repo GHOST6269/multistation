@@ -45,38 +45,114 @@ final class UserController extends AbstractController
         return $this->json(['user' => $this->userRow($user, $this->stationIds($user, $em))]);
     }
 
-    #[Route('/users', methods: ['GET'])]
-    public function index(UserAccessService $access, UserRepository $users, EntityManagerInterface $em): JsonResponse
+    #[Route('/auth/profile', methods: ['PUT'])]
+    public function updateProfile(Request $request, UserAccessService $access, StationsRepository $stations, UserPasswordHasherInterface $hasher, EntityManagerInterface $em): JsonResponse
     {
-        if ($denied = $access->require(UserAccessService::ROLE_SUPER_ADMIN)) {
+        $user = $access->currentUser();
+        if (!$user) {
+            return $this->json(['message' => 'Authentification requise.'], 401);
+        }
+
+        $data = $request->toArray();
+        if ($access->isSuperAdmin()) {
+            $error = $this->applyUserData($user, $data, $stations, $em, true);
+            if ($error) {
+                return $this->json(['message' => $error], 422);
+            }
+
+            if (!empty($data['password'])) {
+                $password = (string) $data['password'];
+                if (strlen($password) < 6) {
+                    return $this->json(['message' => 'Le mot de passe doit contenir au moins 6 caractères.'], 422);
+                }
+                $user->setPassword($hasher->hashPassword($user, $password));
+            }
+
+            $user->setUpdatedAt(new \DateTime());
+            $em->flush();
+            $this->syncStations($user, $data['stationIds'] ?? [], $stations, $em);
+
+            return $this->json(['user' => $this->userRow($user, $this->stationIds($user, $em))]);
+        }
+
+        $firstName = trim((string) ($data['firstName'] ?? ''));
+        if ($firstName === '') {
+            return $this->json(['message' => 'Le prénom est obligatoire.'], 422);
+        }
+
+        // Only personal fields are accepted here. Login email, role and station assignments
+        // remain managed by an administrator through the user-management endpoints.
+        $user->setFirstName($firstName)
+            ->setLastName(trim((string) ($data['lastName'] ?? '')) ?: null)
+            ->setContact(trim((string) ($data['contact'] ?? '')) ?: null);
+
+        if (!empty($data['password'])) {
+            $password = (string) $data['password'];
+            if (strlen($password) < 6) {
+                return $this->json(['message' => 'Le mot de passe doit contenir au moins 6 caractères.'], 422);
+            }
+            $user->setPassword($hasher->hashPassword($user, $password));
+        }
+
+        $user->setUpdatedAt(new \DateTime());
+        $em->flush();
+
+        return $this->json(['user' => $this->userRow($user, $this->stationIds($user, $em))]);
+    }
+
+    #[Route('/users', methods: ['GET'])]
+    public function index(UserAccessService $access, UserRepository $users, StationUsersRepository $stationUsers, EntityManagerInterface $em): JsonResponse
+    {
+        if ($denied = $access->require([UserAccessService::ROLE_SUPER_ADMIN, UserAccessService::ROLE_GERANT])) {
             return $denied;
         }
 
-        return $this->json(array_map(fn (User $user): array => $this->userRow($user, $this->stationIds($user, $em)), $users->findBy([], ['id' => 'DESC'])));
+        $items = $access->isSuperAdmin() ? $users->findBy([], ['id' => 'DESC']) : array_filter(array_map(
+            static fn (StationUsers $assignment): ?User => $assignment->getUser(),
+            $stationUsers->findBy(['station' => $access->allowedStationIds(), 'isActive' => true]),
+        ), static fn (?User $user): bool => $user !== null);
+
+        return $this->json(array_map(fn (User $user): array => $this->userRow($user, $this->stationIds($user, $em)), $items));
     }
 
     #[Route('/users/roles', methods: ['GET'])]
     public function roles(UserAccessService $access): JsonResponse
     {
-        if ($denied = $access->require(UserAccessService::ROLE_SUPER_ADMIN)) {
+        if ($denied = $access->require([UserAccessService::ROLE_SUPER_ADMIN, UserAccessService::ROLE_GERANT])) {
             return $denied;
         }
 
+        $availableRoles = $access->isSuperAdmin() ? UserAccessService::ROLE_LABELS : array_filter(
+            UserAccessService::ROLE_LABELS,
+            static fn (string $role): bool => $role !== UserAccessService::ROLE_SUPER_ADMIN,
+            ARRAY_FILTER_USE_KEY,
+        );
         return $this->json(['roles' => array_map(
             static fn (string $role, string $label): array => ['value' => $role, 'label' => $label],
-            array_keys(UserAccessService::ROLE_LABELS),
-            UserAccessService::ROLE_LABELS,
+            array_keys($availableRoles),
+            $availableRoles,
         )]);
     }
 
     #[Route('/users', methods: ['POST'])]
     public function create(Request $request, UserAccessService $access, StationsRepository $stations, UserPasswordHasherInterface $hasher, EntityManagerInterface $em): JsonResponse
     {
-        if ($denied = $access->require(UserAccessService::ROLE_SUPER_ADMIN)) {
+        if ($denied = $access->require([UserAccessService::ROLE_SUPER_ADMIN, UserAccessService::ROLE_GERANT])) {
             return $denied;
         }
 
         $data = $request->toArray();
+        if (!$access->isSuperAdmin()) {
+            $stationIds = $access->allowedStationIds();
+            if (count($stationIds) !== 1) {
+                return $this->json(['message' => 'Votre compte doit être rattaché à une station pour créer un utilisateur.'], 422);
+            }
+            if (!in_array($data['role'] ?? '', [UserAccessService::ROLE_GERANT, UserAccessService::ROLE_QUALITY_MARSHALL, UserAccessService::ROLE_ASSISTANT], true)) {
+                return $this->json(['message' => 'Un gérant ne peut pas créer de compte super administrateur.'], 422);
+            }
+            $data['stationIds'] = [$stationIds[0]];
+            $data['isActive'] = true;
+        }
         $user = new User();
         $error = $this->applyUserData($user, $data, $stations, $em, false);
         if ($error) {

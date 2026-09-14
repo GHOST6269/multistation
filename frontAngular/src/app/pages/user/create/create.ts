@@ -4,6 +4,7 @@ import { ArticleService } from '../../../services/article.service';
 import { UserService } from '../../../services/user.service';
 import { AppUser, RoleOption, UserRole } from '../../../models/user';
 import { DropdownOption } from '../../../shared/dropdown/dropdown';
+import { AuthService } from '../../../services/auth.service';
 
 @Component({
   selector: 'app-create',
@@ -26,6 +27,7 @@ export class Create implements OnInit {
     fb: FormBuilder,
     private readonly service: UserService,
     private readonly articles: ArticleService,
+    public readonly auth: AuthService,
     private readonly cdr: ChangeDetectorRef,
   ) {
     this.form = fb.group({
@@ -69,6 +71,7 @@ export class Create implements OnInit {
   }
 
   open(user?: AppUser): void {
+    if (user && !this.auth.isSuperAdmin()) return;
     this.error = '';
     this.editing = user ?? null;
     this.form.reset({
@@ -77,7 +80,7 @@ export class Create implements OnInit {
       lastName: user?.lastName ?? '',
       contact: user?.contact ?? '',
       role: user?.role ?? 'ROLE_ASSISTANT',
-      stationId: user?.stationIds?.[0] ?? 0,
+      stationId: user?.stationIds?.[0] ?? this.managerStationId(),
       password: '',
       isActive: user?.isActive ?? true,
     });
@@ -90,7 +93,7 @@ export class Create implements OnInit {
 
   save(): void {
     const value = this.form.getRawValue();
-    if (this.form.invalid || (value.role !== 'ROLE_SUPER_ADMIN' && !Number(value.stationId))) {
+    if (this.form.invalid || (value.role !== 'ROLE_SUPER_ADMIN' && !(this.auth.isSuperAdmin() ? Number(value.stationId) : this.managerStationId()))) {
       this.form.markAllAsTouched();
       this.error = 'Complétez les champs obligatoires.';
       return;
@@ -103,7 +106,7 @@ export class Create implements OnInit {
       lastName: value.lastName ?? '',
       contact: value.contact ?? '',
       role: value.role as UserRole,
-      stationIds: value.role === 'ROLE_SUPER_ADMIN' ? [] : [Number(value.stationId)],
+      stationIds: value.role === 'ROLE_SUPER_ADMIN' ? [] : [this.auth.isSuperAdmin() ? Number(value.stationId) : this.managerStationId()],
       password: value.password || undefined,
       isActive: !!value.isActive,
     };
@@ -137,5 +140,9 @@ export class Create implements OnInit {
 
   initials(user: AppUser): string {
     return `${user.firstName?.[0] ?? ''}${user.lastName?.[0] ?? ''}`.toUpperCase() || user.email.slice(0, 2).toUpperCase();
+  }
+
+  managerStationId(): number {
+    return Number(this.stations[0]?.value ?? 0);
   }
 }
