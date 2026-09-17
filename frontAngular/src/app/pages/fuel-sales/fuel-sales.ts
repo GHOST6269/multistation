@@ -1,6 +1,7 @@
 import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { ArticleService } from '../../services/article.service';
 import { FuelService } from '../../services/fuel.service';
+import { CustomerService } from '../../services/customer.service';
 import { AuthService } from '../../services/auth.service';
 import { DropdownOption } from '../../shared/dropdown/dropdown';
 import { FormArray, FormBuilder, Validators } from '@angular/forms';
@@ -18,18 +19,22 @@ export class FuelSales implements OnInit {
   readonly pageSize = 10;
   loading = true;
   modalOpen = false;
+  quickCustomerOpen = false;
   saving = false;
+  savingCustomer = false;
   error = '';
   nozzles: any[] = [];
   attendants: any[] = [];
   paymentMethods: DropdownOption[] = [];
-  form;
-  constructor(private articles: ArticleService, private fuel: FuelService, private fb: FormBuilder, private cdr: ChangeDetectorRef, public auth: AuthService) {
-    this.form = fb.group({ date: [new Date().toISOString().slice(0, 10), Validators.required], nozzleId: [0, Validators.min(1)], attendantId: [0, Validators.min(1)], startIndex: [0, Validators.min(0)], endIndex: [0, Validators.min(0)], returnToTank: [0, Validators.min(0)], unitPrice: [0, Validators.min(0)], payments: fb.array([]) });
+  customers: DropdownOption[] = [];
+  form; customerForm;
+  constructor(private articles: ArticleService, private fuel: FuelService, private customersApi: CustomerService, private fb: FormBuilder, private cdr: ChangeDetectorRef, public auth: AuthService) {
+    this.form = fb.group({ date: [new Date().toISOString().slice(0, 10), Validators.required], nozzleId: [0, Validators.min(1)], attendantId: [0, Validators.min(1)], customerId: [0], startIndex: [0, Validators.min(0)], endIndex: [0, Validators.min(0)], returnToTank: [0, Validators.min(0)], unitPrice: [0, Validators.min(0)], payments: fb.array([]) });
+    this.customerForm = fb.group({ code: [''], name: ['', Validators.required], contactPerson: [''], phone: [''] });
     if (!this.auth.hasAnyRole(['ROLE_GERANT'])) this.form.controls.unitPrice.disable({ emitEvent: false });
   }
   ngOnInit() { this.articles.options().subscribe(data => { this.stations = data.stations.map(s => ({ value: s.id, label: s.name })); this.stationId = data.stations[0]?.id ?? 0; this.load(); }); }
-  load() { if (!this.stationId) return; this.loading = true; this.page = 1; this.fuel.workspace(this.stationId).subscribe({ next: data => { this.readings = data.readings ?? []; this.nozzles = data.nozzles ?? []; this.attendants = data.attendants ?? []; this.loading = false; this.cdr.detectChanges(); }, error: () => { this.readings = []; this.loading = false; } }); this.fuel.paymentMethods(this.stationId).subscribe(data => { this.paymentMethods = (data.methods ?? []).filter((method: any) => method.active).map((method: any) => ({ value: method.id, label: method.name, hint: method.code })); }); }
+  load() { if (!this.stationId) return; this.loading = true; this.page = 1; this.fuel.workspace(this.stationId).subscribe({ next: data => { this.readings = data.readings ?? []; this.nozzles = data.nozzles ?? []; this.attendants = data.attendants ?? []; this.loading = false; this.cdr.detectChanges(); }, error: () => { this.readings = []; this.loading = false; } }); this.fuel.paymentMethods(this.stationId).subscribe(data => { this.paymentMethods = (data.methods ?? []).filter((method: any) => method.active).map((method: any) => ({ value: method.id, label: method.name, hint: method.code })); }); this.customersApi.list(this.stationId).subscribe(data => { this.customers = [{ value: 0, label: 'Aucun client' }, ...(data.customers ?? []).filter((customer: any) => customer.active).map((customer: any) => ({ value: customer.id, label: customer.name, hint: customer.code ?? '' }))]; }); }
   get filtered() { return this.readings.filter(row => (!this.fromDate || row.date >= this.fromDate) && (!this.toDate || row.date <= this.toDate)); }
   get totalVolume() { return this.filtered.reduce((sum, row) => sum + Number(row.quantitySold || 0), 0); }
   get totalAmount() { return this.filtered.reduce((sum, row) => sum + Number(row.totalAmount || 0), 0); }
@@ -45,7 +50,9 @@ export class FuelSales implements OnInit {
   get paid() { return this.payments.controls.reduce((sum, payment) => sum + Number(payment.value.amount || 0), 0); }
   addPayment() { this.payments.push(this.fb.group({ paymentMethodId: [Number(this.paymentMethods[0]?.value ?? 0), Validators.min(1)], amount: [0, Validators.min(0.01)], reference: [''] })); }
   removePayment(index: number) { if (this.payments.length > 1) this.payments.removeAt(index); }
-  openReading() { this.error = ''; this.form.reset({ date: new Date().toISOString().slice(0, 10), nozzleId: 0, attendantId: 0, startIndex: 0, endIndex: 0, returnToTank: 0, unitPrice: 0, payments: [] }); this.payments.clear(); this.addPayment(); this.modalOpen = true; }
+  openReading() { this.error = ''; this.form.reset({ date: new Date().toISOString().slice(0, 10), nozzleId: 0, attendantId: 0, customerId: 0, startIndex: 0, endIndex: 0, returnToTank: 0, unitPrice: 0, payments: [] }); this.payments.clear(); this.addPayment(); this.modalOpen = true; }
+  openQuickCustomer() { if (this.saving) return; this.customerForm.reset({ code: '', name: '', contactPerson: '', phone: '' }); this.quickCustomerOpen = true; }
+  saveQuickCustomer() { if (this.customerForm.invalid || this.savingCustomer) { this.customerForm.markAllAsTouched(); return; } this.savingCustomer = true; this.customersApi.create({ ...this.customerForm.getRawValue(), stationId: this.stationId }).subscribe({ next: customer => { const option = { value: customer.id, label: customer.name, hint: customer.code ?? '' }; this.customers = [...this.customers, option]; this.form.patchValue({ customerId: customer.id }); this.savingCustomer = false; this.quickCustomerOpen = false; this.cdr.detectChanges(); }, error: error => { this.error = error.error?.message ?? 'Le client n’a pas pu être créé.'; this.savingCustomer = false; this.cdr.detectChanges(); } }); }
   selectNozzle() { const nozzle = this.nozzles.find(item => item.id === Number(this.form.value.nozzleId)); if (nozzle) this.form.patchValue({ startIndex: nozzle.currentIndex, endIndex: nozzle.currentIndex, unitPrice: nozzle.unitPrice }); }
   save() {
     if (this.saving) return;

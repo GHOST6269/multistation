@@ -57,6 +57,7 @@ export class App implements OnInit {
         { label: 'Historique des paiements', route: '/fournisseurs/historique' },
       ],
     },
+    { label: 'Clients', route: '/clients', icon: '♧', roles: ['ROLE_GERANT'] },
     { label: 'Utilisateurs', route: '/utilisateurs', icon: '♙', roles: ['ROLE_SUPER_ADMIN', 'ROLE_GERANT'] },
   ];
 

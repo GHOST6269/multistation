@@ -22,6 +22,7 @@ import { FuelPayments } from './pages/fuel-payments/fuel-payments';
 import { Login } from './pages/login/login';
 import { Create } from './pages/user/create/create';
 import { Profile } from './pages/profile/profile';
+import { Customers } from './pages/customers/customers';
 import { AuthInterceptor } from './services/auth.interceptor';
 
 @NgModule({
@@ -44,6 +45,7 @@ import { AuthInterceptor } from './services/auth.interceptor';
     Login,
     Create,
     Profile,
+    Customers,
   ],
   imports: [BrowserModule, HttpClientModule, FormsModule, ReactiveFormsModule, AppRoutingModule],
   providers: [

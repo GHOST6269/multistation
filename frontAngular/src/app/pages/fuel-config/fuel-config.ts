@@ -132,9 +132,9 @@ export class FuelConfig implements OnInit {
   }
 
   readonly paymentRoles = [
-    { value: 'ROLE_GERANT', label: 'Gérant' },
-    { value: 'ROLE_QUALITY_MARSHALL', label: 'Quality Marshal' },
-    { value: 'ROLE_ASSISTANT', label: 'Assistant' },
+    { value: 'ROLE_GERANT', label: 'Gérant', short: 'Gestion' },
+    { value: 'ROLE_QUALITY_MARSHALL', label: 'Quality Marshal', short: 'Contrôle' },
+    { value: 'ROLE_ASSISTANT', label: 'Assistant', short: 'Opération' },
   ];
   roleAllowed(role: string): boolean { return (this.form.value.allowedRoles ?? []).includes(role); }
   roleLabels(roles: string[]): string { return this.paymentRoles.filter(role => (roles ?? []).includes(role.value)).map(role => role.label).join(', '); }

@@ -5,6 +5,7 @@ namespace App\Controller;
 use App\Entity\FuelNozzle;
 use App\Entity\FuelPaymentMethod;
 use App\Entity\FuelShiftReading;
+use App\Entity\Customer;
 use App\Entity\PumpAttendant;
 use App\Entity\Stations;
 use App\Service\UserAccessService;
@@ -58,7 +59,12 @@ final class FuelPaymentController extends AbstractController
         $code = strtoupper(trim((string) ($data['code'] ?? '')));
         $code = preg_replace('/[^A-Z0-9_]+/', '_', $code ?: $name) ?: 'MODE';
         if ($em->getRepository(FuelPaymentMethod::class)->findOneBy(['station' => $station, 'code' => $code])) return $this->json(['message' => 'Ce code existe déjà'], 422);
-        $item = (new FuelPaymentMethod())->setStation($station)->setCode($code)->setName($name)->setAllowedRoles($this->allowedRoles($data))->setCreatedAt(new \DateTimeImmutable());
+        $item = (new FuelPaymentMethod())
+            ->setStation($station)
+            ->setCode($code)
+            ->setName($name)
+            ->setAllowedRoles($this->allowedRoles($data))
+            ->setCreatedAt(new \DateTimeImmutable());
         $em->persist($item); $em->flush();
         return $this->json($this->methodRow($item), 201);
     }
@@ -91,8 +97,11 @@ final class FuelPaymentController extends AbstractController
         $station = $em->getRepository(Stations::class)->find((int) ($data['stationId'] ?? 0));
         $nozzle = $em->getRepository(FuelNozzle::class)->find((int) ($data['nozzleId'] ?? 0));
         $attendant = $em->getRepository(PumpAttendant::class)->find((int) ($data['attendantId'] ?? 0));
+        $customerId = (int) ($data['customerId'] ?? 0);
+        $customer = $customerId ? $em->getRepository(Customer::class)->find($customerId) : null;
         if ($station && !$access->canAccessStation($station)) return $access->denyStation();
         if (!$station || !$nozzle || !$attendant || $nozzle->getPump()?->getStation()?->getId() !== $station->getId() || $attendant->getStation()?->getId() !== $station->getId()) return $this->json(['message' => 'Références invalides'], 422);
+        if ($customerId && (!$customer || !$customer->isActive() || $customer->getStation()?->getId() !== $station->getId())) return $this->json(['message' => 'Client invalide'], 422);
         $start = (float) ($data['startIndex'] ?? 0); $end = (float) ($data['endIndex'] ?? 0);
         $rc = max(0, (float) ($data['returnToTank'] ?? 0)); $output = $end - $start; $sold = $output - $rc;
         $price = (float) $nozzle->getUnitPrice();
@@ -120,7 +129,7 @@ final class FuelPaymentController extends AbstractController
         if (abs($paid - $total) > .01) return $this->json(['message' => sprintf('Le paiement doit être de %.2f Ar', $total)], 422);
         $tank = $nozzle->getTank();
         if ((float) $tank->getCurrentStock() < $sold) return $this->json(['message' => 'Stock cuve insuffisant'], 422);
-        $reading = (new FuelShiftReading())->setStation($station)->setNozzle($nozzle)->setAttendant($attendant)->setWorkDate(new \DateTimeImmutable($data['date'] ?? 'today'))->setStartIndex((string) $start)->setEndIndex((string) $end)->setReturnToTank((string) $rc)->setQuantitySold((string) $sold)->setUnitPrice((string) $price)->setTotalAmount((string) $total)->setPayments($payment)->setCreatedAt(new \DateTimeImmutable());
+        $reading = (new FuelShiftReading())->setStation($station)->setNozzle($nozzle)->setAttendant($attendant)->setCustomer($customer)->setWorkDate(new \DateTimeImmutable($data['date'] ?? 'today'))->setStartIndex((string) $start)->setEndIndex((string) $end)->setReturnToTank((string) $rc)->setQuantitySold((string) $sold)->setUnitPrice((string) $price)->setTotalAmount((string) $total)->setPayments($payment)->setCreatedAt(new \DateTimeImmutable());
         $nozzle->setCurrentIndex((string) $end); $tank->setCurrentStock((string) ((float) $tank->getCurrentStock() - $sold));
         $em->persist($reading); $em->flush();
         return $this->json(['id' => $reading->getId()], 201);
@@ -152,8 +161,6 @@ final class FuelPaymentController extends AbstractController
 
     private function canUseMethod(FuelPaymentMethod $method, UserAccessService $access): bool
     {
-        if ($access->isSuperAdmin()) return true;
-        $roles = $access->currentUser()?->getRoles() ?? [];
-        return (bool) array_intersect($method->getAllowedRoles(), $roles);
+        return $method->canBeUsedBy($access->currentUser());
     }
 }

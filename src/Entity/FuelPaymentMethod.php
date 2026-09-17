@@ -42,4 +42,17 @@ class FuelPaymentMethod
     public function setAllowedRoles(array $roles): static { $this->allowedRoles = array_values($roles); return $this; }
     public function getCreatedAt(): ?\DateTimeImmutable { return $this->createdAt; }
     public function setCreatedAt(\DateTimeImmutable $createdAt): static { $this->createdAt = $createdAt; return $this; }
+
+    public function canBeUsedBy(?User $user): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        if (in_array('ROLE_SUPER_ADMIN', $user->getRoles(), true)) {
+            return true;
+        }
+
+        return (bool) array_intersect($this->allowedRoles, $user->getRoles());
+    }
 }

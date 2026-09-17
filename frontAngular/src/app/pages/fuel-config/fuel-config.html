@@ -72,7 +72,26 @@
         @if (tab === 'tank') { <label>Carburant *<app-dropdown formControlName="fuelTypeId" [options]="options(data?.fuels || [])" /></label><label>Capacité (L) *<input type="number" formControlName="capacity" min="0" /></label><label>Seuil d'alerte (L)<input type="number" formControlName="minimumStock" min="0" /></label> }
         @if (tab === 'nozzle') { <label>Pompe associée *<app-dropdown formControlName="pumpId" [options]="options(data?.pumps || [])" /></label><label>Cuve associée *<app-dropdown formControlName="tankId" [options]="options(data?.tanks || [])" /></label><label>Index initial<input type="number" formControlName="currentIndex" min="0" /></label> }
         @if (tab === 'attendant') { <label>Contact<input formControlName="contact" placeholder="Téléphone ou e-mail" /></label> }
-        @if (tab === 'payment') { <div class="wide"><strong>Rôles autorisés à utiliser ce mode</strong>@for (role of paymentRoles; track role.value) { <label><input type="checkbox" [checked]="roleAllowed(role.value)" (change)="toggleRole(role.value, $any($event.target).checked)" /> {{ role.label }}</label> }</div> }
+        @if (tab === 'payment') {
+          <div class="wide payment-role-group">
+            <div class="payment-role-header">
+              <strong>Rôles autorisés à saisir ce mode de paiement</strong>
+              <small>Choisissez les profils qui peuvent utiliser ce mode.</small>
+            </div>
+            <div class="payment-role-grid">
+              @for (role of paymentRoles; track role.value) {
+                <label class="payment-role-option" [class.checked]="roleAllowed(role.value)">
+                  <input type="checkbox" [checked]="roleAllowed(role.value)" (change)="toggleRole(role.value, $any($event.target).checked)" />
+                  <span class="custom-check"></span>
+                  <span class="role-copy">
+                    <span class="role-badge" [class.gerant]="role.value === 'ROLE_GERANT'" [class.quality]="role.value === 'ROLE_QUALITY_MARSHALL'" [class.assistant]="role.value === 'ROLE_ASSISTANT'">{{ role.short }}</span>
+                    <span class="role-name">{{ role.label }}</span>
+                  </span>
+                </label>
+              }
+            </div>
+          </div>
+        }
       </div>
       <footer><button type="button" class="cancel" [disabled]="saving" (click)="closeForm()">Annuler</button><button [disabled]="saving">{{ saving ? 'Enregistrement…' : (editing ? 'Enregistrer les modifications' : 'Créer') }}</button></footer>
     </form>

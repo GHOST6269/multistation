@@ -116,6 +116,8 @@
             formControlName="nozzleId"
             (ngModelChange)="selectNozzle()"
             [options]="nozzleOptions" /></label
+        ><label
+          ><span class="customer-label">Client <small>(facultatif)</small></span><span class="customer-choice"><app-dropdown formControlName="customerId" [options]="customers" />@if (auth.hasAnyRole(['ROLE_GERANT'])) { <button type="button" [disabled]="saving" (click)="openQuickCustomer()">＋ Nouveau</button> }</span></label
         ><label>Index départ<input type="number" formControlName="startIndex" /></label
         ><label>Index final<input type="number" formControlName="endIndex" /></label
         ><label>Retour cuve (RC)<input type="number" formControlName="returnToTank" /></label
@@ -175,6 +177,15 @@
           {{ saving ? 'Enregistrement…' : 'Valider le relevé' }}
         </button>
       </footer>
+    </form>
+  </div>
+}
+@if (quickCustomerOpen) {
+  <div class="quick-customer-modal" (click)="!savingCustomer && (quickCustomerOpen = false)">
+    <form [formGroup]="customerForm" (ngSubmit)="saveQuickCustomer()" (click)="$event.stopPropagation()">
+      <header><div><p>NOUVEAU CLIENT</p><h2>Création rapide</h2><span>Il sera sélectionné automatiquement pour ce relevé.</span></div><button type="button" [disabled]="savingCustomer" (click)="quickCustomerOpen = false">×</button></header>
+      <div><label>Nom du client *<input formControlName="name" placeholder="Ex. Société ABC" /></label><label>Code client<input formControlName="code" placeholder="Ex. ABC" /></label><label>Contact<input formControlName="contactPerson" /></label><label>Téléphone<input formControlName="phone" /></label></div>
+      <footer><button type="button" class="cancel" [disabled]="savingCustomer" (click)="quickCustomerOpen = false">Annuler</button><button [disabled]="savingCustomer">{{ savingCustomer ? 'Création…' : 'Créer et sélectionner' }}</button></footer>
     </form>
   </div>
 }
