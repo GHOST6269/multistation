@@ -12,6 +12,7 @@ export interface AppUser {
   stationIds: number[];
   stationNames?: string[];
   isActive: boolean;
+  canViewCustomers: boolean;
   lastLogin: string | null;
 }
 
@@ -22,6 +23,7 @@ export interface ProfileInput {
   contact: string;
   role?: UserRole;
   stationIds?: number[];
+  canViewCustomers?: boolean;
   password?: string;
 }
 
@@ -37,6 +39,7 @@ export interface UserInput {
   contact: string;
   role: UserRole;
   stationIds: number[];
+  canViewCustomers: boolean;
   password?: string;
   isActive: boolean;
 }

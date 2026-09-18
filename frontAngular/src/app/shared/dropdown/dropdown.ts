@@ -26,6 +26,8 @@ export class Dropdown implements ControlValueAccessor {
   @Input() options: DropdownOption[] = [];
   @Input() placeholder = 'Sélectionner';
   @Input() searchable = false;
+  @Input() selectedTag = 'SÉLECTIONNÉE';
+  @Input() emptyTag = 'SÉLECTION';
   @Output() valueChange = new EventEmitter<string | number>();
   open = false;
   disabled = false;

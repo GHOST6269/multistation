@@ -9,6 +9,13 @@ export class RoleGuard implements CanActivate {
   constructor(private readonly auth: AuthService, private readonly router: Router) {}
 
   canActivate(route: ActivatedRouteSnapshot): Observable<boolean | UrlTree> {
+    const customerAccess = route.data['customerAccess'] === true;
+    if (customerAccess) {
+      return this.auth.ensureUser().pipe(
+        map((user) => user && this.auth.canViewCustomers() ? true : this.router.parseUrl('/connexion')),
+      );
+    }
+
     const roles = (route.data['roles'] ?? []) as UserRole[];
     return this.auth.ensureUser().pipe(
       map((user) => user && this.auth.hasAnyRole(roles) ? true : this.router.parseUrl('/connexion')),

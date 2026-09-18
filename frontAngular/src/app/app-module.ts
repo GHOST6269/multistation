@@ -23,6 +23,7 @@ import { Login } from './pages/login/login';
 import { Create } from './pages/user/create/create';
 import { Profile } from './pages/profile/profile';
 import { Customers } from './pages/customers/customers';
+import { Expenses } from './pages/expenses/expenses';
 import { AuthInterceptor } from './services/auth.interceptor';
 
 @NgModule({
@@ -46,6 +47,7 @@ import { AuthInterceptor } from './services/auth.interceptor';
     Create,
     Profile,
     Customers,
+    Expenses,
   ],
   imports: [BrowserModule, HttpClientModule, FormsModule, ReactiveFormsModule, AppRoutingModule],
   providers: [

@@ -8,14 +8,19 @@
     <button class="operation-primary" (click)="openReading()">＋ Nouveau relevé</button>
   </header>
   <section class="operation-controls">
-    <label
-      >STATION<app-dropdown
+    <label>
+      Station
+      <app-dropdown
         [(ngModel)]="stationId"
         (ngModelChange)="load()"
         [options]="stations"
         [searchable]="true"
         [disabled]="auth.stationLocked()"
-    /></label>
+        [selectedTag]="'Station'"
+        [emptyTag]="'Sélectionner'"
+        [placeholder]="'Station'"
+      />
+    </label>
     <div class="date-range">
       <label>Du<input type="date" [(ngModel)]="fromDate" (ngModelChange)="resetPage()" /></label
       ><label>Au<input type="date" [(ngModel)]="toDate" (ngModelChange)="resetPage()" /></label>
@@ -45,12 +50,15 @@
         <thead>
           <tr>
             <th>DATE</th>
+            <th>CLIENT</th>
             <th>POMPISTE</th>
             <th>POMPE</th>
             <th>CARBURANT</th>
             <th>INDEX DÉPART</th>
             <th>INDEX FINAL</th>
             <th>VOLUME VENDU</th>
+            <th>COMPTE AVANT</th>
+            <th>RESTE À PAYER</th>
             <th>MONTANT</th>
           </tr>
         </thead>
@@ -58,6 +66,7 @@
           @for (row of rows; track row.id) {
             <tr>
               <td>{{ row.date | date: 'dd/MM/yyyy' }}</td>
+              <td><strong>{{ row.customerName || '—' }}</strong></td>
               <td>
                 <strong>{{ row.responsible }}</strong>
               </td>
@@ -70,11 +79,13 @@
               <td>
                 <strong>{{ row.quantitySold | number: '1.3-3' }} L</strong>
               </td>
+              <td>{{ money(row.previousBalance ?? 0) }} Ar</td>
+              <td>{{ money(row.remainingToPay ?? 0) }} Ar</td>
               <td class="amount">{{ money(row.totalAmount) }} Ar</td>
             </tr>
           } @empty {
             <tr>
-              <td colspan="8" class="empty">
+              <td colspan="11" class="empty">
                 {{ loading ? 'Chargement des relevés…' : 'Aucun relevé pour cette période.' }}
               </td>
             </tr>
@@ -106,56 +117,96 @@
         <button type="button" (click)="modalOpen = false">×</button>
       </header>
       <div class="operation-form">
-        <label>Date<input type="date" formControlName="date" /></label
-        ><label
-          >Pompiste<app-dropdown
+        <label>Date<input type="date" formControlName="date" /></label>
+        <label>
+          Pompiste
+          <app-dropdown
             formControlName="attendantId"
-            [options]="attendantOptions" /></label
-        ><label
-          >Pompe<app-dropdown
+            [options]="attendantOptions"
+            [selectedTag]="'Pompiste'"
+            [emptyTag]="'Sélectionner'"
+            [placeholder]="'Pompiste'"
+          />
+        </label>
+        <label>
+          Pompe
+          <app-dropdown
             formControlName="nozzleId"
             (ngModelChange)="selectNozzle()"
-            [options]="nozzleOptions" /></label
-        ><label
-          ><span class="customer-label">Client <small>(facultatif)</small></span><span class="customer-choice"><app-dropdown formControlName="customerId" [options]="customers" />@if (auth.hasAnyRole(['ROLE_GERANT'])) { <button type="button" [disabled]="saving" (click)="openQuickCustomer()">＋ Nouveau</button> }</span></label
-        ><label>Index départ<input type="number" formControlName="startIndex" /></label
-        ><label>Index final<input type="number" formControlName="endIndex" /></label
-        ><label>Retour cuve (RC)<input type="number" formControlName="returnToTank" /></label
-        ><label
-          >Prix unitaire (Ar/L)
+            [options]="nozzleOptions"
+            [selectedTag]="'Pompe'"
+            [emptyTag]="'Sélectionner'"
+            [placeholder]="'Pompe'"
+          />
+        </label>
+        <label *ngIf="!creditMode">
+          <span class="customer-label">Client <small>(facultatif)</small></span>
+          <span class="customer-choice">
+            <app-dropdown
+              formControlName="customerId"
+              [options]="customers"
+              [selectedTag]="'Client'"
+              [emptyTag]="'Sélectionner'"
+              [placeholder]="'Client'"
+            />
+            @if (auth.hasAnyRole(['ROLE_GERANT'])) {
+              <button type="button" [disabled]="saving" (click)="openQuickCustomer()">＋ Nouveau</button>
+            }
+          </span>
+        </label>
+        <label *ngIf="creditMode">
+          <span class="customer-label">Client <small>(obligatoire)</small></span>
+          <span class="customer-choice">
+            <app-dropdown
+              formControlName="customerId"
+              [options]="customers"
+              [selectedTag]="'Client'"
+              [emptyTag]="'Sélectionner'"
+              [placeholder]="'Client'"
+            />
+            @if (auth.hasAnyRole(['ROLE_GERANT'])) {
+              <button type="button" [disabled]="saving" (click)="openQuickCustomer()">＋ Nouveau</button>
+            }
+          </span>
+        </label>
+        <div class="credit-banner" *ngIf="creditMode && form.value.customerId">
+          <span>Compte client</span>
+          <small>Le montant sera ajouté au compte client et apparaîtra dans les soldes clients.</small>
+        </div>
+        <label>Index départ<input type="number" formControlName="startIndex" /></label>
+        <label>Index final<input type="number" formControlName="endIndex" /></label>
+        <label>Retour cuve (RC)<input type="number" formControlName="returnToTank" /></label>
+        <label>
+          Prix unitaire (Ar/L)
           <div class="money-input">
-            <input
-              appMoney
-              type="text"
-              inputmode="decimal"
-              formControlName="unitPrice"
-            /><span>Ar</span>
-          </div></label
-        >
+            <input appMoney type="text" inputmode="decimal" formControlName="unitPrice" /><span>Ar</span>
+          </div>
+        </label>
         <div formArrayName="payments" class="payment-lines">
           @for (payment of payments.controls; track $index; let index = $index) {
             <div [formGroupName]="index">
-              <label
-                >Mode de paiement<app-dropdown
+              <label>
+                Mode de paiement
+                <app-dropdown
                   formControlName="paymentMethodId"
-                  [options]="paymentMethods" /></label
-              ><label
-                >Montant encaissé
+                  [options]="paymentMethods"
+                  [selectedTag]="'Mode de paiement'"
+                  [emptyTag]="'Sélectionner'"
+                  [placeholder]="'Mode de paiement'"
+                  [disabled]="creditMode"
+                />
+              </label>
+              <label>
+                Montant encaissé
                 <div class="money-input">
-                  <input appMoney type="text" inputmode="decimal" formControlName="amount" /><span
-                    >Ar</span
-                  >
-                </div></label
-              ><label
-                >Référence paiement<input
-                  formControlName="reference"
-                  placeholder="N° ticket, TPE…" /></label
-              ><button
-                type="button"
-                class="cancel"
-                [disabled]="payments.length === 1"
-                (click)="removePayment(index)"
-              >
+                  <input appMoney type="text" inputmode="decimal" formControlName="amount" /><span>Ar</span>
+                </div>
+              </label>
+              <label>
+                Référence paiement
+                <input formControlName="reference" placeholder="N° ticket, TPE…" />
+              </label>
+              <button type="button" class="cancel" [disabled]="payments.length === 1" (click)="removePayment(index)">
                 Retirer
               </button>
             </div>
@@ -173,7 +224,7 @@
       }
       <footer>
         <button type="button" class="cancel" (click)="modalOpen = false">Annuler</button
-        ><button [disabled]="saving || Math.abs(paid - total) > 0.01">
+        ><button [disabled]="saving || (!creditMode && Math.abs(paid - total) > 0.01) || (paid > total + 0.01)">
           {{ saving ? 'Enregistrement…' : 'Valider le relevé' }}
         </button>
       </footer>

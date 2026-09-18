@@ -1,12 +1,71 @@
 <div class="customer-heading">
-  <div><p>RÉPERTOIRE CLIENTS</p><h1>Gestion des clients</h1><span>Créez les clients pouvant être associés aux relevés de pompe.</span></div>
+  <div><p>COMPTES CLIENTS</p><h1>{{ view === 'payments' ? 'Historique des paiements' : 'Compte client' }}</h1><span>{{ view === 'payments' ? 'Consultez le règlement des clients et les références associées.' : 'Suivez le montant facturé, le paiement reçu et le solde restant.' }}</span></div>
   <button (click)="open()">＋ Nouveau client</button>
 </div>
-<div class="customer-toolbar"><app-dropdown [(ngModel)]="stationId" (ngModelChange)="load()" [options]="stations" /><div><strong>{{ activeCount }}</strong><small>CLIENTS ACTIFS</small></div></div>
-<section class="customer-summary"><article><span class="summary-icon clients">♧</span><div><small>CLIENTS ENREGISTRÉS</small><strong>{{ customers.length }}</strong><p>pour la station sélectionnée</p></div></article><article><span class="summary-icon active">✓</span><div><small>CLIENTS ACTIFS</small><strong>{{ activeCount }}</strong><p>disponibles dans les relevés</p></div></article><article><span class="summary-icon inactive-icon">−</span><div><small>CLIENTS INACTIFS</small><strong>{{ inactiveCount }}</strong><p>conservés dans l’historique</p></div></article></section>
+<div class="customer-toolbar"><app-dropdown [(ngModel)]="stationId" (ngModelChange)="load()" [options]="stations" /><div><strong>{{ money(totalBalance) }} Ar</strong><small>SOLDE CLIENTS</small></div></div>
+<section class="customer-summary"><article><span class="summary-icon clients">♧</span><div><small>CLIENTS ENREGISTRÉS</small><strong>{{ customers.length }}</strong><p>pour la station sélectionnée</p></div></article><article><span class="summary-icon active">✓</span><div><small>TOTAL FACTURÉ</small><strong>{{ money(totalBilled) }} Ar</strong><p>montant total des achats à crédit</p></div></article><article><span class="summary-icon inactive-icon">−</span><div><small>Reste à recouvrer</small><strong>{{ money(totalBalance) }} Ar</strong><p>solde encore dû par les clients</p></div></article></section>
 @if (error) { <p class="error">{{ error }}</p> }
-<section class="customer-panel"><header><div><h2>Liste des clients</h2><p>Les clients actifs peuvent être choisis lors de la clôture d’un relevé.</p></div><span>{{ customers.length }} client(s)</span></header><table><thead><tr><th>CLIENT</th><th>CODE</th><th>CONTACT</th><th>TÉLÉPHONE</th><th>STATUT</th><th></th></tr></thead><tbody>
-  @for (customer of customers; track customer.id) { <tr><td><strong>{{ customer.name }}</strong><small>{{ customer.email || customer.address || 'Aucune coordonnée' }}</small></td><td>{{ customer.code || '—' }}</td><td>{{ customer.contactPerson || '—' }}</td><td>{{ customer.phone || '—' }}</td><td><span [class.inactive]="!customer.active">{{ customer.active ? 'Actif' : 'Inactif' }}</span></td><td><button class="edit-button" (click)="open(customer)">Modifier</button>@if (customer.active) { <button class="deactivate-button" (click)="deactivate(customer)">Désactiver</button> }</td></tr> }
-  @if (!loading && !customers.length) { <tr><td colspan="6" class="empty">Aucun client pour cette station.</td></tr> }
+@if (view === 'credit') {
+<section class="customer-panel"><header><div><h2>Compte clients</h2><p>Chaque client possède son solde calculé à partir des achats et des paiements enregistrés.</p></div><span>{{ customers.length }} client(s)</span></header><table><thead><tr><th>CLIENT</th><th>CODE</th><th>FACTURÉ</th><th>PAYÉ</th><th>SOLDE</th><th>STATUT</th><th></th></tr></thead><tbody>
+  @for (customer of customers; track customer.id) { <tr><td><strong>{{ customer.name }}</strong><small>{{ customer.contactPerson || customer.phone || 'Aucun contact' }}</small></td><td>{{ customer.code || '—' }}</td><td>{{ money(customer.billed) }} Ar</td><td class="paid">{{ money(customer.paid) }} Ar</td><td class="balance">{{ money(customer.balance) }} Ar</td><td><span [class.inactive]="!customer.active">{{ customer.active ? 'Actif' : 'Inactif' }}</span></td><td><button class="edit-button" (click)="open(customer)">Modifier</button><button class="pay-button" (click)="openPayment(customer)">Paiement</button>@if (customer.active) { <button class="deactivate-button" (click)="deactivate(customer)">Désactiver</button> }</td></tr> }
+  @if (!loading && !customers.length) { <tr><td colspan="7" class="empty">Aucun client pour cette station.</td></tr> }
 </tbody></table></section>
-@if (modalOpen) { <div class="customer-modal" (click)="!saving && (modalOpen=false)"><form [formGroup]="form" (ngSubmit)="save()" (click)="$event.stopPropagation()"><header><h2>{{ editing ? 'Modifier le client' : 'Nouveau client' }}</h2><button type="button" (click)="modalOpen=false">×</button></header><div class="fields"><label>Nom *<input formControlName="name" /></label><label>Code<input formControlName="code" /></label><label>Contact<input formControlName="contactPerson" /></label><label>Téléphone<input formControlName="phone" /></label><label>E-mail<input type="email" formControlName="email" /></label><label>Adresse<input formControlName="address" /></label></div><footer><button type="button" (click)="modalOpen=false">Annuler</button><button [disabled]="saving">{{ saving ? 'Enregistrement…' : 'Enregistrer' }}</button></footer></form></div> }
+}
+@if (view === 'payments') {
+<section class="customer-panel"><header><div><h2>Historique des paiements</h2><p>Chaque règlement de client est conservé avec sa référence et sa date.</p></div><span>{{ filteredPayments.length }} règlement(s)</span></header>
+  <div class="customer-filters">
+    <label>Recherche client<input type="search" [(ngModel)]="paymentSearch" (ngModelChange)="load()" placeholder="Nom du client" /></label>
+    <label>Du<input type="date" [(ngModel)]="paymentFromDate" (ngModelChange)="load()" /></label>
+    <label>Au<input type="date" [(ngModel)]="paymentToDate" (ngModelChange)="load()" /></label>
+  </div>
+  <table><thead><tr><th>DATE</th><th>CLIENT</th><th>RESPONSABLE</th><th>MODE</th><th>RÉFÉRENCE</th><th>MONTANT</th><th>SOLDE AVANT</th><th>SOLDE RESTANT</th><th>NOTE</th></tr></thead><tbody>
+  @for (payment of filteredPayments; track payment.id) { <tr><td>{{ payment.date | date: 'dd/MM/yyyy' }}</td><td><strong>{{ payment.customer }}</strong></td><td>{{ payment.performedBy || '—' }}</td><td>{{ payment.method }}</td><td>{{ payment.reference || '—' }}</td><td class="paid"><strong>{{ money(payment.amount) }} Ar</strong></td><td>{{ money(payment.previousBalance ?? 0) }} Ar</td><td>{{ money(payment.remainingToPay ?? 0) }} Ar</td><td>{{ payment.note || '—' }}</td></tr> }
+  @if (!loading && !filteredPayments.length) { <tr><td colspan="9" class="empty">Aucun paiement correspondant au filtre.</td></tr> }
+</tbody></table></section>
+}
+@if (modalOpen) {
+  <div class="customer-modal" (click)="!saving && (modalOpen=false)">
+    <form [formGroup]="form" (ngSubmit)="save()" (click)="$event.stopPropagation()">
+      <header>
+        <h2>{{ editing ? 'Modifier le client' : 'Nouveau client' }}</h2>
+        <button type="button" (click)="modalOpen=false">×</button>
+      </header>
+      <div class="fields">
+        <label>Nom *<input formControlName="name" /></label>
+        <label>Code<input formControlName="code" /></label>
+        <label>Contact<input formControlName="contactPerson" /></label>
+        <label>Téléphone<input formControlName="phone" /></label>
+        <label>E-mail<input type="email" formControlName="email" /></label>
+        <label>Adresse<input formControlName="address" /></label>
+      </div>
+      <footer>
+        <button type="button" (click)="modalOpen=false">Annuler</button>
+        <button [disabled]="saving">{{ saving ? 'Enregistrement…' : 'Enregistrer' }}</button>
+      </footer>
+    </form>
+  </div>
+}
+@if (paymentModal) {
+  <div class="customer-modal" (click)="!saving && (paymentModal=false)">
+    <form [formGroup]="paymentForm" (ngSubmit)="savePayment()" (click)="$event.stopPropagation()">
+      <header>
+        <div>
+          <h2>Paiement client</h2>
+          <p>{{ selectedCustomer?.name }} · Reste : {{ money(selectedCustomer?.balance ?? 0) }} Ar</p>
+        </div>
+        <button type="button" (click)="paymentModal=false">×</button>
+      </header>
+      <div class="fields">
+        <label>Montant à recevoir<input appMoney type="text" formControlName="amount" /><small>Le montant ne peut pas dépasser le solde restant.</small></label>
+        <label>Date<input type="date" formControlName="date" /></label>
+        <label>Mode<select formControlName="method"><option value="CASH">Espèces</option><option value="CHEQUE">Chèque</option><option value="BANK_TRANSFER">Virement</option></select></label>
+        <label>Référence<input formControlName="reference" /></label>
+        <label class="wide">Note<input formControlName="note" /></label>
+      </div>
+      <footer>
+        <button type="button" (click)="paymentModal=false">Annuler</button>
+        <button [disabled]="saving">{{ saving ? 'Enregistrement…' : 'Enregistrer le paiement' }}</button>
+      </footer>
+    </form>
+  </div>
+}

@@ -57,7 +57,15 @@ export class App implements OnInit {
         { label: 'Historique des paiements', route: '/fournisseurs/historique' },
       ],
     },
-    { label: 'Clients', route: '/clients', icon: '♧', roles: ['ROLE_GERANT'] },
+    {
+      label: 'Clients', route: '/clients', icon: '♧', roles: ['ROLE_GERANT'],
+      children: [
+        { label: 'Compte client', route: '/clients/credit' },
+        { label: 'Relevé client', route: '/clients/releve' },
+        { label: 'Historique des paiements', route: '/clients/historique' },
+      ],
+    },
+    { label: 'Dépenses', route: '/depenses', icon: '◒', roles: ['ROLE_GERANT', 'ROLE_ASSISTANT'] },
     { label: 'Utilisateurs', route: '/utilisateurs', icon: '♙', roles: ['ROLE_SUPER_ADMIN', 'ROLE_GERANT'] },
   ];
 
@@ -72,8 +80,10 @@ export class App implements OnInit {
     });
   }
 
-  visible(item: { visible?: boolean; roles?: UserRole[] }): boolean {
-    return item.visible !== false && (!item.roles || this.auth.hasAnyRole(item.roles));
+  visible(item: { visible?: boolean; roles?: UserRole[]; route?: string }): boolean {
+    if (item.visible === false) return false;
+    if (item.route?.startsWith('/clients')) return this.auth.canViewCustomers();
+    return !item.roles || this.auth.hasAnyRole(item.roles);
   }
 
   isMenuOpen(item: NavItem): boolean {

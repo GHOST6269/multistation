@@ -62,6 +62,30 @@ final class UserAccessService
         return $this->isSuperAdmin($user) || in_array(self::ROLE_GERANT, $roles, true);
     }
 
+    public function canViewCustomers(?User $user = null): bool
+    {
+        $user ??= $this->currentUser();
+        if (!$user) {
+            return false;
+        }
+
+        $roles = $user->getRoles();
+        if ($this->isSuperAdmin($user) || in_array(self::ROLE_GERANT, $roles, true)) {
+            return true;
+        }
+
+        return $user->canViewCustomers();
+    }
+
+    public function requireCustomerAccess(): ?JsonResponse
+    {
+        if (!$this->canViewCustomers()) {
+            return new JsonResponse(['message' => 'Vous n’êtes pas autorisé à consulter les clients.'], 403);
+        }
+
+        return null;
+    }
+
     public function require(array|string $roles): ?JsonResponse
     {
         $user = $this->currentUser();

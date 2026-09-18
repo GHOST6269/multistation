@@ -73,6 +73,12 @@ export class AuthService {
     return roles.includes(user.role);
   }
 
+  canViewCustomers(): boolean {
+    const user = this.user;
+    if (!user) return false;
+    return user.role === 'ROLE_SUPER_ADMIN' || user.role === 'ROLE_GERANT' || !!user.canViewCustomers;
+  }
+
   isSuperAdmin(): boolean {
     return this.user?.role === 'ROLE_SUPER_ADMIN';
   }

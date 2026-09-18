@@ -37,6 +37,7 @@ export class Create implements OnInit {
       contact: [''],
       role: ['ROLE_ASSISTANT' as UserRole, Validators.required],
       stationId: [0],
+      canViewCustomers: [false],
       password: [''],
       isActive: [true],
     });
@@ -81,6 +82,7 @@ export class Create implements OnInit {
       contact: user?.contact ?? '',
       role: user?.role ?? 'ROLE_ASSISTANT',
       stationId: user?.stationIds?.[0] ?? this.managerStationId(),
+      canViewCustomers: user ? !!user.canViewCustomers : false,
       password: '',
       isActive: user?.isActive ?? true,
     });
@@ -107,6 +109,7 @@ export class Create implements OnInit {
       contact: value.contact ?? '',
       role: value.role as UserRole,
       stationIds: value.role === 'ROLE_SUPER_ADMIN' ? [] : [this.auth.isSuperAdmin() ? Number(value.stationId) : this.managerStationId()],
+      canViewCustomers: value.role === 'ROLE_SUPER_ADMIN' || value.role === 'ROLE_GERANT' || !!value.canViewCustomers,
       password: value.password || undefined,
       isActive: !!value.isActive,
     };

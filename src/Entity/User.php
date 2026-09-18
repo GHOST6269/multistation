@@ -43,6 +43,9 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column]
     private ?bool $isActive = null;
 
+    #[ORM\Column(options: ['default' => false])]
+    private bool $canViewCustomers = false;
+
     #[ORM\Column(nullable: true)]
     private ?\DateTime $lastLogin = null;
 
@@ -180,6 +183,18 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function setIsActive(bool $isActive): static
     {
         $this->isActive = $isActive;
+
+        return $this;
+    }
+
+    public function canViewCustomers(): bool
+    {
+        return $this->canViewCustomers;
+    }
+
+    public function setCanViewCustomers(bool $canViewCustomers): static
+    {
+        $this->canViewCustomers = $canViewCustomers;
 
         return $this;
     }

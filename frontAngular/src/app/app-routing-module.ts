@@ -15,6 +15,7 @@ import { Login } from './pages/login/login';
 import { Create } from './pages/user/create/create';
 import { Profile } from './pages/profile/profile';
 import { Customers } from './pages/customers/customers';
+import { Expenses } from './pages/expenses/expenses';
 import { AuthGuard } from './services/auth.guard';
 import { RoleGuard } from './services/role.guard';
 
@@ -39,11 +40,15 @@ const routes: Routes = [
   { path: 'fournisseurs', redirectTo: 'fournisseurs/factures', pathMatch: 'full' },
   { path: 'fournisseurs/factures', component: Suppliers, title: 'Factures fournisseur · StationFlow', canActivate: [AuthGuard, RoleGuard], data: { roles: ['ROLE_GERANT'], view: 'invoices' } },
   { path: 'fournisseurs/historique', component: Suppliers, title: 'Historique fournisseurs · StationFlow', canActivate: [AuthGuard, RoleGuard], data: { roles: ['ROLE_GERANT'], view: 'payments' } },
-  { path: 'clients', component: Customers, title: 'Clients · StationFlow', canActivate: [AuthGuard, RoleGuard], data: { roles: ['ROLE_GERANT'] } },
+  { path: 'clients', redirectTo: 'clients/credit', pathMatch: 'full' },
+  { path: 'clients/credit', component: Customers, title: 'Clients · StationFlow', canActivate: [AuthGuard, RoleGuard], data: { customerAccess: true, view: 'credit' } },
+  { path: 'clients/releve', component: FuelSales, title: 'Relevé client · StationFlow', canActivate: [AuthGuard, RoleGuard], data: { customerAccess: true, creditMode: true } },
+  { path: 'clients/historique', component: Customers, title: 'Historique clients · StationFlow', canActivate: [AuthGuard, RoleGuard], data: { customerAccess: true, view: 'payments' } },
+  { path: 'depenses', component: Expenses, title: 'Dépenses · StationFlow', canActivate: [AuthGuard, RoleGuard], data: { roles: ['ROLE_GERANT', 'ROLE_ASSISTANT'] } },
   { path: 'utilisateurs', component: Create, title: 'Utilisateurs · StationFlow', canActivate: [AuthGuard, RoleGuard], data: { roles: ['ROLE_SUPER_ADMIN', 'ROLE_GERANT'] } },
   { path: 'profil', component: Profile, title: 'Mon profil · StationFlow', canActivate: [AuthGuard] },
   { path: 'equipe', redirectTo: 'utilisateurs' },
-  { path: '**', redirectTo: '' },
+  { path: '**', redirectTo: '' }, 
 ];
 
 @NgModule({

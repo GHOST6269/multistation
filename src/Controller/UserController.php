@@ -229,8 +229,10 @@ final class UserController extends AbstractController
             return 'Un utilisateur non super admin doit être fixé sur une seule station.';
         }
 
+        $canViewCustomers = $role === UserAccessService::ROLE_SUPER_ADMIN || $role === UserAccessService::ROLE_GERANT || (bool) ($data['canViewCustomers'] ?? false);
+
         $user->setEmail($email)->setFirstName($firstName)->setLastName(trim((string) ($data['lastName'] ?? '')) ?: null)
-            ->setContact(trim((string) ($data['contact'] ?? '')) ?: null)->setRoles([$role])->setIsActive((bool) ($data['isActive'] ?? true));
+            ->setContact(trim((string) ($data['contact'] ?? '')) ?: null)->setRoles([$role])->setIsActive((bool) ($data['isActive'] ?? true))->setCanViewCustomers($canViewCustomers);
 
         return null;
     }
@@ -280,6 +282,7 @@ final class UserController extends AbstractController
             'roles' => $roles,
             'stationIds' => $stationIds,
             'isActive' => $user->isActive(),
+            'canViewCustomers' => $user->canViewCustomers() || $role === UserAccessService::ROLE_GERANT || $role === UserAccessService::ROLE_SUPER_ADMIN,
             'lastLogin' => $user->getLastLogin()?->format(DATE_ATOM),
         ];
     }

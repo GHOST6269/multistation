@@ -24,6 +24,18 @@ final class FuelPaymentController extends AbstractController
         'CLIENT_VOUCHER' => 'Bons clients', 'STATION_OPERATION' => 'Fonctionnement station',
     ];
 
+    public static function filterMethodsForMode(array $methods, string $mode): array
+    {
+        $mode = strtolower($mode);
+        $codes = array_values(array_filter(array_map(static fn (array $method): ?string => ($method['code'] ?? '') ?: null, $methods), static fn (?string $code): bool => $code !== null));
+
+        if ($mode === 'credit') {
+            return array_values(array_filter($codes, static fn (string $code): bool => $code === 'CLIENT_VOUCHER'));
+        }
+
+        return array_values(array_filter($codes, static fn (string $code): bool => !in_array($code, ['CLIENT_VOUCHER'], true)));
+    }
+
     #[Route('/payment-methods', methods: ['GET'])]
     public function methods(Request $request, EntityManagerInterface $em, UserAccessService $access): JsonResponse
     {
@@ -42,9 +54,12 @@ final class FuelPaymentController extends AbstractController
             $em->flush();
         }
         $manage = $request->query->getBoolean('manage');
+        $mode = strtolower((string) $request->query->get('mode', 'simple'));
         if ($manage && !$access->isSuperAdmin() && !$access->canEditFuelUnitPrice()) return $this->json(['message' => 'Accès refusé pour ce rôle.'], 403);
         if (!$manage) $items = array_values(array_filter($items, fn(FuelPaymentMethod $item) => $this->canUseMethod($item, $access)));
-        return $this->json(['methods' => array_map(fn(FuelPaymentMethod $x) => $this->methodRow($x), $items)]);
+        $methods = array_map(fn(FuelPaymentMethod $x) => $this->methodRow($x), $items);
+        $methods = self::filterMethodsForMode($methods, $mode) === [] ? $methods : array_values(array_filter($methods, fn(array $method): bool => in_array((string) ($method['code'] ?? ''), self::filterMethodsForMode($methods, $mode), true)));
+        return $this->json(['methods' => $methods]);
     }
 
     #[Route('/payment-methods', methods: ['POST'])]
@@ -121,12 +136,24 @@ final class FuelPaymentController extends AbstractController
             $method = $em->getRepository(FuelPaymentMethod::class)->find((int) ($line['paymentMethodId'] ?? 0));
             $amount = max(0, (float) ($line['amount'] ?? 0));
             if (!$method || !$method->isActive() || !$this->canUseMethod($method, $access) || $method->getStation()?->getId() !== $station->getId()) return $this->json(['message' => 'Mode de paiement non autorisé'], 422);
-            if ($amount <= 0) continue;
-            $payment[] = ['type' => $method->getCode(), 'label' => $method->getName(), 'amount' => $amount, 'reference' => trim((string) ($line['reference'] ?? '')) ?: null];
+            if ($customer !== null && $method->getCode() !== 'CLIENT_VOUCHER') return $this->json(['message' => 'En mode crédit, seul le bon client est autorisé.'], 422);
+            $paymentEntry = ['type' => $method->getCode(), 'label' => $method->getName(), 'amount' => $amount, 'reference' => trim((string) ($line['reference'] ?? '')) ?: null, 'performedBy' => trim(($access->currentUser()?->getFirstName() ?? '').' '.($access->currentUser()?->getLastName() ?? '')) ?: null];
+            if ($amount <= 0) {
+                if ($customer !== null && $method->getCode() === 'CLIENT_VOUCHER') {
+                    $payment[] = $paymentEntry;
+                }
+                continue;
+            }
+            $payment[] = $paymentEntry;
             $paid += $amount;
         }
-        if (!$payment) return $this->json(['message' => 'Ajoutez au moins un montant de paiement'], 422);
-        if (abs($paid - $total) > .01) return $this->json(['message' => sprintf('Le paiement doit être de %.2f Ar', $total)], 422);
+        $creditSale = $customer !== null;
+        if (!$payment && !$creditSale) return $this->json(['message' => 'Ajoutez au moins un montant de paiement'], 422);
+        if ($creditSale) {
+            if ($paid > $total + .01) return $this->json(['message' => sprintf('Le paiement ne peut pas dépasser %.2f Ar', $total)], 422);
+        } elseif (abs($paid - $total) > .01) {
+            return $this->json(['message' => sprintf('Le paiement doit être de %.2f Ar', $total)], 422);
+        }
         $tank = $nozzle->getTank();
         if ((float) $tank->getCurrentStock() < $sold) return $this->json(['message' => 'Stock cuve insuffisant'], 422);
         $reading = (new FuelShiftReading())->setStation($station)->setNozzle($nozzle)->setAttendant($attendant)->setCustomer($customer)->setWorkDate(new \DateTimeImmutable($data['date'] ?? 'today'))->setStartIndex((string) $start)->setEndIndex((string) $end)->setReturnToTank((string) $rc)->setQuantitySold((string) $sold)->setUnitPrice((string) $price)->setTotalAmount((string) $total)->setPayments($payment)->setCreatedAt(new \DateTimeImmutable());
@@ -143,7 +170,7 @@ final class FuelPaymentController extends AbstractController
         if (!$access->canAccessStation($stationId)) return $access->denyStation();
         $readings = $em->getRepository(FuelShiftReading::class)->findBy(['station' => $stationId], ['workDate' => 'DESC', 'id' => 'DESC'], 100);
         $rows = [];
-        foreach ($readings as $reading) foreach ($reading->getPayments() as $index => $payment) $rows[] = ['id' => $reading->getId().'-'.$index, 'date' => $reading->getWorkDate()?->format('Y-m-d'), 'responsible' => $reading->getAttendant()?->getFullName(), 'nozzle' => $reading->getNozzle()?->getCode(), 'method' => $payment['label'] ?? $payment['type'] ?? '—', 'reference' => $payment['reference'] ?? null, 'amount' => (float) ($payment['amount'] ?? 0)];
+        foreach ($readings as $reading) foreach ($reading->getPayments() as $index => $payment) $rows[] = ['id' => $reading->getId().'-'.$index, 'date' => $reading->getWorkDate()?->format('Y-m-d'), 'responsible' => $reading->getAttendant()?->getFullName(), 'performedBy' => $payment['performedBy'] ?? null, 'nozzle' => $reading->getNozzle()?->getCode(), 'method' => $payment['label'] ?? $payment['type'] ?? '—', 'reference' => $payment['reference'] ?? null, 'amount' => (float) ($payment['amount'] ?? 0)];
         return $this->json(['payments' => $rows]);
     }
 

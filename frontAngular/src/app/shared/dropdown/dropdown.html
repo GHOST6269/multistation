@@ -8,7 +8,7 @@
   >
     <span class="station-symbol">{{ selected?.label?.charAt(0) || '◇' }}</span>
     <span class="selected-text"
-      ><small>{{ selected ? 'STATION SÉLECTIONNÉE' : 'SÉLECTION' }}</small
+      ><small>{{ selected ? selectedTag : emptyTag }}</small
       ><strong>{{ selected?.label || placeholder }}</strong></span
     >
     <span class="chevron">⌄</span>
