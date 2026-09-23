@@ -16,6 +16,9 @@ export class FuelConfig implements OnInit {
   data: any;
   tab = 'fuel';
   editing: any = null;
+  assignmentTarget: any = null;
+  nozzleAssignmentTarget: any = null;
+  assignmentError = '';
   formOpen = false;
   saving = false;
   page = 1;
@@ -36,10 +39,13 @@ export class FuelConfig implements OnInit {
       minimumStock: [0],
       pumpId: [0],
       tankId: [0],
+      attendantId: [0],
+      nozzleIds: [[] as number[]],
       currentIndex: [0],
       unitPrice: [0],
       contact: [''],
       allowedRoles: fb.nonNullable.control<string[]>([]),
+      supplierDeduction: [false],
     });
   }
   ngOnInit() {
@@ -69,23 +75,96 @@ export class FuelConfig implements OnInit {
   options(items: any[]): DropdownOption[] {
     return (items ?? [])
       .filter((x) => x.active)
-      .map((x) => ({ value: x.id, label: x.name, hint: x.code ?? '' }));
+      .map((x) => ({ value: x.id, label: x.name ?? x.code, hint: x.code ?? '' }));
+  }
+  get nozzleChoices(): any[] { return (this.data?.nozzles ?? []).filter((nozzle: any) => nozzle.active); }
+  isNozzleSelected(id: number): boolean { return (this.form.value.nozzleIds ?? []).some((value: number) => Number(value) === id); }
+  toggleNozzle(id: number, checked: boolean) {
+    const selected = new Set<number>((this.form.value.nozzleIds ?? []).map(Number));
+    checked ? selected.add(id) : selected.delete(id);
+    this.form.patchValue({ nozzleIds: [...selected] });
+  }
+  openNozzleAssignment(attendant: any) {
+    this.assignmentTarget = attendant;
+    this.assignmentError = '';
+    this.form.patchValue({ nozzleIds: attendant.nozzleIds ?? [] });
+  }
+  closeNozzleAssignment() {
+    if (!this.saving) this.assignmentTarget = null;
+  }
+  saveNozzleAssignment() {
+    if (!this.assignmentTarget || this.saving) return;
+    this.saving = true;
+    this.assignmentError = '';
+    this.service.update('attendant', this.assignmentTarget.id, {
+      code: this.assignmentTarget.code ?? '',
+      name: this.assignmentTarget.name,
+      contact: this.assignmentTarget.contact ?? '',
+      nozzleIds: this.form.getRawValue().nozzleIds ?? [],
+    }).subscribe({
+      next: () => {
+        this.saving = false;
+        this.assignmentTarget = null;
+        this.load();
+      },
+      error: (error) => {
+        this.assignmentError = error.error?.message ?? 'L’affectation des pistolets a échoué.';
+        this.saving = false;
+        this.cdr.detectChanges();
+      },
+    });
+  }
+  openAttendantAssignment(nozzle: any) {
+    this.nozzleAssignmentTarget = nozzle;
+    this.assignmentError = '';
+    this.form.patchValue({ attendantId: nozzle.attendantId ?? 0 });
+  }
+  closeAttendantAssignment() {
+    if (!this.saving) this.nozzleAssignmentTarget = null;
+  }
+  saveAttendantAssignment() {
+    if (!this.nozzleAssignmentTarget || this.saving) return;
+    this.saving = true;
+    this.assignmentError = '';
+    const nozzle = this.nozzleAssignmentTarget;
+    this.service.update('nozzle', nozzle.id, {
+      code: nozzle.code,
+      name: nozzle.code,
+      pumpId: nozzle.pumpId,
+      tankId: nozzle.tankId,
+      currentIndex: nozzle.currentIndex ?? 0,
+      attendantId: Number(this.form.value.attendantId ?? 0),
+    }).subscribe({
+      next: () => {
+        this.saving = false;
+        this.nozzleAssignmentTarget = null;
+        this.load();
+      },
+      error: (error) => {
+        this.assignmentError = error.error?.message ?? 'L’affectation du pompiste a échoué.';
+        this.saving = false;
+        this.cdr.detectChanges();
+      },
+    });
   }
   edit(x: any) {
     this.editing = x;
     this.formOpen = true;
     this.form.patchValue({
       code: x.code,
-      name: x.name,
+      name: x.name ?? x.code,
       fuelTypeId: x.fuelTypeId ?? 0,
       capacity: x.capacity ?? 0,
       minimumStock: x.minimum ?? 0,
       pumpId: x.pumpId ?? 0,
       tankId: x.tankId ?? 0,
+      attendantId: x.attendantId ?? 0,
+      nozzleIds: x.nozzleIds ?? [],
       currentIndex: x.currentIndex ?? 0,
       unitPrice: x.unitPrice ?? 0,
       contact: x.contact ?? '',
       allowedRoles: x.allowedRoles ?? [],
+      supplierDeduction: x.supplierDeduction ?? false,
     });
   }
   changeTab(tab: string) {
@@ -98,7 +177,7 @@ export class FuelConfig implements OnInit {
   openCreate() {
     if (this.saving) return;
     this.editing = null;
-    this.form.reset({ code: '', name: '', fuelTypeId: 0, capacity: 0, minimumStock: 0, pumpId: 0, tankId: 0, currentIndex: 0, unitPrice: 0, contact: '', allowedRoles: ['ROLE_GERANT'] });
+    this.form.reset({ code: '', name: '', fuelTypeId: 0, capacity: 0, minimumStock: 0, pumpId: 0, tankId: 0, attendantId: 0, nozzleIds: [], currentIndex: 0, unitPrice: 0, contact: '', allowedRoles: ['ROLE_GERANT'], supplierDeduction: false });
     this.formOpen = true;
   }
   closeForm() {

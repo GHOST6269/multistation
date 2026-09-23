@@ -274,6 +274,7 @@
         <thead>
           <tr>
             <th>DATE</th>
+            <th>N° FACTURE</th>
             <th>RESPONSABLE</th>
             <th>POMPE</th>
             <th>CARBURANT</th>
@@ -290,6 +291,7 @@
           @for (r of pagedReadings; track r.id) {
             <tr>
               <td>{{ r.date | date: 'dd/MM/yyyy' }}</td>
+              <td>{{ r.invoiceNumber || '—' }}</td>
               <td>
                 <strong>{{ r.responsible }}</strong>
               </td>
@@ -311,7 +313,7 @@
             </tr>
           } @empty {
             <tr>
-              <td colspan="11" class="empty">
+              <td colspan="12" class="empty">
                 {{ loading ? 'Chargement…' : 'Aucun relevé enregistré.' }}
               </td>
             </tr>
@@ -410,16 +412,7 @@
                 placeholder="Choisir"
               >
               </app-dropdown>
-            </label>
-            <label
-              >Responsable *
-              <app-dropdown
-                formControlName="attendantId"
-                [options]="options(data?.attendants || [])"
-                placeholder="Choisir"
-                [searchable]="true"
-              >
-              </app-dropdown>
+              <small class="attendant-note">Pompiste : {{ selectedNozzleAttendant }}</small>
             </label>
           </div>
 
@@ -641,6 +634,7 @@
       <div class="small-fields">
         <label>Libellé *<input formControlName="name" placeholder="Ex. Mobile Money" /></label
         ><label>Code<input formControlName="code" placeholder="Ex. MOBILE_MONEY" /></label>
+        <label class="supplier-deduction-choice"><input type="checkbox" formControlName="supplierDeduction" /> Enregistrer les paiements de ce mode dans les prélèvements fournisseur</label>
         @if (error) {
           <div class="api-error wide">{{ error }}</div>
         }

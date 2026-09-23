@@ -25,13 +25,12 @@ export class FuelSales implements OnInit {
   savingCustomer = false;
   error = '';
   nozzles: any[] = [];
-  attendants: any[] = [];
   paymentMethods: DropdownOption[] = [];
   customers: DropdownOption[] = [];
   creditMode = false;
   form; customerForm;
   constructor(private articles: ArticleService, private fuel: FuelService, private customersApi: CustomerService, private fb: FormBuilder, private cdr: ChangeDetectorRef, public auth: AuthService, private readonly route: ActivatedRoute) {
-    this.form = fb.group({ date: [new Date().toISOString().slice(0, 10), Validators.required], nozzleId: [0, Validators.min(1)], attendantId: [0, Validators.min(1)], customerId: [0], startIndex: [0, Validators.min(0)], endIndex: [0, Validators.min(0)], returnToTank: [0, Validators.min(0)], unitPrice: [0, Validators.min(0)], payments: fb.array([]) });
+    this.form = fb.group({ date: [new Date().toISOString().slice(0, 10), Validators.required], nozzleId: [0, Validators.min(1)], customerId: [0], startIndex: [0, Validators.min(0)], endIndex: [0, Validators.min(0)], returnToTank: [0, Validators.min(0)], unitPrice: [0, Validators.min(0)], payments: fb.array([]) });
     this.customerForm = fb.group({ code: [''], name: ['', Validators.required], contactPerson: [''], phone: [''] });
     if (!this.auth.hasAnyRole(['ROLE_GERANT'])) this.form.controls.unitPrice.disable({ emitEvent: false });
   }
@@ -49,7 +48,7 @@ export class FuelSales implements OnInit {
     });
     this.articles.options().subscribe(data => { this.stations = data.stations.map(s => ({ value: s.id, label: s.name })); this.stationId = data.stations[0]?.id ?? 0; this.load(); });
   }
-  load() { if (!this.stationId) return; this.loading = true; this.page = 1; this.fuel.workspace(this.stationId).subscribe({ next: data => { this.readings = data.readings ?? []; this.nozzles = data.nozzles ?? []; this.attendants = data.attendants ?? []; this.loading = false; this.cdr.detectChanges(); }, error: () => { this.readings = []; this.loading = false; } }); this.loadPaymentMethods(); this.customersApi.list(this.stationId).subscribe(data => { this.customers = [{ value: 0, label: 'Aucun client' }, ...(data.customers ?? []).filter((customer: any) => customer.active).map((customer: any) => ({ value: customer.id, label: customer.name, hint: customer.code ?? '' }))]; }); }
+  load() { if (!this.stationId) return; this.loading = true; this.page = 1; this.fuel.workspace(this.stationId).subscribe({ next: data => { this.readings = data.readings ?? []; this.nozzles = data.nozzles ?? []; this.loading = false; this.cdr.detectChanges(); }, error: () => { this.readings = []; this.loading = false; } }); this.loadPaymentMethods(); this.customersApi.list(this.stationId).subscribe(data => { this.customers = [{ value: 0, label: 'Aucun client' }, ...(data.customers ?? []).filter((customer: any) => customer.active).map((customer: any) => ({ value: customer.id, label: customer.name, hint: customer.code ?? '' }))]; }); }
   private loadPaymentMethods() { this.fuel.paymentMethods(this.stationId, false, this.creditMode ? 'credit' : 'simple').subscribe(data => { this.paymentMethods = (data.methods ?? []).filter((method: any) => method.active).map((method: any) => ({ value: method.id, label: method.name, hint: method.code })); if (!this.paymentMethods.length) { this.payments.clear(); this.addPayment(); return; } const preferred = this.creditMode ? this.paymentMethods.find((method) => (method.hint ?? '').toUpperCase() === 'CLIENT_VOUCHER') ?? this.paymentMethods[0] : this.paymentMethods[0]; if (this.payments.length) { const current = this.payments.at(0)?.get('paymentMethodId')?.value; if (current === undefined || !this.paymentMethods.some((method) => Number(method.value) === Number(current))) { this.payments.at(0)?.patchValue({ paymentMethodId: Number(preferred.value) }); } } else { this.payments.clear(); this.addPayment(); } }); }
   get filtered() {
     const filteredRows = this.readings.filter((row) => {
@@ -85,7 +84,7 @@ export class FuelSales implements OnInit {
   get rows() { const page = Math.min(this.page, this.totalPages); return this.filtered.slice((page - 1) * this.pageSize, page * this.pageSize); }
   resetPage() { this.page = 1; }
   get nozzleOptions(): DropdownOption[] { return this.nozzles.map(nozzle => ({ value: nozzle.id, label: `${nozzle.code} · ${nozzle.fuel ?? ''}`, hint: nozzle.tank ?? '' })); }
-  get attendantOptions(): DropdownOption[] { return this.attendants.map(attendant => ({ value: attendant.id, label: attendant.name })); }
+  get selectedNozzleAttendant(): string { return this.nozzles.find(nozzle => Number(nozzle.id) === Number(this.form.value.nozzleId))?.attendant ?? 'Aucun pompiste associé'; }
   get sold() { return Math.max(0, Number(this.form.value.endIndex) - Number(this.form.value.startIndex) - Number(this.form.value.returnToTank)); }
   get total() { return this.sold * Number(this.form.getRawValue().unitPrice); }
   get payments(): FormArray { return this.form.get('payments') as FormArray; }
@@ -102,7 +101,7 @@ export class FuelSales implements OnInit {
     }));
   }
   removePayment(index: number) { if (this.payments.length > 1) this.payments.removeAt(index); }
-  openReading() { this.error = ''; this.form.reset({ date: new Date().toISOString().slice(0, 10), nozzleId: 0, attendantId: 0, customerId: 0, startIndex: 0, endIndex: 0, returnToTank: 0, unitPrice: 0, payments: [] }); this.payments.clear(); this.addPayment(); this.modalOpen = true; }
+  openReading() { this.error = ''; this.form.reset({ date: new Date().toISOString().slice(0, 10), nozzleId: 0, customerId: 0, startIndex: 0, endIndex: 0, returnToTank: 0, unitPrice: 0, payments: [] }); this.payments.clear(); this.addPayment(); this.modalOpen = true; }
   openQuickCustomer() { if (this.saving) return; this.customerForm.reset({ code: '', name: '', contactPerson: '', phone: '' }); this.quickCustomerOpen = true; }
   saveQuickCustomer() { if (this.customerForm.invalid || this.savingCustomer) { this.customerForm.markAllAsTouched(); return; } this.savingCustomer = true; this.customersApi.create({ ...this.customerForm.getRawValue(), stationId: this.stationId }).subscribe({ next: customer => { const option = { value: customer.id, label: customer.name, hint: customer.code ?? '' }; this.customers = [...this.customers, option]; this.form.patchValue({ customerId: customer.id }); this.savingCustomer = false; this.quickCustomerOpen = false; this.cdr.detectChanges(); }, error: error => { this.error = error.error?.message ?? 'Le client n’a pas pu être créé.'; this.savingCustomer = false; this.cdr.detectChanges(); } }); }
   selectNozzle() { const nozzle = this.nozzles.find(item => item.id === Number(this.form.value.nozzleId)); if (nozzle) this.form.patchValue({ startIndex: nozzle.currentIndex, endIndex: nozzle.currentIndex, unitPrice: nozzle.unitPrice }); }

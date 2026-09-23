@@ -328,6 +328,15 @@
   font-size: 7px;
   font-weight: 800;
 }
+.attendant-note {
+  overflow: hidden;
+  color: #8292a1;
+  font-size: 7px;
+  font-weight: 500;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .form-grid input,
 .small-fields input {
   width: 100%;
@@ -616,3 +625,5 @@
     grid-template-columns: 1fr;
   }
 }
+.supplier-deduction-choice { display:flex!important;grid-column:1 / -1;align-items:center;gap:8px; }
+.supplier-deduction-choice input { width:16px;min-height:16px;accent-color:#347fc3; }

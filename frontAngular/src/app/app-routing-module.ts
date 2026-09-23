@@ -40,6 +40,7 @@ const routes: Routes = [
   { path: 'fournisseurs', redirectTo: 'fournisseurs/factures', pathMatch: 'full' },
   { path: 'fournisseurs/factures', component: Suppliers, title: 'Factures fournisseur · StationFlow', canActivate: [AuthGuard, RoleGuard], data: { roles: ['ROLE_GERANT'], view: 'invoices' } },
   { path: 'fournisseurs/historique', component: Suppliers, title: 'Historique fournisseurs · StationFlow', canActivate: [AuthGuard, RoleGuard], data: { roles: ['ROLE_GERANT'], view: 'payments' } },
+  { path: 'fournisseurs/prelevements', component: Suppliers, title: 'Prélèvements fournisseurs · StationFlow', canActivate: [AuthGuard, RoleGuard], data: { roles: ['ROLE_GERANT'], view: 'deductions' } },
   { path: 'clients', redirectTo: 'clients/credit', pathMatch: 'full' },
   { path: 'clients/credit', component: Customers, title: 'Clients · StationFlow', canActivate: [AuthGuard, RoleGuard], data: { customerAccess: true, view: 'credit' } },
   { path: 'clients/releve', component: FuelSales, title: 'Relevé client · StationFlow', canActivate: [AuthGuard, RoleGuard], data: { customerAccess: true, creditMode: true } },

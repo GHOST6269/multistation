@@ -1,8 +1,8 @@
 <div class="supplier-heading">
   <div>
     <p>COMPTES FOURNISSEURS</p>
-    <h1>{{ view === 'invoices' ? 'Factures fournisseurs' : 'Historique des paiements' }}</h1>
-    <span>{{ view === 'invoices' ? 'Suivez les échéances, les montants facturés et les règlements.' : 'Consultez chaque règlement fournisseur et sa référence.' }}</span>
+    <h1>{{ view === 'invoices' ? 'Factures fournisseurs' : view === 'deductions' ? 'Prélèvements fournisseur' : 'Historique des paiements' }}</h1>
+    <span>{{ view === 'invoices' ? 'Suivez les échéances, les montants facturés et les règlements.' : view === 'deductions' ? 'Imputez les encaissements carte aux factures des fournisseurs.' : 'Consultez chaque règlement fournisseur et sa référence.' }}</span>
   </div>
   <button (click)="modal = 'supplier'">＋ Nouveau fournisseur</button>
 </div>
@@ -87,7 +87,7 @@
   <table>
     <thead>
       <tr>
-        <th>FACTURE</th>
+        <th>FACTURE / AVIS</th>
         <th>FOURNISSEUR</th>
         <th>DATE</th>
         <th>ÉCHÉANCE</th>
@@ -130,6 +130,16 @@
   <div class="table-pagination" [class.hidden]="invoiceTotalPages <= 1"><span>Page {{ invoicePage > invoiceTotalPages ? invoiceTotalPages : invoicePage }} sur {{ invoiceTotalPages }}</span><div><button [disabled]="invoicePage <= 1" (click)="invoicePage = invoicePage - 1">←</button>@for (page of invoicePages; track page) {<button [class.active]="page === invoicePage" (click)="invoicePage = page">{{ page }}</button>}<button [disabled]="invoicePage >= invoiceTotalPages" (click)="invoicePage = invoicePage + 1">→</button></div></div>
 </section>
 }
+@if (view === 'deductions') {
+<section class="invoice-panel payment-history">
+  <header><div><h2>Paiements attendus des fournisseurs</h2><p>Les paiements carte marqués dans les paramètres sont suivis ici jusqu’à leur réception.</p></div><span>{{ deductions.length }} opération(s)</span></header>
+  <table><thead><tr><th>DATE VENTE</th><th>FACTURE VENTE</th><th>PISTOLET</th><th>MODE</th><th>MONTANT ATTENDU</th><th>REÇU</th><th>FOURNISSEUR / FACTURE REÇUE</th><th>ÉTAT</th><th></th></tr></thead>
+    <tbody>@for (deduction of deductions; track deduction.id) {
+      <tr><td>{{ deduction.date | date:'dd/MM/yyyy' }}</td><td><strong>{{ deduction.invoiceNumber || '—' }}</strong></td><td>{{ deduction.nozzle || '—' }}</td><td><span class="payment-method">{{ deduction.methodLabel }}</span></td><td class="paid">{{ money(deduction.amount) }} Ar</td><td class="paid"><strong>{{ money(deduction.received) }} Ar</strong><small>Reste {{ money(deduction.remaining) }} Ar</small></td><td>{{ deduction.supplier ? deduction.supplier + ' · ' + deduction.settlementInvoiceNumber : '—' }}</td><td><span class="deduction-status" [class.applied]="deduction.status === 'RECEIVED'">{{ deduction.status === 'RECEIVED' ? 'Reçu' : deduction.status === 'PARTIAL' ? 'Partiel' : 'En attente' }}</span></td><td><button class="pay-button" (click)="printDeduction(deduction)">Imprimer</button>@if (deduction.remaining > 0) { <button class="pay-button" (click)="openDeduction(deduction)">Enregistrer le reçu</button> }</td></tr>
+    } @empty { <tr><td colspan="9" class="empty">Aucun paiement fournisseur à suivre.</td></tr> }</tbody>
+  </table>
+</section>
+}
 @if (view === 'payments') {
 <section class="invoice-panel payment-history">
   <header>
@@ -159,7 +169,7 @@
           <td>
             <strong>{{ payment.supplier }}</strong>
           </td>
-          <td>{{ payment.invoice || '—' }}</td>
+          <td>{{ payment.direction === 'INCOMING' ? (payment.settlementInvoiceNumber || '—') : (payment.invoice || '—') }}</td>
           <td>
             <span class="payment-method">{{
               paymentLabels[payment.method] || payment.method
@@ -233,4 +243,29 @@
       </footer>
     </form>
   </div>
+}
+@if (modal === 'deduction' && selectedDeduction) {
+  <div class="supplier-modal">
+    <form [formGroup]="deductionForm" (ngSubmit)="saveDeduction()">
+      <header><div><h2>Enregistrer un paiement fournisseur</h2><p>{{ selectedDeduction.methodLabel }} · {{ money(selectedDeduction.remaining) }} Ar restant attendu</p></div><button type="button" (click)="modal = null">×</button></header>
+      <div class="fields">
+        <label>Fournisseur payeur <app-dropdown formControlName="supplierId" [options]="supplierOptions" placeholder="Choisir le fournisseur" /></label>
+        <label>Montant reçu<input appMoney formControlName="amount" /><small>Reste attendu : {{ money(selectedDeduction.remaining) }} Ar</small></label>
+        <label>Date de réception<input type="date" formControlName="date" /></label>
+        <div class="invoice-reference"><span>Facture de vente associée</span><strong>{{ selectedDeduction.invoiceNumber || 'Numéro attribué automatiquement' }}</strong><small>Référence du relevé de vente</small></div>
+        <label>N° facture / avis reçu *<input formControlName="settlementInvoiceNumber" placeholder="Référence du fournisseur" /></label>
+        <label class="wide">Référence du paiement<input formControlName="reference" placeholder="Référence bancaire ou transfert" /></label>
+        @if (deductionError) { <p class="wide deduction-error" role="alert">{{ deductionError }}</p> }
+      </div>
+      <footer><button type="button" (click)="modal = null">Annuler</button><button [disabled]="deductionForm.invalid">Enregistrer le paiement reçu</button></footer>
+    </form>
+  </div>
+}
+@if (printTarget) {
+  <article class="deduction-print-sheet">
+    <header><div><p>JUSTIFICATIF DE VENTE CARBURANT</p><h1>{{ stationName }}</h1></div><strong>FACTURE N° {{ printTarget.invoiceNumber || '—' }}</strong></header>
+    <section class="print-parties"><div><small>ÉMETTEUR</small><strong>{{ stationName }}</strong><span>Relevé carburant n° {{ printTarget.readingId }}</span><span>Client : {{ printTarget.customerName || 'Vente au comptant' }}</span><span>Pompiste : {{ printTarget.responsible || '—' }}</span></div><div><small>PAIEMENT FOURNISSEUR</small><strong>{{ printTarget.supplier || 'En attente de réception' }}</strong><span>Facture / avis reçu : {{ printTarget.settlementInvoiceNumber || '—' }}</span><span>Réception : {{ printTarget.receivedDate ? (printTarget.receivedDate | date:'dd/MM/yyyy') : 'Non reçue' }}</span></div></section>
+    <table><thead><tr><th>Date</th><th>Pistolet</th><th>Carburant</th><th>Volume</th><th>PU</th><th>Mode</th><th>Montant vente</th><th>Montant reçu</th><th>Solde attendu</th></tr></thead><tbody><tr><td>{{ printTarget.date | date:'dd/MM/yyyy' }}</td><td>{{ printTarget.nozzle || '—' }}</td><td>{{ printTarget.fuel || '—' }}</td><td>{{ printTarget.quantitySold | number:'1.0-3' }} L</td><td>{{ money(printTarget.unitPrice) }} Ar</td><td>{{ printTarget.methodLabel }}</td><td>{{ money(printTarget.totalAmount) }} Ar</td><td>{{ money(printTarget.received) }} Ar</td><td>{{ money(printTarget.remaining) }} Ar</td></tr></tbody></table>
+    <footer><span>Ce document justifie le suivi du paiement fournisseur lié à la facture de vente ci-dessus.</span><strong>Édité le {{ today | date:'dd/MM/yyyy' }}</strong></footer>
+  </article>
 }

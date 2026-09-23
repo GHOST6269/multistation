@@ -65,7 +65,6 @@ export class Fuel implements OnInit {
     this.readingForm = fb.group({
       date: [new Date().toISOString().slice(0, 10), Validators.required],
       nozzleId: [0, Validators.min(1)],
-      attendantId: [0, Validators.min(1)],
       startIndex: [0, Validators.min(0)],
       endIndex: [0, Validators.min(0)],
       returnToTank: [0, Validators.min(0)],
@@ -95,7 +94,7 @@ export class Fuel implements OnInit {
       unitPrice: [0],
       contact: [''],
     });
-    this.paymentMethodForm = fb.group({ code: [''], name: ['', Validators.required] });
+    this.paymentMethodForm = fb.group({ code: [''], name: ['', Validators.required], supplierDeduction: [false] });
   }
   ngOnInit() {
     this.route.queryParams.subscribe((params) => {
@@ -158,7 +157,6 @@ export class Fuel implements OnInit {
     this.readingForm.reset({
       date: new Date().toISOString().slice(0, 10),
       nozzleId: 0,
-      attendantId: 0,
       startIndex: 0,
       endIndex: 0,
       returnToTank: 0,
@@ -176,6 +174,9 @@ export class Fuel implements OnInit {
         endIndex: n.currentIndex,
         unitPrice: n.unitPrice,
       });
+  }
+  get selectedNozzleAttendant(): string {
+    return this.data?.nozzles.find((nozzle) => Number(nozzle.id) === Number(this.readingForm.value.nozzleId))?.attendant ?? 'Aucun pompiste associé';
   }
   get output() {
     return Math.max(

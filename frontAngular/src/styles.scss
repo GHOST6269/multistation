@@ -441,3 +441,12 @@ body {
 .app-shell .operation-table .status-pill.partial { background: #e8f1ff; color: #2567b1; }
 .app-shell .operation-table .status-pill.unpaid { background: #fff0ef; color: #c13c3c; }
 .app-shell .operation-table th:nth-child(2), .app-shell .operation-table td:nth-child(2), .app-shell .operation-table th:nth-child(6), .app-shell .operation-table td:nth-child(6), .app-shell .operation-table th:nth-child(7), .app-shell .operation-table td:nth-child(7) { white-space: nowrap; }
+@media print {
+  body { print-color-adjust:exact; -webkit-print-color-adjust:exact; }
+}
+@media print {
+  @page { size:A4 portrait; margin:16mm; }
+  body * { visibility:hidden!important; }
+  .deduction-print-sheet,.deduction-print-sheet * { visibility:visible!important; }
+  .deduction-print-sheet { display:block!important;position:absolute;left:0;top:0;width:100%;color:#172b43;background:#fff;font:11px Arial,sans-serif; }
+}

@@ -17,7 +17,11 @@ export class Suppliers implements OnInit {
   stationId = 0;
   data: any;
   payments: any[] = [];
-  modal: 'supplier' | 'payment' | null = null;
+  modal: 'supplier' | 'payment' | 'deduction' | null = null;
+  deductions: any[] = [];
+  selectedDeduction: any = null;
+  deductionError = '';
+  printTarget: any = null;
   invoice: any;
   invoiceQuery = '';
   invoiceFromDate = '';
@@ -27,9 +31,11 @@ export class Suppliers implements OnInit {
   invoicePage = 1;
   paymentPage = 1;
   readonly pageSize = 10;
-  view: 'invoices' | 'payments' = 'invoices';
+  readonly today = new Date();
+  view: 'invoices' | 'payments' | 'deductions' = 'invoices';
   form;
   paymentForm;
+  deductionForm;
   constructor(
     private service: SupplierService,
     private articles: ArticleService,
@@ -53,6 +59,7 @@ export class Suppliers implements OnInit {
       reference: [''],
       note: [''],
     });
+    this.deductionForm = fb.group({ supplierId: [0, [Validators.required, Validators.min(1)]], amount: [0, [Validators.required, Validators.min(0.01)]], date: [new Date().toISOString().slice(0, 10), Validators.required], settlementInvoiceNumber: ['', Validators.required], reference: [''] });
   }
   get totalBalance() {
     return (this.data?.suppliers ?? []).reduce(
@@ -114,9 +121,10 @@ export class Suppliers implements OnInit {
     BANK_TRANSFER: 'Virement',
     DIRECT_DEBIT: 'Prélèvement',
     CHEQUE: 'Chèque',
+    FOURNISSEUR: 'Paiement reçu fournisseur',
   };
   ngOnInit() {
-    this.route.data.subscribe(data => this.view = data['view'] === 'payments' ? 'payments' : 'invoices');
+    this.route.data.subscribe(data => this.view = data['view'] === 'payments' ? 'payments' : data['view'] === 'deductions' ? 'deductions' : 'invoices');
     this.articles.options().subscribe((x) => {
       this.stations = x.stations.map((s) => ({ value: s.id, label: s.name }));
       this.stationId = x.stations[0]?.id ?? 0;
@@ -132,7 +140,40 @@ export class Suppliers implements OnInit {
       this.payments = x.payments ?? [];
       this.cdr.detectChanges();
     });
+    this.service.deductions(this.stationId).subscribe((x) => {
+      this.deductions = x.deductions ?? [];
+      this.cdr.detectChanges();
+    });
   }
+  get supplierOptions(): DropdownOption[] {
+    return (this.data?.suppliers ?? []).filter((supplier: any) => supplier.active)
+      .map((supplier: any) => ({ value: supplier.id, label: supplier.name, hint: supplier.code ?? '' }));
+  }
+  openDeduction(deduction: any) {
+    this.selectedDeduction = deduction;
+    this.deductionError = '';
+    this.deductionForm.reset({ supplierId: 0, amount: deduction.remaining, date: new Date().toISOString().slice(0, 10), settlementInvoiceNumber: '', reference: '' });
+    this.modal = 'deduction';
+  }
+  saveDeduction() {
+    if (this.deductionForm.invalid || !this.selectedDeduction) return;
+    this.service.applyDeduction({
+      readingId: this.selectedDeduction.readingId,
+      paymentIndex: this.selectedDeduction.paymentIndex,
+      ...this.deductionForm.getRawValue(),
+      supplierId: Number(this.deductionForm.value.supplierId),
+      amount: Number(this.deductionForm.value.amount),
+    }).subscribe({
+      next: () => { this.modal = null; this.selectedDeduction = null; this.load(); },
+      error: (error) => { this.deductionError = error.error?.message ?? 'Le paiement fournisseur n’a pas pu être enregistré.'; this.cdr.detectChanges(); },
+    });
+  }
+  printDeduction(deduction: any) {
+    this.printTarget = deduction;
+    window.onafterprint = () => { this.printTarget = null; this.cdr.detectChanges(); };
+    setTimeout(() => window.print());
+  }
+  get stationName(): string { return this.stations.find(station => Number(station.value) === Number(this.stationId))?.label ?? 'Station'; }
   saveSupplier() {
     if (this.form.invalid) return;
     this.service.create({ ...this.form.getRawValue(), stationId: this.stationId }).subscribe(() => {

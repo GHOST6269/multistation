@@ -1,2 +1,2 @@
 export interface FuelWorkspace{fuelTypes:any[];tanks:any[];pumps:any[];nozzles:any[];attendants:any[];readings:FuelReading[];paymentTypes:string[]}
-export interface FuelReading{id:number;date:string;responsible:string;nozzle:string;fuel:string;startIndex:number;endIndex:number;output:number;returnToTank:number;quantitySold:number;unitPrice:number;totalAmount:number;payments:{type:string;amount:number;reference?:string}[]}
+export interface FuelReading{id:number;date:string;responsible:string;nozzle:string;fuel:string;startIndex:number;endIndex:number;output:number;returnToTank:number;quantitySold:number;unitPrice:number;totalAmount:number;invoiceNumber?:string|null;payments:{type:string;amount:number;reference?:string}[]}

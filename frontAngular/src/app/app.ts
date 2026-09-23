@@ -55,6 +55,7 @@ export class App implements OnInit {
       children: [
         { label: 'Factures fournisseur', route: '/fournisseurs/factures' },
         { label: 'Historique des paiements', route: '/fournisseurs/historique' },
+        { label: 'Prélèvements', route: '/fournisseurs/prelevements' },
       ],
     },
     {

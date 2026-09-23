@@ -10,6 +10,12 @@ export class SupplierService {
   paymentHistory(station: number): Observable<any> {
     return this.api.get('suppliers/payment-history', { station });
   }
+  deductions(station: number): Observable<any> {
+    return this.api.get('suppliers/deductions', { station });
+  }
+  applyDeduction(data: any) {
+    return this.api.post<any>('suppliers/deductions', data);
+  }
   create(data: any) {
     return this.api.post<any>('suppliers', data);
   }

@@ -47,7 +47,7 @@ final class FuelPaymentController extends AbstractController
         if (!$items) {
             foreach (self::DEFAULT_METHODS as $code => $name) {
                 $roles = $code === 'CASH' ? [UserAccessService::ROLE_GERANT, UserAccessService::ROLE_ASSISTANT] : [UserAccessService::ROLE_GERANT];
-                $item = (new FuelPaymentMethod())->setStation($station)->setCode($code)->setName($name)->setAllowedRoles($roles)->setCreatedAt(new \DateTimeImmutable());
+                $item = (new FuelPaymentMethod())->setStation($station)->setCode($code)->setName($name)->setAllowedRoles($roles)->setSupplierDeduction(in_array($code, ['FANILO', 'TPE', 'VISA', 'FMS'], true))->setCreatedAt(new \DateTimeImmutable());
                 $em->persist($item);
                 $items[] = $item;
             }
@@ -79,6 +79,7 @@ final class FuelPaymentController extends AbstractController
             ->setCode($code)
             ->setName($name)
             ->setAllowedRoles($this->allowedRoles($data))
+            ->setSupplierDeduction((bool) ($data['supplierDeduction'] ?? false))
             ->setCreatedAt(new \DateTimeImmutable());
         $em->persist($item); $em->flush();
         return $this->json($this->methodRow($item), 201);
@@ -91,7 +92,7 @@ final class FuelPaymentController extends AbstractController
         if (!$access->canAccessStation($method->getStation())) return $access->denyStation();
         $data = $request->toArray(); $name = trim((string) ($data['name'] ?? ''));
         if ($name === '') return $this->json(['message' => 'Libellé obligatoire'], 422);
-        $method->setName($name)->setAllowedRoles($this->allowedRoles($data));
+        $method->setName($name)->setAllowedRoles($this->allowedRoles($data))->setSupplierDeduction((bool) ($data['supplierDeduction'] ?? false));
         $em->flush(); return $this->json($this->methodRow($method));
     }
 
@@ -111,11 +112,11 @@ final class FuelPaymentController extends AbstractController
         $data = $request->toArray();
         $station = $em->getRepository(Stations::class)->find((int) ($data['stationId'] ?? 0));
         $nozzle = $em->getRepository(FuelNozzle::class)->find((int) ($data['nozzleId'] ?? 0));
-        $attendant = $em->getRepository(PumpAttendant::class)->find((int) ($data['attendantId'] ?? 0));
+        $attendant = $nozzle?->getAttendant();
         $customerId = (int) ($data['customerId'] ?? 0);
         $customer = $customerId ? $em->getRepository(Customer::class)->find($customerId) : null;
         if ($station && !$access->canAccessStation($station)) return $access->denyStation();
-        if (!$station || !$nozzle || !$attendant || $nozzle->getPump()?->getStation()?->getId() !== $station->getId() || $attendant->getStation()?->getId() !== $station->getId()) return $this->json(['message' => 'Références invalides'], 422);
+        if (!$station || !$nozzle || $nozzle->getPump()?->getStation()?->getId() !== $station->getId() || ($attendant && $attendant->getStation()?->getId() !== $station->getId())) return $this->json(['message' => 'Références invalides'], 422);
         if ($customerId && (!$customer || !$customer->isActive() || $customer->getStation()?->getId() !== $station->getId())) return $this->json(['message' => 'Client invalide'], 422);
         $start = (float) ($data['startIndex'] ?? 0); $end = (float) ($data['endIndex'] ?? 0);
         $rc = max(0, (float) ($data['returnToTank'] ?? 0)); $output = $end - $start; $sold = $output - $rc;
@@ -137,7 +138,7 @@ final class FuelPaymentController extends AbstractController
             $amount = max(0, (float) ($line['amount'] ?? 0));
             if (!$method || !$method->isActive() || !$this->canUseMethod($method, $access) || $method->getStation()?->getId() !== $station->getId()) return $this->json(['message' => 'Mode de paiement non autorisé'], 422);
             if ($customer !== null && $method->getCode() !== 'CLIENT_VOUCHER') return $this->json(['message' => 'En mode crédit, seul le bon client est autorisé.'], 422);
-            $paymentEntry = ['type' => $method->getCode(), 'label' => $method->getName(), 'amount' => $amount, 'reference' => trim((string) ($line['reference'] ?? '')) ?: null, 'performedBy' => trim(($access->currentUser()?->getFirstName() ?? '').' '.($access->currentUser()?->getLastName() ?? '')) ?: null];
+            $paymentEntry = ['type' => $method->getCode(), 'methodId' => $method->getId(), 'label' => $method->getName(), 'supplierDeduction' => $method->isSupplierDeduction(), 'amount' => $amount, 'reference' => trim((string) ($line['reference'] ?? '')) ?: null, 'performedBy' => trim(($access->currentUser()?->getFirstName() ?? '').' '.($access->currentUser()?->getLastName() ?? '')) ?: null];
             if ($amount <= 0) {
                 if ($customer !== null && $method->getCode() === 'CLIENT_VOUCHER') {
                     $payment[] = $paymentEntry;
@@ -159,6 +160,8 @@ final class FuelPaymentController extends AbstractController
         $reading = (new FuelShiftReading())->setStation($station)->setNozzle($nozzle)->setAttendant($attendant)->setCustomer($customer)->setWorkDate(new \DateTimeImmutable($data['date'] ?? 'today'))->setStartIndex((string) $start)->setEndIndex((string) $end)->setReturnToTank((string) $rc)->setQuantitySold((string) $sold)->setUnitPrice((string) $price)->setTotalAmount((string) $total)->setPayments($payment)->setCreatedAt(new \DateTimeImmutable());
         $nozzle->setCurrentIndex((string) $end); $tank->setCurrentStock((string) ((float) $tank->getCurrentStock() - $sold));
         $em->persist($reading); $em->flush();
+        $reading->setInvoiceNumber('F-'.(new \DateTimeImmutable())->format('Y').'-'.$reading->getId());
+        $em->flush();
         return $this->json(['id' => $reading->getId()], 201);
     }
 
@@ -170,13 +173,13 @@ final class FuelPaymentController extends AbstractController
         if (!$access->canAccessStation($stationId)) return $access->denyStation();
         $readings = $em->getRepository(FuelShiftReading::class)->findBy(['station' => $stationId], ['workDate' => 'DESC', 'id' => 'DESC'], 100);
         $rows = [];
-        foreach ($readings as $reading) foreach ($reading->getPayments() as $index => $payment) $rows[] = ['id' => $reading->getId().'-'.$index, 'date' => $reading->getWorkDate()?->format('Y-m-d'), 'responsible' => $reading->getAttendant()?->getFullName(), 'performedBy' => $payment['performedBy'] ?? null, 'nozzle' => $reading->getNozzle()?->getCode(), 'method' => $payment['label'] ?? $payment['type'] ?? '—', 'reference' => $payment['reference'] ?? null, 'amount' => (float) ($payment['amount'] ?? 0)];
+        foreach ($readings as $reading) foreach ($reading->getPayments() as $index => $payment) $rows[] = ['id' => $reading->getId().'-'.$index, 'date' => $reading->getWorkDate()?->format('Y-m-d'), 'responsible' => $reading->getAttendant()?->getFullName() ?? 'Non affecté', 'performedBy' => $payment['performedBy'] ?? null, 'nozzle' => $reading->getNozzle()?->getCode(), 'invoiceNumber' => $reading->getInvoiceNumber(), 'method' => $payment['label'] ?? $payment['type'] ?? '—', 'reference' => $payment['reference'] ?? null, 'amount' => (float) ($payment['amount'] ?? 0)];
         return $this->json(['payments' => $rows]);
     }
 
     private function methodRow(FuelPaymentMethod $method): array
     {
-        return ['id' => $method->getId(), 'code' => $method->getCode(), 'name' => $method->getName(), 'active' => $method->isActive(), 'allowedRoles' => $method->getAllowedRoles()];
+        return ['id' => $method->getId(), 'code' => $method->getCode(), 'name' => $method->getName(), 'active' => $method->isActive(), 'supplierDeduction' => $method->isSupplierDeduction(), 'allowedRoles' => $method->getAllowedRoles()];
     }
 
     private function allowedRoles(array $data): array

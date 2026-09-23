@@ -50,6 +50,7 @@
         <thead>
           <tr>
             <th>DATE</th>
+            <th>N° FACTURE</th>
             <th>CLIENT</th>
             <th>POMPISTE</th>
             <th>POMPE</th>
@@ -66,6 +67,7 @@
           @for (row of rows; track row.id) {
             <tr>
               <td>{{ row.date | date: 'dd/MM/yyyy' }}</td>
+              <td>{{ row.invoiceNumber || '—' }}</td>
               <td><strong>{{ row.customerName || '—' }}</strong></td>
               <td>
                 <strong>{{ row.responsible }}</strong>
@@ -85,7 +87,7 @@
             </tr>
           } @empty {
             <tr>
-              <td colspan="11" class="empty">
+              <td colspan="12" class="empty">
                 {{ loading ? 'Chargement des relevés…' : 'Aucun relevé pour cette période.' }}
               </td>
             </tr>
@@ -119,25 +121,16 @@
       <div class="operation-form">
         <label>Date<input type="date" formControlName="date" /></label>
         <label>
-          Pompiste
-          <app-dropdown
-            formControlName="attendantId"
-            [options]="attendantOptions"
-            [selectedTag]="'Pompiste'"
-            [emptyTag]="'Sélectionner'"
-            [placeholder]="'Pompiste'"
-          />
-        </label>
-        <label>
-          Pompe
+          Pistolet
           <app-dropdown
             formControlName="nozzleId"
             (ngModelChange)="selectNozzle()"
             [options]="nozzleOptions"
-            [selectedTag]="'Pompe'"
+            [selectedTag]="'Pistolet'"
             [emptyTag]="'Sélectionner'"
-            [placeholder]="'Pompe'"
+            [placeholder]="'Pistolet'"
           />
+          <small class="attendant-note">Pompiste : {{ selectedNozzleAttendant }}</small>
         </label>
         <label *ngIf="!creditMode">
           <span class="customer-label">Client <small>(facultatif)</small></span>

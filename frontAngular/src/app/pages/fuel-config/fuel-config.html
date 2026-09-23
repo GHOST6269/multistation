@@ -46,12 +46,13 @@
               @if (tab === 'fuel') { Prix : {{ x.unitPrice | money }} Ar/L }
               @else if (tab === 'tank') { {{ x.fuel }} · {{ x.stock | number:'1.0-0' }} / {{ x.capacity | number:'1.0-0' }} L · Seuil {{ x.minimum | number:'1.0-0' }} L }
               @else if (tab === 'pump') { {{ x.nozzleCount || 0 }} pistolet{{ x.nozzleCount === 1 ? '' : 's' }} associé{{ x.nozzleCount === 1 ? '' : 's' }} }
-              @else if (tab === 'nozzle') { Pompe {{ x.pump || 'non liée' }} · Cuve {{ x.tank || 'non liée' }} · Index {{ x.currentIndex | number:'1.0-3' }} }
-              @else if (tab === 'attendant') { Contact : {{ x.contact || 'Non renseigné' }} }
+              @else if (tab === 'nozzle') { Pompe {{ x.pump || 'non liée' }} · Cuve {{ x.tank || 'non liée' }} · Pompiste {{ x.attendant || 'non affecté' }} · Index {{ x.currentIndex | number:'1.0-3' }} }
+              @else if (tab === 'attendant') { Contact : {{ x.contact || 'Non renseigné' }} · Pistolets : {{ x.nozzles?.join(', ') || 'Aucun' }} }
+              @else if (tab === 'payment') { {{ x.supplierDeduction ? 'Prélèvement fournisseur' : 'Paiement classique' }} }
               @else { Accessible : {{ roleLabels(x.allowedRoles || []) || 'aucun rôle' }} }
             </p>
             <span class="item-status" [class.off]="!x.active"><i></i>{{ x.active ? 'Actif' : 'Inactif' }}</span>
-            <div class="item-actions"><button (click)="edit(x)">Modifier</button>@if (x.active) { <button class="danger" (click)="deactivate(x)">Désactiver</button> }</div>
+            <div class="item-actions">@if (tab === 'attendant') { <button (click)="openNozzleAssignment(x)">Pistolets</button> }@if (tab === 'nozzle') { <button (click)="openAttendantAssignment(x)">Pompiste</button> }<button (click)="edit(x)">Modifier</button>@if (x.active) { <button class="danger" (click)="deactivate(x)">Désactiver</button> }</div>
           </article>
         } @empty {
           <div class="settings-empty"><span>{{ tab === 'fuel' ? '⛽' : tab === 'tank' ? '▱' : tab === 'pump' ? '◉' : tab === 'nozzle' ? '⌁' : tab === 'attendant' ? '♙' : '◈' }}</span><strong>Aucun élément configuré</strong><p>Créez le premier élément pour cette rubrique.</p><button (click)="openCreate()">＋ Commencer la configuration</button></div>
@@ -70,8 +71,11 @@
         <label>Code *<input formControlName="code" placeholder="Ex. GO-01" /></label><label>Nom *<input formControlName="name" placeholder="Nom affiché" /></label>
         @if (tab === 'fuel') { <label>Prix TTC (Ar/L)<input appMoney type="text" formControlName="unitPrice" /></label> }
         @if (tab === 'tank') { <label>Carburant *<app-dropdown formControlName="fuelTypeId" [options]="options(data?.fuels || [])" /></label><label>Capacité (L) *<input type="number" formControlName="capacity" min="0" /></label><label>Seuil d'alerte (L)<input type="number" formControlName="minimumStock" min="0" /></label> }
-        @if (tab === 'nozzle') { <label>Pompe associée *<app-dropdown formControlName="pumpId" [options]="options(data?.pumps || [])" /></label><label>Cuve associée *<app-dropdown formControlName="tankId" [options]="options(data?.tanks || [])" /></label><label>Index initial<input type="number" formControlName="currentIndex" min="0" /></label> }
-        @if (tab === 'attendant') { <label>Contact<input formControlName="contact" placeholder="Téléphone ou e-mail" /></label> }
+        @if (tab === 'nozzle') { <label>Pompe associée *<app-dropdown formControlName="pumpId" [options]="options(data?.pumps || [])" /></label><label>Cuve associée *<app-dropdown formControlName="tankId" [options]="options(data?.tanks || [])" /></label><label>Pompiste associé<app-dropdown formControlName="attendantId" [options]="options(data?.attendants || [])" [emptyTag]="'Aucun'" /></label><small class="wide">Vous pouvez réaffecter ce pistolet à un autre pompiste selon l’organisation de la journée.</small><label>Index initial<input type="number" formControlName="currentIndex" min="0" /></label> }
+        @if (tab === 'attendant') {
+          <label>Contact<input formControlName="contact" placeholder="Téléphone ou e-mail" /></label>
+        }
+        @if (tab === 'payment') { <label class="payment-deduction-toggle"><input type="checkbox" formControlName="supplierDeduction" /><span>Enregistrer les paiements de ce mode dans les prélèvements fournisseur.</span></label> }
         @if (tab === 'payment') {
           <div class="wide payment-role-group">
             <div class="payment-role-header">
@@ -95,5 +99,43 @@
       </div>
       <footer><button type="button" class="cancel" [disabled]="saving" (click)="closeForm()">Annuler</button><button [disabled]="saving">{{ saving ? 'Enregistrement…' : (editing ? 'Enregistrer les modifications' : 'Créer') }}</button></footer>
     </form>
+  </div>
+}
+
+@if (assignmentTarget) {
+  <div class="settings-modal" (click)="closeNozzleAssignment()">
+    <section class="nozzle-assignment-modal" (click)="$event.stopPropagation()">
+      <header><div><p>AFFECTATION DU JOUR</p><h2>Pistolets de {{ assignmentTarget.name }}</h2><span>Choisissez les pistolets attribués à ce pompiste.</span></div><button type="button" [disabled]="saving" (click)="closeNozzleAssignment()">×</button></header>
+      <div class="nozzle-assignment-body">
+        <section class="nozzle-picker">
+          <header><div><strong>Sélection des pistolets</strong><small>Un pompiste peut être affecté à plusieurs pistolets.</small></div><span>{{ form.value.nozzleIds?.length || 0 }} sélectionné(s)</span></header>
+          <div class="nozzle-picker-grid">
+            @for (nozzle of nozzleChoices; track nozzle.id) {
+              <label class="nozzle-choice" [class.selected]="isNozzleSelected(nozzle.id)">
+                <input type="checkbox" [checked]="isNozzleSelected(nozzle.id)" (change)="toggleNozzle(nozzle.id, $any($event.target).checked)" />
+                <span class="nozzle-check"></span><span class="nozzle-copy"><strong>{{ nozzle.code }}</strong><small>{{ nozzle.pump }} · {{ nozzle.fuel }} · {{ nozzle.tank }}</small></span>
+              </label>
+            } @empty { <p class="nozzle-empty">Aucun pistolet actif pour cette station.</p> }
+          </div>
+          <small class="nozzle-note">Les relevés déjà enregistrés conserveront leur pompiste.</small>
+        </section>
+        @if (assignmentError) { <p class="assignment-error" role="alert">{{ assignmentError }}</p> }
+      </div>
+      <footer><button type="button" class="cancel" [disabled]="saving" (click)="closeNozzleAssignment()">Annuler</button><button [disabled]="saving" (click)="saveNozzleAssignment()">{{ saving ? 'Enregistrement…' : 'Enregistrer les pistolets' }}</button></footer>
+    </section>
+  </div>
+}
+
+@if (nozzleAssignmentTarget) {
+  <div class="settings-modal" (click)="closeAttendantAssignment()">
+    <section class="nozzle-assignment-modal" [formGroup]="form" (click)="$event.stopPropagation()">
+      <header><div><p>AFFECTATION DU JOUR</p><h2>Pompiste du pistolet {{ nozzleAssignmentTarget.code }}</h2><span>Choisissez le pompiste responsable de ce pistolet.</span></div><button type="button" [disabled]="saving" (click)="closeAttendantAssignment()">×</button></header>
+      <div class="nozzle-assignment-body">
+        <label class="attendant-select">Pompiste associé<app-dropdown formControlName="attendantId" [options]="options(data?.attendants || [])" [emptyTag]="'Aucun pompiste'" /></label>
+        <small class="nozzle-note">Vous pouvez modifier cette affectation selon l’organisation de chaque journée. Les relevés déjà enregistrés garderont leur pompiste.</small>
+        @if (assignmentError) { <p class="assignment-error" role="alert">{{ assignmentError }}</p> }
+      </div>
+      <footer><button type="button" class="cancel" [disabled]="saving" (click)="closeAttendantAssignment()">Annuler</button><button [disabled]="saving" (click)="saveAttendantAssignment()">{{ saving ? 'Enregistrement…' : 'Enregistrer' }}</button></footer>
+    </section>
   </div>
 }
