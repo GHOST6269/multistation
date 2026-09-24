@@ -43,6 +43,7 @@ export class App implements OnInit {
       roles: ['ROLE_GERANT', 'ROLE_ASSISTANT', 'ROLE_QUALITY_MARSHALL'],
       children: [
         { label: 'Ventes & relevés', route: '/carburants/ventes', roles: ['ROLE_GERANT', 'ROLE_ASSISTANT'] },
+        { label: 'Versements', route: '/carburants/versements', roles: ['ROLE_GERANT', 'ROLE_ASSISTANT'] },
         { label: 'Livraisons carburant', route: '/carburants/livraisons', roles: ['ROLE_GERANT', 'ROLE_QUALITY_MARSHALL', 'ROLE_ASSISTANT'] },
         { label: 'Encaissements', route: '/carburants/encaissements', roles: ['ROLE_GERANT', 'ROLE_ASSISTANT'] },
         { label: 'État des cuves', route: '/stock-carburant' },

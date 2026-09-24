@@ -22,15 +22,17 @@ final class CustomerController extends AbstractController
         $customers = $em->getRepository(Customer::class)->findBy(['station' => $station], ['name' => 'ASC']);
 
         $billedByCustomer = [];
+        $paidByCustomer = [];
         $sales = $em->getRepository(FuelShiftReading::class)->findBy(['station' => $station], ['workDate' => 'DESC', 'id' => 'DESC']);
         foreach ($sales as $reading) {
             $customer = $reading->getCustomer();
             if (!$customer) continue;
             $customerId = $customer->getId();
             $billedByCustomer[$customerId] = ($billedByCustomer[$customerId] ?? 0.0) + (float) $reading->getTotalAmount();
+            $paidOnReading = array_sum(array_map(static fn (array $line): float => (float) ($line['amount'] ?? 0), $reading->getPayments()));
+            $paidByCustomer[$customerId] = ($paidByCustomer[$customerId] ?? 0.0) + $paidOnReading;
         }
 
-        $paidByCustomer = [];
         $payments = $em->getRepository(CustomerPayment::class)->findBy(['station' => $station], ['paymentDate' => 'DESC', 'id' => 'DESC']);
         foreach ($payments as $payment) {
             $customer = $payment->getCustomer();
@@ -140,6 +142,10 @@ final class CustomerController extends AbstractController
                 $saleDate = $sale->getWorkDate();
                 if ($saleDate && $saleDate <= $paymentDate) {
                     $billedBefore += (float) $sale->getTotalAmount();
+                    foreach ($sale->getPayments() as $line) {
+                        $settlementDate = !empty($line['date']) ? new \DateTimeImmutable($line['date']) : $saleDate;
+                        if ($settlementDate && $settlementDate <= $paymentDate) $billedBefore -= (float) ($line['amount'] ?? 0);
+                    }
                 }
             }
 

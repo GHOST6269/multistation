@@ -2,10 +2,10 @@
   <header class="operation-heading">
     <div>
       <p>OPÉRATIONS CARBURANT</p>
-      <h1>Ventes & relevés</h1>
+      <h1>{{ settlementView ? 'Versements à effectuer' : 'Ventes & relevés' }}</h1>
       <span>Contrôlez chaque clôture de pompe et les volumes vendus.</span>
     </div>
-    <button class="operation-primary" (click)="openReading()">＋ Nouveau relevé</button>
+    @if (settlementView) { <button class="operation-primary" (click)="openSettlementModal()">＋ Versement</button> } @else { <button class="operation-primary" (click)="openReading()">＋ Nouveau relevé</button> }
   </header>
   <section class="operation-controls">
     <label>
@@ -25,6 +25,9 @@
       <label>Du<input type="date" [(ngModel)]="fromDate" (ngModelChange)="resetPage()" /></label
       ><label>Au<input type="date" [(ngModel)]="toDate" (ngModelChange)="resetPage()" /></label>
     </div>
+    <label>Pompiste<app-dropdown [(ngModel)]="attendantFilter" (ngModelChange)="resetPage()" [options]="attendantOptions" /></label>
+    @if (settlementView) { <label>Pistolet attribué<app-dropdown [(ngModel)]="nozzleFilter" (ngModelChange)="resetPage()" [options]="filterNozzleOptions" placeholder="Tous les pistolets" /></label> }
+    <label>Versement<app-dropdown [(ngModel)]="paymentFilter" (ngModelChange)="resetPage()" [options]="paymentFilterOptions" /></label>
   </section>
   <section class="operation-kpis">
     <article>
@@ -53,26 +56,24 @@
             <th>N° FACTURE</th>
             <th>CLIENT</th>
             <th>POMPISTE</th>
-            <th>POMPE</th>
             <th>CARBURANT</th>
             <th>INDEX DÉPART</th>
             <th>INDEX FINAL</th>
             <th>VOLUME VENDU</th>
-            <th>COMPTE AVANT</th>
-            <th>RESTE À PAYER</th>
             <th>MONTANT</th>
+            <th>ÉCART</th>
+            <th>DÉTAIL</th>
           </tr>
         </thead>
         <tbody>
           @for (row of rows; track row.id) {
-            <tr>
+            <tr class="history-row" (click)="openPaymentHistory(row)" title="Afficher l’historique des versements">
               <td>{{ row.date | date: 'dd/MM/yyyy' }}</td>
               <td>{{ row.invoiceNumber || '—' }}</td>
               <td><strong>{{ row.customerName || '—' }}</strong></td>
               <td>
                 <strong>{{ row.responsible }}</strong>
               </td>
-              <td>{{ row.nozzle }}</td>
               <td>
                 <span class="fuel-pill">{{ row.fuel }}</span>
               </td>
@@ -81,13 +82,13 @@
               <td>
                 <strong>{{ row.quantitySold | number: '1.3-3' }} L</strong>
               </td>
-              <td>{{ money(row.previousBalance ?? 0) }} Ar</td>
-              <td>{{ money(row.remainingToPay ?? 0) }} Ar</td>
               <td class="amount">{{ money(row.totalAmount) }} Ar</td>
+              <td>{{ money(paymentGap(row)) }} Ar</td>
+              <td><span class="history-hint">Voir le détail →</span></td>
             </tr>
           } @empty {
             <tr>
-              <td colspan="12" class="empty">
+              <td colspan="11" class="empty">
                 {{ loading ? 'Chargement des relevés…' : 'Aucun relevé pour cette période.' }}
               </td>
             </tr>
@@ -114,23 +115,28 @@
         <div>
           <p>NOUVEAU RELEVÉ</p>
           <h2>Clôturer une pompe</h2>
-          <span>Les ventes et l’encaissement seront ajoutés au journal.</span>
+          <span>Les index sont enregistrés immédiatement; les versements pourront être saisis plus tard.</span>
         </div>
         <button type="button" (click)="modalOpen = false">×</button>
       </header>
       <div class="operation-form">
+        <div class="operation-step-title"><span>01</span><strong>Index du pistolet</strong></div>
         <label>Date<input type="date" formControlName="date" /></label>
+        <label>
+          Pompiste
+          <app-dropdown formControlName="attendantId" (valueChange)="attendantChanged()" [options]="readingAttendantOptions" [selectedTag]="'Pompiste'" [emptyTag]="'Sélectionner'" placeholder="Sélectionner" />
+        </label>
         <label>
           Pistolet
           <app-dropdown
             formControlName="nozzleId"
             (ngModelChange)="selectNozzle()"
-            [options]="nozzleOptions"
+            [options]="assignedNozzleOptions"
             [selectedTag]="'Pistolet'"
             [emptyTag]="'Sélectionner'"
             [placeholder]="'Pistolet'"
           />
-          <small class="attendant-note">Pompiste : {{ selectedNozzleAttendant }}</small>
+          <small class="attendant-note">Pistolets attribués au pompiste sélectionné</small>
         </label>
         <label *ngIf="!creditMode">
           <span class="customer-label">Client <small>(facultatif)</small></span>
@@ -175,53 +181,78 @@
             <input appMoney type="text" inputmode="decimal" formControlName="unitPrice" /><span>Ar</span>
           </div>
         </label>
-        <div formArrayName="payments" class="payment-lines">
-          @for (payment of payments.controls; track $index; let index = $index) {
-            <div [formGroupName]="index">
-              <label>
-                Mode de paiement
-                <app-dropdown
-                  formControlName="paymentMethodId"
-                  [options]="paymentMethods"
-                  [selectedTag]="'Mode de paiement'"
-                  [emptyTag]="'Sélectionner'"
-                  [placeholder]="'Mode de paiement'"
-                  [disabled]="creditMode"
-                />
-              </label>
-              <label>
-                Montant encaissé
-                <div class="money-input">
-                  <input appMoney type="text" inputmode="decimal" formControlName="amount" /><span>Ar</span>
-                </div>
-              </label>
-              <label>
-                Référence paiement
-                <input formControlName="reference" placeholder="N° ticket, TPE…" />
-              </label>
-              <button type="button" class="cancel" [disabled]="payments.length === 1" (click)="removePayment(index)">
-                Retirer
-              </button>
-            </div>
-          }
-          <button type="button" (click)="addPayment()">＋ Ajouter un paiement</button
-          ><small>Total ventilé : {{ money(paid) }} / {{ money(total) }} Ar</small>
-        </div>
         <div class="operation-total">
           <span>VOLUME VENDU</span><strong>{{ sold | number: '1.0-3' }} L</strong
           ><span>MONTANT THÉORIQUE</span><strong>{{ money(total) }} Ar</strong>
         </div>
+        <p class="settlement-later-note">Le relevé peut être enregistré sans versement. Vous pourrez compléter le paiement depuis le journal, même un autre jour.</p>
       </div>
       @if (error) {
         <p class="operation-form-error" role="alert">{{ error }}</p>
       }
       <footer>
         <button type="button" class="cancel" (click)="modalOpen = false">Annuler</button
-        ><button [disabled]="saving || (!creditMode && Math.abs(paid - total) > 0.01) || (paid > total + 0.01)">
-          {{ saving ? 'Enregistrement…' : 'Valider le relevé' }}
+        ><button [disabled]="saving || form.invalid">
+          {{ saving ? 'Enregistrement…' : 'Enregistrer les index' }}
         </button>
       </footer>
     </form>
+  </div>
+}
+@if (paymentOpen) {
+  <div class="operation-modal" (click)="!saving && (paymentOpen = false)">
+    <form class="settlement-entry-card" [formGroup]="settlementForm" (ngSubmit)="savePaymentEntry()" (click)="$event.stopPropagation()">
+      <header class="settlement-entry-header"><div><p>ENCAISSEMENT CARBURANT</p><h2>Nouveau versement</h2><span>Choisissez le pompiste et son pistolet pour retrouver le relevé.</span></div><button type="button" [disabled]="saving" (click)="paymentOpen = false">×</button></header>
+      <div class="operation-form settlement-modal-fields">
+        @if (settlementView) {
+          <div class="settlement-step"><span>1</span><div><strong>Responsable</strong><small>Sélectionnez le pompiste</small></div><label>Pompiste<app-dropdown formControlName="attendantId" (valueChange)="settlementAttendantChanged()" [options]="settlementAttendantOptions" placeholder="Sélectionner" /></label></div>
+          <div class="settlement-step"><span>2</span><div><strong>Pistolet attribué</strong><small>Ses pistolets disponibles</small></div><label>Pistolet<app-dropdown formControlName="nozzleId" (valueChange)="settlementNozzleChanged()" [options]="settlementNozzleOptions" placeholder="Sélectionner" /></label></div>
+        }
+        @if (selectedPaymentReading) {
+        <section class="reading-summary"><strong>Index du relevé</strong><span>Départ : {{ selectedPaymentReading.startIndex | number:'1.3-3' }}</span><span>Final : {{ selectedPaymentReading.endIndex | number:'1.3-3' }}</span><span>Vendu : {{ selectedPaymentReading.quantitySold | number:'1.3-3' }} L</span><span>Montant : {{ money(selectedPaymentReading.totalAmount) }} Ar</span></section>
+        @if (priorPayments.length) {
+        <section class="prior-payments"><strong>Versements déjà enregistrés</strong><div class="prior-payment-row" *ngFor="let prior of priorPayments"><span>{{ (prior.date || selectedPaymentReading.date) | date:'dd/MM/yyyy' }}</span><span>{{ prior.label || prior.type || 'Paiement' }}</span><span>{{ prior.reference || '—' }}</span><strong>{{ money(prior.amount || 0) }} Ar</strong></div><small>Total déjà versé : {{ money(amountPaid(selectedPaymentReading)) }} Ar</small></section>
+        }
+        <label>Date du versement<input [value]="paymentDate" (input)="paymentDate = $any($event.target).value" type="date" /></label>
+        <div class="settlement-balance"><span>Reste à verser</span><strong>{{ money(amountRemaining(selectedPaymentReading)) }} Ar</strong></div>
+        @if (canCollect(selectedPaymentReading)) {
+        <div formArrayName="payments" class="payment-lines">
+          @for (payment of payments.controls; track $index; let index = $index) {
+            <div [formGroupName]="index">
+              <label>Mode de paiement<app-dropdown formControlName="paymentMethodId" [options]="paymentMethods" placeholder="Sélectionner" /></label>
+              <label>Montant versé<div class="money-input"><input appMoney type="text" inputmode="decimal" formControlName="amount" /><span>Ar</span></div></label>
+              <label>Référence paiement<input formControlName="reference" placeholder="N° ticket, TPE…" /></label>
+              <button type="button" class="cancel" [disabled]="saving || payments.length === 1" (click)="removePayment(index)">Retirer</button>
+            </div>
+          }
+          <label class="payment-gap-field" [class.unbalanced]="Math.abs(paymentEntryGap) > 0.01">Écart restant après ce versement<div class="money-input"><input [value]="money(paymentEntryGap)" readonly /><span>Ar</span></div></label>
+          <button type="button" (click)="addPayment()">＋ Ajouter un mode de paiement</button>
+          <small>Versement saisi : {{ money(paymentEntryAmount) }} Ar</small>
+        </div>
+        } @else { <p class="empty-history">Aucun montant ne reste à verser pour le dernier relevé de ce pistolet.</p> }
+        } @else { <p class="settlement-later-note">Sélectionnez un pompiste puis l’un de ses pistolets pour afficher le relevé et son historique de versements.</p> }
+        @if (error) { <p class="operation-form-error" role="alert">{{ error }}</p> }
+      </div>
+      <footer><button type="button" class="cancel" [disabled]="saving" (click)="paymentOpen = false">Annuler</button>@if (selectedPaymentReading && canCollect(selectedPaymentReading)) { <button class="settlement-submit" [disabled]="saving || payments.invalid || paymentEntryAmount <= 0 || paymentEntryAmount > amountRemaining(selectedPaymentReading) + 0.01">{{ saving ? 'Enregistrement…' : 'Confirmer le versement' }}</button> }</footer>
+    </form>
+  </div>
+}
+@if (paymentHistoryOpen && selectedPaymentReading) {
+  <div class="operation-modal" (click)="paymentHistoryOpen = false">
+    <section class="payment-history-modal" (click)="$event.stopPropagation()">
+      <header class="history-modal-header"><div><p>HISTORIQUE DES VERSEMENTS</p><h2>Relevé {{ selectedPaymentReading.invoiceNumber || ('#' + selectedPaymentReading.id) }}</h2><div class="history-meta"><span>{{ selectedPaymentReading.date | date:'dd/MM/yyyy' }}</span><span>Pompiste <strong>{{ selectedPaymentReading.responsible }}</strong></span><span>Pistolet <strong>{{ selectedPaymentReading.nozzle }}</strong></span><span>Carburant <strong>{{ selectedPaymentReading.fuel }}</strong></span></div></div><button type="button" aria-label="Fermer" (click)="paymentHistoryOpen = false">×</button></header>
+      <div class="history-reading-summary">
+        <article><small>MONTANT DU RELEVÉ</small><strong>{{ money(selectedPaymentReading.totalAmount) }} <em>Ar</em></strong></article>
+        <article><small>TOTAL VERSÉ</small><strong>{{ money(amountPaid(selectedPaymentReading)) }} <em>Ar</em></strong></article>
+        <article class="history-balance" [class.settled]="paymentGap(selectedPaymentReading) <= 0.01"><small>{{ paymentGap(selectedPaymentReading) <= 0.01 ? 'STATUT' : 'ÉCART RESTANT' }}</small><strong>@if (paymentGap(selectedPaymentReading) <= 0.01) { Soldé } @else { {{ money(paymentGap(selectedPaymentReading)) }} Ar }</strong></article>
+      </div>
+      <section class="history-index-strip"><span><small>INDEX DÉPART</small><strong>{{ selectedPaymentReading.startIndex | number:'1.3-3' }}</strong></span><i>→</i><span><small>INDEX FINAL</small><strong>{{ selectedPaymentReading.endIndex | number:'1.3-3' }}</strong></span><span class="history-volume"><small>VOLUME VENDU</small><strong>{{ selectedPaymentReading.quantitySold | number:'1.3-3' }} L</strong></span></section>
+      <section class="history-payment-list"><header><div><h3>Versements enregistrés</h3><p>{{ priorPayments.length }} paiement(s) associé(s) à ce relevé</p></div></header>
+        @for (item of priorPayments; track $index) { <article class="history-payment-item"><span class="history-payment-icon">✓</span><div class="history-payment-main"><strong>{{ item.label || item.type || 'Paiement' }}</strong><small>{{ (item.date || selectedPaymentReading.date) | date:'dd/MM/yyyy' }} · Réf. {{ item.reference || 'Aucune' }}</small></div><strong class="history-payment-amount">{{ money(item.amount || 0) }} Ar</strong></article> }
+        @if (!priorPayments.length) { <div class="empty-history"><span>—</span><strong>Aucun versement enregistré</strong><small>Les paiements liés à ce relevé apparaîtront ici.</small></div> }
+      </section>
+      <footer><button type="button" class="cancel" (click)="paymentHistoryOpen = false">Fermer</button></footer>
+    </section>
   </div>
 }
 @if (quickCustomerOpen) {

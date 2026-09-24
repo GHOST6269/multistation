@@ -227,6 +227,7 @@
     ><label
       >Pompiste<app-dropdown [(ngModel)]="attendantFilter" (ngModelChange)="resetSalesPage()" [options]="attendantOptions" /></label
     ><label>Pompe<app-dropdown [(ngModel)]="nozzleFilter" (ngModelChange)="resetSalesPage()" [options]="nozzleOptions" /></label
+    ><label>Versement<app-dropdown [(ngModel)]="paymentFilter" (ngModelChange)="resetSalesPage()" [options]="paymentFilterOptions" /></label
     ><span>{{ filteredReadings.length }} relevé(s)</span>
   </div>
   <div class="reading-table">
@@ -285,6 +286,7 @@
             <th>QTÉ VENTE</th>
             <th>PU TTC</th>
             <th>MONTANT VENTE</th>
+            <th>VERSEMENTS</th>
           </tr>
         </thead>
         <tbody>
@@ -310,10 +312,11 @@
               <td>
                 <strong class="amount">{{ money(r.totalAmount) }} Ar</strong>
               </td>
+              <td><span class="settlement-state" [class.pending]="canCollect(r)" [class.customer-credit]="r.paymentStatus === 'CUSTOMER_CREDIT'">{{ paymentState(r) }}</span>@if (canCollect(r)) { <button class="settlement-button" [disabled]="saving" (click)="openPaymentEntry(r)">Verser {{ money(amountRemaining(r)) }} Ar</button> }</td>
             </tr>
           } @empty {
             <tr>
-              <td colspan="12" class="empty">
+              <td colspan="13" class="empty">
                 {{ loading ? 'Chargement…' : 'Aucun relevé enregistré.' }}
               </td>
             </tr>
@@ -390,14 +393,14 @@
           <span>⛽</span>
           <div>
             <h2>Nouveau relevé de pompe</h2>
-            <p>Clôture du poste et ventilation des règlements.</p>
+            <p>Enregistrez les index, le pistolet et le pompiste de ce relevé.</p>
           </div>
         </div>
         <button type="button" [disabled]="saving" (click)="closeModal()">×</button>
       </header>
       <div class="reading-body">
         <section class="index-section">
-          <h3>Relevé des index</h3>
+          <h3>1. Index du pistolet</h3>
           <div class="form-grid">
             <label
               >Date
@@ -451,29 +454,6 @@
             </div>
           </div>
         </section>
-        <section class="payment-section">
-          <div class="payment-title">
-            <div>
-              <h3>Paiement</h3>
-              <p>Répartissez le règlement entre un ou plusieurs modes de paiement.</p>
-            </div>
-            <strong [class.bad]="Math.abs(paid - total) > 0.01"
-              >{{ money(paid) }} / {{ money(total) }} Ar</strong
-            >
-          </div>
-          <div formArrayName="payments">
-            @for (payment of payments.controls; track $index; let index = $index) {
-              <div class="payment-grid" [formGroupName]="index">
-                <label>Mode de paiement *<app-dropdown formControlName="paymentMethodId" [options]="paymentMethods" placeholder="Choisir" /></label>
-                <label>Montant encaissé<div class="money-field"><input appMoney type="text" formControlName="amount" /><small>Ar</small></div></label>
-                <label>Référence (facultatif)<input type="text" formControlName="reference" placeholder="N° chèque, ticket…" /></label>
-                <button type="button" class="cancel" [disabled]="saving || payments.length === 1" (click)="removePayment(index)">Retirer</button>
-              </div>
-            }
-          </div>
-          <button type="button" class="mini-add" [disabled]="saving" (click)="addPayment()">＋ Ajouter un paiement</button>
-          <button type="button" class="mini-add" [disabled]="saving" (click)="openPaymentMethod()">＋ Nouveau mode</button>
-        </section>
         @if (error) {
           <div class="api-error">! {{ error }}</div>
         }
@@ -483,10 +463,35 @@
           <div class="blocking-loader"><span></span><strong>{{ savingLabel }}</strong></div>
         }
         <button type="button" class="cancel" [disabled]="saving" (click)="closeModal()">Annuler</button
-        ><button [disabled]="saving || Math.abs(paid - total) > 0.01">
-          {{ saving ? 'Clôture…' : 'Valider la clôture' }}
+        ><button [disabled]="saving || readingForm.invalid">
+          {{ saving ? 'Enregistrement…' : 'Enregistrer les index' }}
         </button>
       </footer>
+    </form>
+  </div>
+}
+@if (modal === 'paymentEntry' && selectedPaymentReading) {
+  <div class="fuel-modal" [class.busy]="saving" (click)="!saving && (modal = null)">
+    <form class="small-form" [formGroup]="readingForm" (ngSubmit)="savePaymentEntry()" (click)="$event.stopPropagation()">
+      <header><div><h2>2. Détail des versements</h2><p>{{ selectedPaymentReading.invoiceNumber }} · Pistolet {{ selectedPaymentReading.nozzle }} · {{ selectedPaymentReading.responsible }}</p></div><button type="button" [disabled]="saving" (click)="modal = null">×</button></header>
+      <div class="small-fields settlement-fields">
+        <label>Date du versement<input [value]="paymentDate" (input)="paymentDate = $any($event.target).value" type="date" /></label>
+        <div class="settlement-balance"><span>Reste à verser</span><strong>{{ money(amountRemaining(selectedPaymentReading)) }} Ar</strong></div>
+        <div class="wide" formArrayName="payments">
+          @for (payment of payments.controls; track $index; let index = $index) {
+            <div class="payment-grid" [formGroupName]="index">
+              <label>Mode de paiement *<app-dropdown formControlName="paymentMethodId" [options]="paymentMethods" placeholder="Choisir" /></label>
+              <label>Montant versé<div class="money-field"><input appMoney type="text" formControlName="amount" /><small>Ar</small></div></label>
+              <label>Référence<input formControlName="reference" placeholder="N° ticket, TPE…" /></label>
+              <button type="button" class="cancel" [disabled]="saving || payments.length === 1" (click)="removePayment(index)">Retirer</button>
+            </div>
+          }
+        </div>
+        <label class="payment-gap-field wide" [class.unbalanced]="Math.abs(paymentEntryGap) > 0.01">Écart restant après ce versement<div class="money-field"><input [value]="money(paymentEntryGap)" readonly /><small>Ar</small></div></label>
+        <div class="wide settlement-actions"><button type="button" class="mini-add" [disabled]="saving" (click)="addPayment()">＋ Ajouter un mode</button><button type="button" class="mini-add" [disabled]="saving" (click)="openPaymentMethod()">＋ Nouveau mode</button></div>
+        @if (error) { <div class="api-error wide">! {{ error }}</div> }
+      </div>
+      <footer><button type="button" class="cancel" [disabled]="saving" (click)="modal = null">Plus tard</button><button [disabled]="saving || payments.invalid || paymentEntryAmount <= 0 || paymentEntryAmount > amountRemaining(selectedPaymentReading) + 0.01">{{ saving ? 'Enregistrement…' : 'Enregistrer le versement' }}</button></footer>
     </form>
   </div>
 }
@@ -629,7 +634,7 @@
           <h2>Nouveau mode de paiement</h2>
           <p>Ce mode sera disponible uniquement pour cette station.</p>
         </div>
-        <button type="button" [disabled]="saving" (click)="modal = 'reading'">×</button>
+        <button type="button" [disabled]="saving" (click)="modal = paymentMethodReturn">×</button>
       </header>
       <div class="small-fields">
         <label>Libellé *<input formControlName="name" placeholder="Ex. Mobile Money" /></label

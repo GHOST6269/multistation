@@ -112,11 +112,12 @@ final class FuelPaymentController extends AbstractController
         $data = $request->toArray();
         $station = $em->getRepository(Stations::class)->find((int) ($data['stationId'] ?? 0));
         $nozzle = $em->getRepository(FuelNozzle::class)->find((int) ($data['nozzleId'] ?? 0));
-        $attendant = $nozzle?->getAttendant();
+        $attendantId = (int) ($data['attendantId'] ?? 0);
+        $attendant = $attendantId ? $em->getRepository(PumpAttendant::class)->find($attendantId) : $nozzle?->getAttendant();
         $customerId = (int) ($data['customerId'] ?? 0);
         $customer = $customerId ? $em->getRepository(Customer::class)->find($customerId) : null;
         if ($station && !$access->canAccessStation($station)) return $access->denyStation();
-        if (!$station || !$nozzle || $nozzle->getPump()?->getStation()?->getId() !== $station->getId() || ($attendant && $attendant->getStation()?->getId() !== $station->getId())) return $this->json(['message' => 'Références invalides'], 422);
+        if (!$station || !$nozzle || $nozzle->getPump()?->getStation()?->getId() !== $station->getId() || !$attendant || !$attendant->isActive() || $attendant->getStation()?->getId() !== $station->getId() || $nozzle->getAttendant()?->getId() !== $attendant->getId()) return $this->json(['message' => 'Le pistolet doit être attribué au pompiste sélectionné'], 422);
         if ($customerId && (!$customer || !$customer->isActive() || $customer->getStation()?->getId() !== $station->getId())) return $this->json(['message' => 'Client invalide'], 422);
         $start = (float) ($data['startIndex'] ?? 0); $end = (float) ($data['endIndex'] ?? 0);
         $rc = max(0, (float) ($data['returnToTank'] ?? 0)); $output = $end - $start; $sold = $output - $rc;
@@ -124,45 +125,80 @@ final class FuelPaymentController extends AbstractController
         if ($access->canEditFuelUnitPrice() && array_key_exists('unitPrice', $data)) $price = max(0, (float) $data['unitPrice']);
         $total = round($sold * $price, 2);
         if ($output < 0 || $sold < 0) return $this->json(['message' => 'Les index ou le RC sont incohérents'], 422);
-        // Accept the former single-payment payload too, so existing clients keep working.
-        $lines = $data['payments'] ?? [[
-            'paymentMethodId' => $data['paymentMethodId'] ?? 0,
-            'amount' => $data['paymentAmount'] ?? 0,
-            'reference' => $data['paymentReference'] ?? '',
-        ]];
-        if (!is_array($lines) || !$lines) return $this->json(['message' => 'Ajoutez au moins un paiement'], 422);
+        // An index reading can be saved now and settled later. Legacy clients may still
+        // submit payment lines here, so keep accepting a complete payment breakdown.
+        $lines = $data['payments'] ?? null;
         $payment = []; $paid = 0;
-        foreach ($lines as $line) {
-            if (!is_array($line)) return $this->json(['message' => 'Ligne de paiement invalide'], 422);
-            $method = $em->getRepository(FuelPaymentMethod::class)->find((int) ($line['paymentMethodId'] ?? 0));
-            $amount = max(0, (float) ($line['amount'] ?? 0));
-            if (!$method || !$method->isActive() || !$this->canUseMethod($method, $access) || $method->getStation()?->getId() !== $station->getId()) return $this->json(['message' => 'Mode de paiement non autorisé'], 422);
-            if ($customer !== null && $method->getCode() !== 'CLIENT_VOUCHER') return $this->json(['message' => 'En mode crédit, seul le bon client est autorisé.'], 422);
-            $paymentEntry = ['type' => $method->getCode(), 'methodId' => $method->getId(), 'label' => $method->getName(), 'supplierDeduction' => $method->isSupplierDeduction(), 'amount' => $amount, 'reference' => trim((string) ($line['reference'] ?? '')) ?: null, 'performedBy' => trim(($access->currentUser()?->getFirstName() ?? '').' '.($access->currentUser()?->getLastName() ?? '')) ?: null];
-            if ($amount <= 0) {
-                if ($customer !== null && $method->getCode() === 'CLIENT_VOUCHER') {
-                    $payment[] = $paymentEntry;
+        if ($lines !== null) {
+            if (!is_array($lines)) return $this->json(['message' => 'Lignes de paiement invalides'], 422);
+            foreach ($lines as $line) {
+                if (!is_array($line)) return $this->json(['message' => 'Ligne de paiement invalide'], 422);
+                $method = $em->getRepository(FuelPaymentMethod::class)->find((int) ($line['paymentMethodId'] ?? 0));
+                $amount = max(0, (float) ($line['amount'] ?? 0));
+                if (!$method || !$method->isActive() || !$this->canUseMethod($method, $access) || $method->getStation()?->getId() !== $station->getId()) return $this->json(['message' => 'Mode de paiement non autorisé'], 422);
+                if ($customer !== null && $method->getCode() !== 'CLIENT_VOUCHER') return $this->json(['message' => 'En mode crédit, seul le bon client est autorisé.'], 422);
+                $paymentEntry = ['type' => $method->getCode(), 'methodId' => $method->getId(), 'label' => $method->getName(), 'supplierDeduction' => $method->isSupplierDeduction(), 'amount' => $amount, 'reference' => trim((string) ($line['reference'] ?? '')) ?: null, 'performedBy' => trim(($access->currentUser()?->getFirstName() ?? '').' '.($access->currentUser()?->getLastName() ?? '')) ?: null];
+                if ($amount <= 0) {
+                    if ($customer !== null && $method->getCode() === 'CLIENT_VOUCHER') $payment[] = $paymentEntry;
+                    continue;
                 }
-                continue;
+                $paid += $amount;
+                $payment[] = $paymentEntry;
             }
-            $payment[] = $paymentEntry;
-            $paid += $amount;
         }
-        $creditSale = $customer !== null;
-        if (!$payment && !$creditSale) return $this->json(['message' => 'Ajoutez au moins un montant de paiement'], 422);
+        $creditSale = $customer !== null && (bool) ($data['creditMode'] ?? false);
+        if ($creditSale && !$payment) $payment[] = ['type' => 'CLIENT_VOUCHER', 'label' => 'Compte client', 'supplierDeduction' => false, 'amount' => 0];
         if ($creditSale) {
             if ($paid > $total + .01) return $this->json(['message' => sprintf('Le paiement ne peut pas dépasser %.2f Ar', $total)], 422);
-        } elseif (abs($paid - $total) > .01) {
+        } elseif ($paid > 0 && abs($paid - $total) > .01) {
             return $this->json(['message' => sprintf('Le paiement doit être de %.2f Ar', $total)], 422);
         }
         $tank = $nozzle->getTank();
         if ((float) $tank->getCurrentStock() < $sold) return $this->json(['message' => 'Stock cuve insuffisant'], 422);
-        $reading = (new FuelShiftReading())->setStation($station)->setNozzle($nozzle)->setAttendant($attendant)->setCustomer($customer)->setWorkDate(new \DateTimeImmutable($data['date'] ?? 'today'))->setStartIndex((string) $start)->setEndIndex((string) $end)->setReturnToTank((string) $rc)->setQuantitySold((string) $sold)->setUnitPrice((string) $price)->setTotalAmount((string) $total)->setPayments($payment)->setCreatedAt(new \DateTimeImmutable());
+        $reading = (new FuelShiftReading())->setStation($station)->setNozzle($nozzle)->setAttendant($attendant)->setCustomer($customer)->setWorkDate(new \DateTimeImmutable($data['date'] ?? 'today'))->setStartIndex((string) $start)->setEndIndex((string) $end)->setReturnToTank((string) $rc)->setQuantitySold((string) $sold)->setUnitPrice((string) $price)->setTotalAmount((string) $total)->setPayments($payment)->setStatus($creditSale ? 'CUSTOMER_CREDIT' : ($payment ? 'CLOSED' : 'PENDING'))->setCreatedAt(new \DateTimeImmutable());
         $nozzle->setCurrentIndex((string) $end); $tank->setCurrentStock((string) ((float) $tank->getCurrentStock() - $sold));
         $em->persist($reading); $em->flush();
         $reading->setInvoiceNumber('F-'.(new \DateTimeImmutable())->format('Y').'-'.$reading->getId());
         $em->flush();
         return $this->json(['id' => $reading->getId()], 201);
+    }
+
+    #[Route('/readings/{id}/payments', requirements: ['id' => '\\d+'], methods: ['POST'])]
+    public function addReadingPayments(int $id, Request $request, EntityManagerInterface $em, UserAccessService $access): JsonResponse
+    {
+        if ($denied = $access->require([UserAccessService::ROLE_GERANT, UserAccessService::ROLE_ASSISTANT])) return $denied;
+        $reading = $em->getRepository(FuelShiftReading::class)->find($id);
+        if (!$reading) return $this->json(['message' => 'Relevé introuvable'], 404);
+        if (!$access->canAccessStation($reading->getStation())) return $access->denyStation();
+        $isCustomerCredit = count(array_filter($reading->getPayments(), static fn (array $line): bool => ($line['type'] ?? '') === 'CLIENT_VOUCHER')) > 0;
+        if ($reading->getCustomer() && $isCustomerCredit) {
+            return $this->json(['message' => 'Ce relevé est sur le compte client. Enregistrez le règlement dans le compte client.'], 422);
+        }
+
+        $data = $request->toArray();
+        $lines = $data['payments'] ?? null;
+        if (!is_array($lines) || !$lines) return $this->json(['message' => 'Ajoutez au moins un versement'], 422);
+        $existing = $reading->getPayments();
+        $alreadyPaid = array_sum(array_map(static fn (array $line): float => (float) ($line['amount'] ?? 0), $existing));
+        $remaining = round((float) $reading->getTotalAmount() - $alreadyPaid, 2);
+        $newLines = []; $newAmount = 0.0;
+        $paidBy = trim(($access->currentUser()?->getFirstName() ?? '').' '.($access->currentUser()?->getLastName() ?? '')) ?: null;
+        $date = new \DateTimeImmutable($data['date'] ?? 'today');
+        foreach ($lines as $line) {
+            if (!is_array($line)) return $this->json(['message' => 'Ligne de versement invalide'], 422);
+            $method = $em->getRepository(FuelPaymentMethod::class)->find((int) ($line['paymentMethodId'] ?? 0));
+            $amount = round((float) ($line['amount'] ?? 0), 2);
+            if (!$method || !$method->isActive() || !$this->canUseMethod($method, $access) || $method->getStation()?->getId() !== $reading->getStation()?->getId()) return $this->json(['message' => 'Mode de paiement non autorisé'], 422);
+            if ($amount <= 0) return $this->json(['message' => 'Le montant de chaque versement doit être positif'], 422);
+            $newAmount += $amount;
+            $newLines[] = ['type' => $method->getCode(), 'methodId' => $method->getId(), 'label' => $method->getName(), 'supplierDeduction' => $method->isSupplierDeduction(), 'amount' => $amount, 'reference' => trim((string) ($line['reference'] ?? '')) ?: null, 'performedBy' => $paidBy, 'date' => $date->format('Y-m-d')];
+        }
+        if ($newAmount > $remaining + .01) return $this->json(['message' => sprintf('Le versement dépasse le reste dû de %.2f Ar', $remaining)], 422);
+        $allPayments = array_merge($existing, $newLines);
+        $totalPaid = $alreadyPaid + $newAmount;
+        $reading->setPayments($allPayments)->setStatus($totalPaid >= (float) $reading->getTotalAmount() - .01 ? 'CLOSED' : 'PARTIAL');
+        $em->flush();
+        return $this->json(['id' => $reading->getId(), 'paid' => round($totalPaid, 2), 'remaining' => max(0, round((float) $reading->getTotalAmount() - $totalPaid, 2)), 'status' => $reading->getStatus()]);
     }
 
     #[Route('/payment-history', methods: ['GET'])]
@@ -173,7 +209,7 @@ final class FuelPaymentController extends AbstractController
         if (!$access->canAccessStation($stationId)) return $access->denyStation();
         $readings = $em->getRepository(FuelShiftReading::class)->findBy(['station' => $stationId], ['workDate' => 'DESC', 'id' => 'DESC'], 100);
         $rows = [];
-        foreach ($readings as $reading) foreach ($reading->getPayments() as $index => $payment) $rows[] = ['id' => $reading->getId().'-'.$index, 'date' => $reading->getWorkDate()?->format('Y-m-d'), 'responsible' => $reading->getAttendant()?->getFullName() ?? 'Non affecté', 'performedBy' => $payment['performedBy'] ?? null, 'nozzle' => $reading->getNozzle()?->getCode(), 'invoiceNumber' => $reading->getInvoiceNumber(), 'method' => $payment['label'] ?? $payment['type'] ?? '—', 'reference' => $payment['reference'] ?? null, 'amount' => (float) ($payment['amount'] ?? 0)];
+        foreach ($readings as $reading) foreach ($reading->getPayments() as $index => $payment) $rows[] = ['id' => $reading->getId().'-'.$index, 'date' => $payment['date'] ?? $reading->getWorkDate()?->format('Y-m-d'), 'readingDate' => $reading->getWorkDate()?->format('Y-m-d'), 'responsible' => $reading->getAttendant()?->getFullName() ?? 'Non affecté', 'performedBy' => $payment['performedBy'] ?? null, 'nozzle' => $reading->getNozzle()?->getCode(), 'invoiceNumber' => $reading->getInvoiceNumber(), 'method' => $payment['label'] ?? $payment['type'] ?? '—', 'reference' => $payment['reference'] ?? null, 'amount' => (float) ($payment['amount'] ?? 0)];
         return $this->json(['payments' => $rows]);
     }
 

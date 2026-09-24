@@ -29,12 +29,16 @@ export class Fuel implements OnInit {
   paymentToDate = '';
   attendantFilter = 0;
   nozzleFilter = 0;
+  paymentFilter: 'ALL' | 'DUE' | 'PARTIAL' | 'PAID' | 'CREDIT' = 'ALL';
   readingsPage = 1;
   paymentsPage = 1;
   readonly pageSize = 10;
   private openDeliveryFromMenu = false;
   loading = true;
-  modal: 'reading' | 'delivery' | 'setup' | 'paymentMethod' | null = null;
+  modal: 'reading' | 'paymentEntry' | 'delivery' | 'setup' | 'paymentMethod' | null = null;
+  selectedPaymentReading: any = null;
+  paymentDate = new Date().toISOString().slice(0, 10);
+  paymentMethodReturn: 'reading' | 'paymentEntry' = 'reading';
   saving = false;
   error = '';
   setupType = 'FUEL';
@@ -163,7 +167,6 @@ export class Fuel implements OnInit {
       unitPrice: 0,
       payments: [],
     });
-    this.addPayment();
     this.modal = 'reading';
   }
   selectNozzle() {
@@ -201,6 +204,34 @@ export class Fuel implements OnInit {
     }));
   }
   removePayment(index: number) { if (this.payments.length > 1) this.payments.removeAt(index); }
+  amountPaid(reading: any): number { return (reading.payments ?? []).reduce((sum: number, payment: any) => sum + Number(payment.amount ?? 0), 0); }
+  amountRemaining(reading: any): number { return Math.max(0, Number(reading.totalAmount ?? 0) - this.amountPaid(reading)); }
+  canCollect(reading: any): boolean { return reading.paymentStatus !== 'CUSTOMER_CREDIT' && this.amountRemaining(reading) > 0.01; }
+  paymentState(reading: any): string { if (reading.paymentStatus === 'CUSTOMER_CREDIT') return 'Compte client'; const remaining = this.amountRemaining(reading); return remaining <= 0.01 ? 'Versé' : (this.amountPaid(reading) > 0 ? 'Partiel' : 'À verser'); }
+  openPaymentEntry(reading: any) {
+    this.selectedPaymentReading = reading;
+    this.paymentDate = new Date().toISOString().slice(0, 10);
+    this.payments.clear();
+    this.addPayment();
+    this.payments.at(0)?.patchValue({ amount: this.amountRemaining(reading) });
+    this.error = '';
+    this.modal = 'paymentEntry';
+  }
+  get paymentEntryAmount(): number { return this.paid; }
+  get paymentEntryGap(): number { return this.amountRemaining(this.selectedPaymentReading) - this.paymentEntryAmount; }
+  savePaymentEntry() {
+    if (!this.selectedPaymentReading || this.saving || !this.payments.length || this.payments.invalid) return;
+    if (this.paymentEntryAmount <= 0 || this.paymentEntryAmount > this.amountRemaining(this.selectedPaymentReading) + 0.01) {
+      this.error = 'Le versement doit être positif et ne peut pas dépasser le reste dû.';
+      return;
+    }
+    this.saving = true;
+    this.error = '';
+    this.fuel.addReadingPayments(this.selectedPaymentReading.id, { date: this.paymentDate, payments: this.payments.getRawValue() }).subscribe({
+      next: () => { this.saving = false; this.modal = null; this.selectedPaymentReading = null; this.load(); },
+      error: (e) => { this.error = e.error?.message ?? 'Le versement n’a pas pu être enregistré.'; this.saving = false; this.cdr.detectChanges(); },
+    });
+  }
   get totalTankStock() {
     return (this.data?.tanks ?? []).reduce((total, tank) => total + Number(tank.stock || 0), 0);
   }
@@ -232,17 +263,33 @@ export class Fuel implements OnInit {
       ...this.options(this.data?.nozzles ?? [], 'code'),
     ];
   }
+  get paymentFilterOptions(): DropdownOption[] {
+    return [
+      { value: 'ALL', label: 'Tous les versements' },
+      { value: 'DUE', label: 'Reste à verser' },
+      { value: 'PARTIAL', label: 'Versement partiel' },
+      { value: 'PAID', label: 'Soldés' },
+      { value: 'CREDIT', label: 'Compte client' },
+    ];
+  }
   get filteredReadings() {
     return (this.data?.readings ?? []).filter((reading: any) => {
       const attendant = (this.data?.attendants ?? []).find(
         (item: any) => item.name === reading.responsible,
       );
       const nozzle = (this.data?.nozzles ?? []).find((item: any) => item.code === reading.nozzle);
+      const due = this.canCollect(reading);
+      const matchesPayment = this.paymentFilter === 'ALL' ||
+        (this.paymentFilter === 'DUE' && due) ||
+        (this.paymentFilter === 'PARTIAL' && due && this.amountPaid(reading) > 0) ||
+        (this.paymentFilter === 'PAID' && !due && reading.paymentStatus !== 'CUSTOMER_CREDIT') ||
+        (this.paymentFilter === 'CREDIT' && reading.paymentStatus === 'CUSTOMER_CREDIT');
       return (
         (!this.fromDate || reading.date >= this.fromDate) &&
         (!this.toDate || reading.date <= this.toDate) &&
         (!this.attendantFilter || attendant?.id === Number(this.attendantFilter)) &&
-        (!this.nozzleFilter || nozzle?.id === Number(this.nozzleFilter))
+        (!this.nozzleFilter || nozzle?.id === Number(this.nozzleFilter)) &&
+        matchesPayment
       );
     });
   }
@@ -302,11 +349,10 @@ export class Fuel implements OnInit {
   resetPaymentsPage() { this.paymentsPage = 1; }
   saveReading() {
     if (this.saving || this.readingForm.invalid) return;
-    if (Math.abs(this.paid - this.total) > 0.01) { this.error = `La somme des paiements doit être de ${this.money(this.total)} Ar.`; return; }
     this.saving = true;
     this.savingLabel = 'Enregistrement du relevé...';
     this.error = '';
-    const v = this.readingForm.getRawValue();
+    const { payments: _payments, ...v } = this.readingForm.getRawValue();
     this.fuel.createSimpleReading({ ...v, stationId: this.stationId }).subscribe({
       next: (r) => {
         if (this.data) this.data.readings = [r, ...this.data.readings];
@@ -322,6 +368,7 @@ export class Fuel implements OnInit {
     });
   }
   openPaymentMethod() {
+    this.paymentMethodReturn = this.modal === 'paymentEntry' ? 'paymentEntry' : 'reading';
     this.paymentMethodForm.reset();
     this.modal = 'paymentMethod';
   }
@@ -336,7 +383,7 @@ export class Fuel implements OnInit {
           this.saving = false;
           this.loadPaymentData();
           this.payments.at(0)?.patchValue({ paymentMethodId: method.id });
-          this.modal = 'reading';
+          this.modal = this.paymentMethodReturn;
         },
         error: (e) => {
           this.error = e.error?.message ?? 'Création impossible';
