@@ -201,6 +201,55 @@ final class FuelPaymentController extends AbstractController
         return $this->json(['id' => $reading->getId(), 'paid' => round($totalPaid, 2), 'remaining' => max(0, round((float) $reading->getTotalAmount() - $totalPaid, 2)), 'status' => $reading->getStatus()]);
     }
 
+    #[Route('/attendant-settlements', methods: ['POST'])]
+    public function settleAttendant(Request $request, EntityManagerInterface $em, UserAccessService $access): JsonResponse
+    {
+        if ($denied = $access->require([UserAccessService::ROLE_GERANT, UserAccessService::ROLE_ASSISTANT])) return $denied;
+        $data = $request->toArray();
+        $station = $em->getRepository(Stations::class)->find((int) ($data['stationId'] ?? 0));
+        $attendant = $em->getRepository(PumpAttendant::class)->find((int) ($data['attendantId'] ?? 0));
+        if (!$station || !$attendant || $attendant->getStation()?->getId() !== $station->getId() || !$access->canAccessStation($station)) return $this->json(['message' => 'Station ou pompiste invalide'], 422);
+        $customer = !empty($data['customerId']) ? $em->getRepository(Customer::class)->find((int) $data['customerId']) : null;
+        if (!empty($data['customerId']) && (!$customer || !$customer->isActive() || $customer->getStation()?->getId() !== $station->getId())) return $this->json(['message' => 'Client invalide'], 422);
+        $date = new \DateTimeImmutable($data['date'] ?? 'today');
+        $readings = $em->getRepository(FuelShiftReading::class)->findBy(['station' => $station, 'attendant' => $attendant], ['workDate' => 'ASC', 'id' => 'ASC']);
+        $due = [];
+        foreach ($readings as $reading) {
+            $credit = count(array_filter($reading->getPayments(), static fn (array $line): bool => ($line['type'] ?? '') === 'CLIENT_VOUCHER')) > 0;
+            $remaining = round((float) $reading->getTotalAmount() - array_sum(array_map(static fn (array $line): float => (float) ($line['amount'] ?? 0), $reading->getPayments())), 2);
+            if (!$credit && $remaining > .01 && (!$customer || !$reading->getCustomer() || $reading->getCustomer()?->getId() === $customer->getId())) $due[] = ['reading' => $reading, 'remaining' => $remaining];
+        }
+        $lines = $data['payments'] ?? [];
+        if (!is_array($lines) || !$lines) return $this->json(['message' => 'Ajoutez au moins un mode de paiement'], 422);
+        $total = 0.0; $validLines = [];
+        foreach ($lines as $line) {
+            $method = is_array($line) ? $em->getRepository(FuelPaymentMethod::class)->find((int) ($line['paymentMethodId'] ?? 0)) : null;
+            $amount = round((float) ($line['amount'] ?? 0), 2);
+            if (!$method || !$method->isActive() || !$this->canUseMethod($method, $access) || $method->getStation()?->getId() !== $station->getId() || $amount <= 0) return $this->json(['message' => 'Mode ou montant de versement invalide'], 422);
+            $validLines[] = [$method, $amount, trim((string) ($line['reference'] ?? '')) ?: null]; $total += $amount;
+        }
+        $available = array_sum(array_column($due, 'remaining'));
+        if ($total > $available + .01) return $this->json(['message' => sprintf('Le versement dépasse le total restant dû de %.2f Ar', $available)], 422);
+        $paidBy = trim(($access->currentUser()?->getFirstName() ?? '').' '.($access->currentUser()?->getLastName() ?? '')) ?: null;
+        foreach ($validLines as [$method, $amount, $reference]) {
+            $left = $amount;
+            foreach ($due as &$item) {
+                if ($left <= .001) break;
+                $part = min($left, $item['remaining']);
+                if ($part <= 0) continue;
+                $reading = $item['reading']; $payments = $reading->getPayments();
+                $payments[] = ['type' => $method->getCode(), 'methodId' => $method->getId(), 'label' => $method->getName(), 'supplierDeduction' => $method->isSupplierDeduction(), 'amount' => round($part, 2), 'reference' => $reference, 'performedBy' => $paidBy, 'date' => $date->format('Y-m-d')];
+                $item['remaining'] = round($item['remaining'] - $part, 2); $left = round($left - $part, 2);
+                $paid = array_sum(array_map(static fn (array $line): float => (float) ($line['amount'] ?? 0), $payments));
+                if ($customer && !$reading->getCustomer()) $reading->setCustomer($customer);
+                $reading->setPayments($payments)->setStatus($paid >= (float) $reading->getTotalAmount() - .01 ? 'CLOSED' : 'PARTIAL');
+            }
+            unset($item);
+        }
+        $em->flush();
+        return $this->json(['paid' => round($total, 2), 'remaining' => max(0, round($available - $total, 2))]);
+    }
+
     #[Route('/payment-history', methods: ['GET'])]
     public function history(Request $request, EntityManagerInterface $em, UserAccessService $access): JsonResponse
     {

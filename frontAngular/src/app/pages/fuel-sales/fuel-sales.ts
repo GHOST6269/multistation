@@ -39,8 +39,8 @@ export class FuelSales implements OnInit {
   settlementView = false;
   form; customerForm; settlementForm;
   constructor(private articles: ArticleService, private fuel: FuelService, private customersApi: CustomerService, private fb: FormBuilder, private cdr: ChangeDetectorRef, public auth: AuthService, private readonly route: ActivatedRoute) {
-    this.form = fb.group({ date: [new Date().toISOString().slice(0, 10), Validators.required], attendantId: [0, Validators.min(1)], nozzleId: [0, Validators.min(1)], customerId: [0], startIndex: [0, Validators.min(0)], endIndex: [0, Validators.min(0)], returnToTank: [0, Validators.min(0)], unitPrice: [0, Validators.min(0)] });
-    this.settlementForm = fb.group({ attendantId: [0], nozzleId: [0], payments: fb.array([]) });
+    this.form = fb.group({ date: [new Date().toISOString().slice(0, 10), Validators.required], attendantId: [0, Validators.min(1)], nozzleId: [0, Validators.min(1)], startIndex: [0, Validators.min(0)], endIndex: [0, Validators.min(0)], returnToTank: [0, Validators.min(0)], unitPrice: [0, Validators.min(0)] });
+    this.settlementForm = fb.group({ attendantId: [0], nozzleId: [0], customerId: [0], payments: fb.array([]) });
     this.customerForm = fb.group({ code: [''], name: ['', Validators.required], contactPerson: [''], phone: [''] });
     if (!this.auth.hasAnyRole(['ROLE_GERANT'])) this.form.controls.unitPrice.disable({ emitEvent: false });
   }
@@ -49,13 +49,6 @@ export class FuelSales implements OnInit {
       this.creditMode = data['creditMode'] === true;
       this.settlementView = data['settlementView'] === true;
       if (this.settlementView) this.paymentFilter = 'DUE';
-      const customerControl = this.form.get('customerId');
-      if (this.creditMode) {
-        customerControl?.setValidators([Validators.required, Validators.min(1)]);
-      } else {
-        customerControl?.clearValidators();
-      }
-      customerControl?.updateValueAndValidity();
       this.loadPaymentMethods();
     });
     this.articles.options().subscribe(data => { this.stations = data.stations.map(s => ({ value: s.id, label: s.name })); this.stationId = data.stations[0]?.id ?? 0; this.load(); });
@@ -114,6 +107,7 @@ export class FuelSales implements OnInit {
   }
   get totalVolume() { return this.filtered.reduce((sum, row) => sum + Number(row.quantitySold || 0), 0); }
   get totalAmount() { return this.filtered.reduce((sum, row) => sum + Number(row.totalAmount || 0), 0); }
+  get totalGap() { return this.filtered.reduce((sum, row) => sum + Math.max(0, this.paymentGap(row)), 0); }
   get totalPages() { return Math.max(1, Math.ceil(this.filtered.length / this.pageSize)); }
   get pages() { return Array.from({ length: this.totalPages }, (_, index) => index + 1); }
   get rows() { const page = Math.min(this.page, this.totalPages); return this.filtered.slice((page - 1) * this.pageSize, page * this.pageSize); }
@@ -121,19 +115,10 @@ export class FuelSales implements OnInit {
   get nozzleOptions(): DropdownOption[] { return this.nozzles.map(nozzle => ({ value: nozzle.id, label: `${nozzle.code} · ${nozzle.fuel ?? ''}`, hint: nozzle.tank ?? '' })); }
   get readingAttendantOptions(): DropdownOption[] { return this.attendants.map((attendant) => ({ value: attendant.id, label: attendant.name, hint: attendant.code ?? '' })); }
   get settlementAttendantOptions(): DropdownOption[] { return this.readingAttendantOptions; }
-  get settlementNozzleOptions(): DropdownOption[] { return this.nozzles.filter(nozzle => Number(nozzle.attendantId) === Number(this.settlementForm.value.attendantId)).map(nozzle => ({ value: nozzle.id, label: `${nozzle.code} · ${nozzle.fuel ?? ''}`, hint: nozzle.tank ?? '' })); }
-  settlementAttendantChanged() { this.settlementForm.patchValue({ nozzleId: 0 }); this.selectedPaymentReading = null; this.payments.clear(); }
-  settlementNozzleChanged() {
-    const nozzle = this.nozzles.find(item => Number(item.id) === Number(this.settlementForm.value.nozzleId));
-    if (!nozzle) { this.selectedPaymentReading = null; return; }
-    const rows = this.readings.filter(row => row.nozzle === nozzle.code);
-    const pending = rows.filter(row => this.canCollect(row)).sort((a, b) => String(b.date ?? '').localeCompare(String(a.date ?? '')) || Number(b.id) - Number(a.id));
-    const latest = pending[0] ?? rows.sort((a, b) => String(b.date ?? '').localeCompare(String(a.date ?? '')) || Number(b.id) - Number(a.id))[0];
-    this.selectedPaymentReading = latest ?? null;
-    this.payments.clear();
-    if (latest && this.canCollect(latest)) this.addPayment();
-  }
-  openSettlementModal() { this.error = ''; this.selectedPaymentReading = null; this.settlementForm.reset({ attendantId: 0, nozzleId: 0 }); this.payments.clear(); this.paymentDate = new Date().toISOString().slice(0, 10); this.paymentOpen = true; }
+  get settlementReadings(): any[] { const attendant = this.attendants.find(item => Number(item.id) === Number(this.settlementForm.value.attendantId)); const customerId = Number(this.settlementForm.value.customerId || 0); return this.readings.filter(row => attendant && row.responsible === attendant.name && (!customerId || !row.customerId || Number(row.customerId) === customerId) && this.canCollect(row)); }
+  get settlementTotalDue(): number { return this.settlementReadings.reduce((sum, row) => sum + this.amountRemaining(row), 0); }
+  settlementAttendantChanged() { this.selectedPaymentReading = null; this.payments.clear(); if (this.settlementForm.value.attendantId) this.addPayment(); }
+  openSettlementModal() { this.error = ''; this.selectedPaymentReading = null; this.settlementForm.reset({ attendantId: 0, nozzleId: 0, customerId: 0 }); this.payments.clear(); this.paymentDate = new Date().toISOString().slice(0, 10); this.paymentOpen = true; }
   get filterNozzleOptions(): DropdownOption[] { return this.nozzles.filter(nozzle => !this.attendantFilter || Number(nozzle.attendantId) === Number(this.attendantFilter)).map(nozzle => ({ value: nozzle.id, label: `${nozzle.code} · ${nozzle.fuel ?? ''}`, hint: nozzle.tank ?? '' })); }
   get assignedNozzles(): any[] { return this.nozzles.filter(nozzle => Number(nozzle.attendantId) === Number(this.form.value.attendantId)); }
   attendantChanged() { this.form.patchValue({ nozzleId: 0, startIndex: 0, endIndex: 0, unitPrice: 0 }); }
@@ -158,22 +143,21 @@ export class FuelSales implements OnInit {
     }));
   }
   removePayment(index: number) { if (this.payments.length > 1) this.payments.removeAt(index); }
-  openReading() { this.error = ''; this.form.reset({ date: new Date().toISOString().slice(0, 10), attendantId: 0, nozzleId: 0, customerId: 0, startIndex: 0, endIndex: 0, returnToTank: 0, unitPrice: 0 }); this.modalOpen = true; }
+  openReading() { this.error = ''; this.form.reset({ date: new Date().toISOString().slice(0, 10), attendantId: 0, nozzleId: 0, startIndex: 0, endIndex: 0, returnToTank: 0, unitPrice: 0 }); this.modalOpen = true; }
   openQuickCustomer() { if (this.saving) return; this.customerForm.reset({ code: '', name: '', contactPerson: '', phone: '' }); this.quickCustomerOpen = true; }
-  saveQuickCustomer() { if (this.customerForm.invalid || this.savingCustomer) { this.customerForm.markAllAsTouched(); return; } this.savingCustomer = true; this.customersApi.create({ ...this.customerForm.getRawValue(), stationId: this.stationId }).subscribe({ next: customer => { const option = { value: customer.id, label: customer.name, hint: customer.code ?? '' }; this.customers = [...this.customers, option]; this.form.patchValue({ customerId: customer.id }); this.savingCustomer = false; this.quickCustomerOpen = false; this.cdr.detectChanges(); }, error: error => { this.error = error.error?.message ?? 'Le client n’a pas pu être créé.'; this.savingCustomer = false; this.cdr.detectChanges(); } }); }
+  saveQuickCustomer() { if (this.customerForm.invalid || this.savingCustomer) { this.customerForm.markAllAsTouched(); return; } this.savingCustomer = true; this.customersApi.create({ ...this.customerForm.getRawValue(), stationId: this.stationId }).subscribe({ next: customer => { const option = { value: customer.id, label: customer.name, hint: customer.code ?? '' }; this.customers = [...this.customers, option]; this.settlementForm.patchValue({ customerId: customer.id }); this.savingCustomer = false; this.quickCustomerOpen = false; this.cdr.detectChanges(); }, error: error => { this.error = error.error?.message ?? 'Le client n’a pas pu être créé.'; this.savingCustomer = false; this.cdr.detectChanges(); } }); }
   selectNozzle() { const nozzle = this.nozzles.find(item => item.id === Number(this.form.value.nozzleId)); if (nozzle) this.form.patchValue({ startIndex: nozzle.currentIndex, endIndex: nozzle.currentIndex, unitPrice: nozzle.unitPrice }); }
   save() {
     if (this.saving) return;
     this.error = this.readingError();
     if (this.form.invalid || this.error) { this.form.markAllAsTouched(); return; }
     this.saving = true;
-    this.fuel.createSimpleReading({ ...this.form.getRawValue(), stationId: this.stationId, creditMode: this.creditMode }).subscribe({
+    this.fuel.createSimpleReading({ ...this.form.getRawValue(), stationId: this.stationId, creditMode: false }).subscribe({
       next: () => { this.saving = false; this.modalOpen = false; this.load(); },
       error: (e) => { this.error = e.error?.message ?? 'Le relevé n’a pas pu être enregistré.'; this.saving = false; this.cdr.detectChanges(); },
     });
   }
   private readingError(): string {
-    if (this.creditMode && Number(this.form.value.customerId || 0) <= 0) return 'Veuillez choisir un client pour enregistrer un relevé de compte client.';
     if (this.form.invalid) return 'Veuillez renseigner tous les champs obligatoires avec des valeurs valides.';
     const start = Number(this.form.value.startIndex || 0);
     const end = Number(this.form.value.endIndex || 0);
@@ -199,13 +183,13 @@ export class FuelSales implements OnInit {
   get priorPayments(): any[] { return this.selectedPaymentReading?.payments ?? []; }
   paymentGap(reading: any): number { return Number(reading?.totalAmount ?? 0) - this.amountPaid(reading); }
   get paymentEntryAmount(): number { return this.paid; }
-  get paymentEntryGap(): number { return this.amountRemaining(this.selectedPaymentReading) - this.paymentEntryAmount; }
+  get paymentEntryGap(): number { return this.settlementTotalDue - this.paymentEntryAmount; }
   savePaymentEntry() {
-    if (!this.selectedPaymentReading || this.saving || this.payments.invalid) return;
-    if (this.paymentEntryAmount <= 0 || this.paymentEntryAmount > this.amountRemaining(this.selectedPaymentReading) + .01) { this.error = 'Le versement doit être positif et ne peut pas dépasser le reste dû.'; return; }
+    if (this.saving || this.payments.invalid || !this.settlementForm.value.attendantId) return;
+    if (this.paymentEntryAmount <= 0 || this.paymentEntryAmount > this.settlementTotalDue + .01) { this.error = 'Le versement doit être positif et ne peut pas dépasser le total restant dû.'; return; }
     this.saving = true;
     this.error = '';
-    this.fuel.addReadingPayments(this.selectedPaymentReading.id, { date: this.paymentDate, payments: this.payments.getRawValue() }).subscribe({
+    this.fuel.addAttendantSettlement({ stationId: this.stationId, attendantId: this.settlementForm.value.attendantId, customerId: this.settlementForm.value.customerId, date: this.paymentDate, payments: this.payments.getRawValue() }).subscribe({
       next: () => {
         this.saving = false;
         this.paymentOpen = false;

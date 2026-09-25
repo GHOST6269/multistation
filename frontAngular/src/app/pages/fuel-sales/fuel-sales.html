@@ -39,6 +39,9 @@
     <article>
       <small>CHIFFRE D'AFFAIRES</small><strong>{{ totalAmount | money }} <em>Ar</em></strong>
     </article>
+    <article>
+      <small>TOTAL DE L'ÉCART</small><strong class="warning-value">{{ totalGap | money }} <em>Ar</em></strong>
+    </article>
   </section>
   <section class="operation-table">
     <header>
@@ -61,7 +64,6 @@
             <th>INDEX FINAL</th>
             <th>VOLUME VENDU</th>
             <th>MONTANT</th>
-            <th>ÉCART</th>
             <th>DÉTAIL</th>
           </tr>
         </thead>
@@ -83,12 +85,11 @@
                 <strong>{{ row.quantitySold | number: '1.3-3' }} L</strong>
               </td>
               <td class="amount">{{ money(row.totalAmount) }} Ar</td>
-              <td>{{ money(paymentGap(row)) }} Ar</td>
               <td><span class="history-hint">Voir le détail →</span></td>
             </tr>
           } @empty {
             <tr>
-              <td colspan="11" class="empty">
+              <td colspan="10" class="empty">
                 {{ loading ? 'Chargement des relevés…' : 'Aucun relevé pour cette période.' }}
               </td>
             </tr>
@@ -138,40 +139,6 @@
           />
           <small class="attendant-note">Pistolets attribués au pompiste sélectionné</small>
         </label>
-        <label *ngIf="!creditMode">
-          <span class="customer-label">Client <small>(facultatif)</small></span>
-          <span class="customer-choice">
-            <app-dropdown
-              formControlName="customerId"
-              [options]="customers"
-              [selectedTag]="'Client'"
-              [emptyTag]="'Sélectionner'"
-              [placeholder]="'Client'"
-            />
-            @if (auth.hasAnyRole(['ROLE_GERANT'])) {
-              <button type="button" [disabled]="saving" (click)="openQuickCustomer()">＋ Nouveau</button>
-            }
-          </span>
-        </label>
-        <label *ngIf="creditMode">
-          <span class="customer-label">Client <small>(obligatoire)</small></span>
-          <span class="customer-choice">
-            <app-dropdown
-              formControlName="customerId"
-              [options]="customers"
-              [selectedTag]="'Client'"
-              [emptyTag]="'Sélectionner'"
-              [placeholder]="'Client'"
-            />
-            @if (auth.hasAnyRole(['ROLE_GERANT'])) {
-              <button type="button" [disabled]="saving" (click)="openQuickCustomer()">＋ Nouveau</button>
-            }
-          </span>
-        </label>
-        <div class="credit-banner" *ngIf="creditMode && form.value.customerId">
-          <span>Compte client</span>
-          <small>Le montant sera ajouté au compte client et apparaîtra dans les soldes clients.</small>
-        </div>
         <label>Index départ<input type="number" formControlName="startIndex" /></label>
         <label>Index final<input type="number" formControlName="endIndex" /></label>
         <label>Retour cuve (RC)<input type="number" formControlName="returnToTank" /></label>
@@ -202,20 +169,17 @@
 @if (paymentOpen) {
   <div class="operation-modal" (click)="!saving && (paymentOpen = false)">
     <form class="settlement-entry-card" [formGroup]="settlementForm" (ngSubmit)="savePaymentEntry()" (click)="$event.stopPropagation()">
-      <header class="settlement-entry-header"><div><p>ENCAISSEMENT CARBURANT</p><h2>Nouveau versement</h2><span>Choisissez le pompiste et son pistolet pour retrouver le relevé.</span></div><button type="button" [disabled]="saving" (click)="paymentOpen = false">×</button></header>
+      <header class="settlement-entry-header"><div><p>ENCAISSEMENT CARBURANT</p><h2>Nouveau versement</h2><span>Choisissez le pompiste, puis le client à rattacher au versement si nécessaire.</span></div><button type="button" [disabled]="saving" (click)="paymentOpen = false">×</button></header>
       <div class="operation-form settlement-modal-fields">
         @if (settlementView) {
           <div class="settlement-step"><span>1</span><div><strong>Responsable</strong><small>Sélectionnez le pompiste</small></div><label>Pompiste<app-dropdown formControlName="attendantId" (valueChange)="settlementAttendantChanged()" [options]="settlementAttendantOptions" placeholder="Sélectionner" /></label></div>
-          <div class="settlement-step"><span>2</span><div><strong>Pistolet attribué</strong><small>Ses pistolets disponibles</small></div><label>Pistolet<app-dropdown formControlName="nozzleId" (valueChange)="settlementNozzleChanged()" [options]="settlementNozzleOptions" placeholder="Sélectionner" /></label></div>
         }
-        @if (selectedPaymentReading) {
-        <section class="reading-summary"><strong>Index du relevé</strong><span>Départ : {{ selectedPaymentReading.startIndex | number:'1.3-3' }}</span><span>Final : {{ selectedPaymentReading.endIndex | number:'1.3-3' }}</span><span>Vendu : {{ selectedPaymentReading.quantitySold | number:'1.3-3' }} L</span><span>Montant : {{ money(selectedPaymentReading.totalAmount) }} Ar</span></section>
-        @if (priorPayments.length) {
-        <section class="prior-payments"><strong>Versements déjà enregistrés</strong><div class="prior-payment-row" *ngFor="let prior of priorPayments"><span>{{ (prior.date || selectedPaymentReading.date) | date:'dd/MM/yyyy' }}</span><span>{{ prior.label || prior.type || 'Paiement' }}</span><span>{{ prior.reference || '—' }}</span><strong>{{ money(prior.amount || 0) }} Ar</strong></div><small>Total déjà versé : {{ money(amountPaid(selectedPaymentReading)) }} Ar</small></section>
-        }
+        @if (settlementForm.value.attendantId) {
+        <section class="reading-summary"><strong>Versements en attente</strong><span>{{ settlementReadings.length }} relevé(s) non soldé(s)</span><span>Total à verser : {{ money(settlementTotalDue) }} Ar</span></section>
+        <label>Client (facultatif)<span class="customer-choice"><app-dropdown formControlName="customerId" [options]="customers" [selectedTag]="'Client'" [emptyTag]="'Aucun client'" [placeholder]="'Client'" />@if (auth.hasAnyRole(['ROLE_GERANT'])) { <button type="button" [disabled]="saving" (click)="openQuickCustomer()">＋ Nouveau</button> }</span></label>
         <label>Date du versement<input [value]="paymentDate" (input)="paymentDate = $any($event.target).value" type="date" /></label>
-        <div class="settlement-balance"><span>Reste à verser</span><strong>{{ money(amountRemaining(selectedPaymentReading)) }} Ar</strong></div>
-        @if (canCollect(selectedPaymentReading)) {
+        <div class="settlement-balance"><span>Total à verser</span><strong>{{ money(settlementTotalDue) }} Ar</strong></div>
+        @if (settlementReadings.length) {
         <div formArrayName="payments" class="payment-lines">
           @for (payment of payments.controls; track $index; let index = $index) {
             <div [formGroupName]="index">
@@ -229,11 +193,11 @@
           <button type="button" (click)="addPayment()">＋ Ajouter un mode de paiement</button>
           <small>Versement saisi : {{ money(paymentEntryAmount) }} Ar</small>
         </div>
-        } @else { <p class="empty-history">Aucun montant ne reste à verser pour le dernier relevé de ce pistolet.</p> }
-        } @else { <p class="settlement-later-note">Sélectionnez un pompiste puis l’un de ses pistolets pour afficher le relevé et son historique de versements.</p> }
+        } @else { <p class="empty-history">Aucun versement en attente pour ce pompiste.</p> }
+        } @else { <p class="settlement-later-note">Sélectionnez un pompiste pour afficher le total de ses versements en attente.</p> }
         @if (error) { <p class="operation-form-error" role="alert">{{ error }}</p> }
       </div>
-      <footer><button type="button" class="cancel" [disabled]="saving" (click)="paymentOpen = false">Annuler</button>@if (selectedPaymentReading && canCollect(selectedPaymentReading)) { <button class="settlement-submit" [disabled]="saving || payments.invalid || paymentEntryAmount <= 0 || paymentEntryAmount > amountRemaining(selectedPaymentReading) + 0.01">{{ saving ? 'Enregistrement…' : 'Confirmer le versement' }}</button> }</footer>
+      <footer><button type="button" class="cancel" [disabled]="saving" (click)="paymentOpen = false">Annuler</button>@if (settlementReadings.length) { <button class="settlement-submit" [disabled]="saving || payments.invalid || paymentEntryAmount <= 0 || paymentEntryAmount > settlementTotalDue + 0.01">{{ saving ? 'Enregistrement…' : 'Confirmer le versement' }}</button> }</footer>
     </form>
   </div>
 }

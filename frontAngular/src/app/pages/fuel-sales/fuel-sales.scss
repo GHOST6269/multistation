@@ -1,6 +1,8 @@
 :host { display: block; }
 .payment-lines { grid-column: 1 / -1; display: grid; gap: 10px; padding: 14px; border: 1px solid #d9e9f6; border-radius: 11px; background: #f8fbfe; }
-.payment-lines > div { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 10px; align-items: end; padding-bottom: 10px; border-bottom: 1px solid #e5eef5; }
+.payment-lines > div { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) auto; gap: 10px; align-items: end; padding-bottom: 10px; border-bottom: 1px solid #e5eef5; }
+.payment-lines > div label { min-width: 0; }
+.payment-lines app-dropdown { display: block; width: 100%; min-width: 0; }
 .payment-lines > div:last-of-type { padding-bottom: 0; border-bottom: 0; }
 .payment-lines button { width: fit-content; min-height: 39px; padding: 0 12px; border: 1px solid #bcd8ed; border-radius: 9px; background: #fff; color: #397fc4; font-size: 10px; font-weight: 800; }
 .payment-lines > div button { border-color: #efcdca; color: #bd645b; }

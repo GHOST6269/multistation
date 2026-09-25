@@ -15,7 +15,7 @@ export class AuthService {
   constructor(private readonly api: ApiService, private readonly router: Router) {}
 
   get token(): string | null {
-    return localStorage.getItem(TOKEN_KEY);
+    return sessionStorage.getItem(TOKEN_KEY);
   }
 
   get user(): AppUser | null {
@@ -25,7 +25,7 @@ export class AuthService {
   login(email: string, password: string): Observable<{ token: string; user: AppUser }> {
     return this.api.post<{ token: string; user: AppUser }>('auth/login', { email, password }).pipe(
       tap((session) => {
-        localStorage.setItem(TOKEN_KEY, session.token);
+        sessionStorage.setItem(TOKEN_KEY, session.token);
         this.userSubject.next(session.user);
       }),
     );
@@ -61,6 +61,7 @@ export class AuthService {
   }
 
   logout(navigate = true): void {
+    sessionStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(TOKEN_KEY);
     this.userSubject.next(null);
     if (navigate) this.router.navigate(['/connexion']);
