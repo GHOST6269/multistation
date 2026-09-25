@@ -15,7 +15,7 @@
 
   <form [formGroup]="form" (ngSubmit)="save()">
     <div class="profile-fields locked-fields">
-      <label><span>Email de connexion</span><input formControlName="email" [readonly]="!isSuperAdmin()" /></label>
+      <label><span>Email de connexion</span><input formControlName="email" [readonly]="!isSuperAdmin()" />@if (isSuperAdmin() && emailAlreadyUsed) { <small class="profile-email-warning" role="status" aria-live="polite">Cette adresse e-mail est déjà utilisée.</small> }</label>
       @if (isSuperAdmin()) {
         <label><span>Rôle</span><select formControlName="role"><option *ngFor="let role of roles" [value]="role.value">{{ role.label }}</option></select></label>
         @if (form.value.role !== 'ROLE_SUPER_ADMIN') { <label><span>Station</span><select formControlName="stationId"><option [value]="0">Sélectionner...</option><option *ngFor="let station of stations" [value]="station.value">{{ station.label }}</option></select></label> }

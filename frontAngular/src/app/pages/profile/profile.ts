@@ -14,6 +14,7 @@ import { DropdownOption } from '../../shared/dropdown/dropdown';
 })
 export class Profile implements OnInit {
   user: AppUser | null = null;
+  knownUsers: AppUser[] = [];
   saving = false;
   error = '';
   saved = false;
@@ -54,6 +55,7 @@ export class Profile implements OnInit {
       this.cdr.detectChanges();
     });
     if (this.auth.isSuperAdmin()) {
+      this.users.list().subscribe((users) => { this.knownUsers = users; this.cdr.detectChanges(); });
       this.users.roles().subscribe((data) => { this.roles = data.roles; this.cdr.detectChanges(); });
       this.articles.options().subscribe((data) => {
         this.stations = data.stations.map((station) => ({ value: station.id, label: station.name }));
@@ -63,6 +65,10 @@ export class Profile implements OnInit {
   }
 
   save(): void {
+    if (this.emailAlreadyUsed) {
+      this.form.controls.email.markAsTouched();
+      return;
+    }
     const value = this.form.getRawValue();
     this.error = '';
     this.saved = false;
@@ -111,4 +117,9 @@ export class Profile implements OnInit {
   }
 
   isSuperAdmin(): boolean { return this.auth.isSuperAdmin(); }
+
+  get emailAlreadyUsed(): boolean {
+    const email = String(this.form.controls.email.value ?? '').trim().toLowerCase();
+    return !!email && this.knownUsers.some((user) => user.email.trim().toLowerCase() === email && user.id !== this.user?.id);
+  }
 }
