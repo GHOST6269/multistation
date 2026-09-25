@@ -94,6 +94,10 @@ export class Create implements OnInit {
   }
 
   save(): void {
+    if (this.emailAlreadyUsed) {
+      this.form.controls.email.markAsTouched();
+      return;
+    }
     const value = this.form.getRawValue();
     if (this.form.invalid || (value.role !== 'ROLE_SUPER_ADMIN' && !(this.auth.isSuperAdmin() ? Number(value.stationId) : this.managerStationId()))) {
       this.form.markAllAsTouched();
@@ -147,5 +151,11 @@ export class Create implements OnInit {
 
   managerStationId(): number {
     return Number(this.stations[0]?.value ?? 0);
+  }
+
+  get emailAlreadyUsed(): boolean {
+    const email = String(this.form.controls.email.value ?? '').trim().toLowerCase();
+    if (!email) return false;
+    return this.users.some((user) => user.email.trim().toLowerCase() === email && user.id !== this.editing?.id);
   }
 }

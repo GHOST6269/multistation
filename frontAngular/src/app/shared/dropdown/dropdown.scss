@@ -10,6 +10,12 @@
 :host-context(.stocktake-line) {
   min-width: 0;
 }
+:host-context(.operation-controls),
+:host-context(.operation-form),
+:host-context(.payment-lines) {
+  width: 100%;
+  min-width: 0;
+}
 :host-context(.article-form) .trigger {
   height: 40px;
 }
