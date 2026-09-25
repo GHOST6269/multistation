@@ -110,6 +110,25 @@ final class FuelPaymentController extends AbstractController
     {
         if ($denied = $access->require([UserAccessService::ROLE_GERANT, UserAccessService::ROLE_ASSISTANT])) return $denied;
         $data = $request->toArray();
+        // Batch submissions keep the existing single-reading contract available to
+        // older clients while letting the attendant form submit several nozzles.
+        if (isset($data['readings'])) {
+            if (!is_array($data['readings']) || !$data['readings']) return $this->json(['message' => 'Ajoutez au moins un pistolet'], 422);
+            $results = [];
+            $em->getConnection()->beginTransaction();
+            foreach ($data['readings'] as $line) {
+                if (!is_array($line)) { $em->getConnection()->rollBack(); return $this->json(['message' => 'Relevé de pistolet invalide'], 422); }
+                $line['stationId'] = $data['stationId'] ?? 0;
+                $line['attendantId'] = $data['attendantId'] ?? 0;
+                $line['date'] = $data['date'] ?? 'today';
+                $subRequest = Request::create('/api/fuel/simple-readings', 'POST', [], [], [], ['CONTENT_TYPE' => 'application/json'], json_encode($line));
+                $response = $this->createReading($subRequest, $em, $access);
+                if ($response->getStatusCode() >= 400) { $em->getConnection()->rollBack(); return $response; }
+                $results[] = json_decode((string) $response->getContent(), true);
+            }
+            $em->getConnection()->commit();
+            return $this->json(['readings' => $results], 201);
+        }
         $station = $em->getRepository(Stations::class)->find((int) ($data['stationId'] ?? 0));
         $nozzle = $em->getRepository(FuelNozzle::class)->find((int) ($data['nozzleId'] ?? 0));
         $attendantId = (int) ($data['attendantId'] ?? 0);

@@ -219,6 +219,7 @@
       ><button [class.active]="salesView === 'journal'" (click)="salesView = 'journal'">
         Journal
       </button>
+      <span class="operation-table-label">Opérations</span><button class="settlement-button" type="button" (click)="openAttendantPayments()"><span aria-hidden="true">▤</span> Tous les versements</button>
     </div>
   </header>
   <div class="sales-filters">
@@ -380,6 +381,20 @@
     <div><button [disabled]="paymentsPage <= 1" (click)="paymentsPage = paymentsPage - 1">←</button>@for (page of paymentPages; track page) {<button [class.active]="page === paymentsPage" (click)="paymentsPage = page">{{ page }}</button>}<button [disabled]="paymentsPage >= paymentTotalPages" (click)="paymentsPage = paymentsPage + 1">→</button></div>
   </div>
 </section>
+@if (attendantPaymentsOpen) {
+  <div class="fuel-modal" (click)="attendantPaymentsOpen = false">
+    <section class="attendant-payments-modal" (click)="$event.stopPropagation()">
+      <header><div><h2>Versements des pompistes</h2><p>Versements effectués et écarts restant à régulariser.</p></div><button type="button" (click)="attendantPaymentsOpen = false">×</button></header>
+      <div class="attendant-payment-filters"><label>Du<input type="date" [(ngModel)]="attendantPaymentFrom" /></label><label>Au<input type="date" [(ngModel)]="attendantPaymentTo" /></label><label>Pompiste<app-dropdown [(ngModel)]="attendantPaymentFilter" [options]="attendantPaymentOptions" /></label></div>
+      <div class="attendant-payment-kpis"><article><small>VERSEMENTS AFFICHÉS</small><strong>{{ attendantPaymentRows.length }}</strong></article><article><small>TOTAL DES VERSEMENTS</small><strong>{{ money(attendantPaymentAmountTotal) }} Ar</strong></article><article class="balance"><small>ÉCART RESTANT TOTAL</small><strong>{{ money(attendantPaymentGapTotal) }} Ar</strong></article></div>
+      <div class="attendant-payment-table"><table><thead><tr><th>DATE</th><th>POMPISTE</th><th>MODE DE PAIEMENT</th><th>MONTANT VERSÉ</th><th>ÉCART RESTANT</th></tr></thead><tbody>
+        @for (row of attendantPaymentRows; track row.id) { <tr><td>{{ row.date | date:'dd/MM/yyyy' }}</td><td>{{ row.responsible }}</td><td>{{ row.method }}</td><td>{{ money(row.amount) }} Ar</td><td class="reading-gap">{{ money(row.gap) }} Ar</td></tr> }
+        @empty { <tr><td colspan="5" class="empty">Aucun versement pour ces critères.</td></tr> }
+      </tbody></table></div>
+      <footer><button type="button" class="cancel" (click)="attendantPaymentsOpen = false">Fermer</button></footer>
+    </section>
+  </div>
+}
 @if (modal === 'reading') {
   <div class="fuel-modal" [class.busy]="saving" (click)="closeModal()">
     <form
@@ -406,52 +421,18 @@
               >Date
               <input type="date" formControlName="date" />
             </label>
-            <label
-              >Pistolet *
-              <app-dropdown
-                formControlName="nozzleId"
-                (valueChange)="selectNozzle()"
-                [options]="options(data?.nozzles || [], 'code')"
-                placeholder="Choisir"
-              >
-              </app-dropdown>
-              <small class="attendant-note">Pompiste : {{ selectedNozzleAttendant }}</small>
-            </label>
+            <label>Pompiste *<app-dropdown formControlName="attendantId" (valueChange)="selectAttendant()" [options]="options(data?.attendants || [])" placeholder="Choisir" /></label>
           </div>
-
-          <div class="index-bottom">
-            <label
-              >Index départ
-              <input type="number" formControlName="startIndex" step=".001" />
-            </label>
-            <label
-              >Index final
-              <input type="number" formControlName="endIndex" step=".001" />
-            </label>
-            <label
-              >RC / Retour cuve
-              <input type="number" formControlName="returnToTank" step=".001" />
-            </label>
-            <label
-              >PU TTC (Ar/L)
-              <div class="money-field">
-                <input appMoney type="text" formControlName="unitPrice" />
-                <span>Ar</span>
+          <div formArrayName="readings" class="multi-reading-list">
+            @for (row of readings.controls; track $index; let i = $index) {
+              <div [formGroupName]="i" class="index-bottom multi-reading-row">
+                <strong>{{ assignedReadingNozzles[i]?.code }} · {{ assignedReadingNozzles[i]?.fuel }}</strong>
+                <label>Index départ<input type="number" formControlName="startIndex" step=".001" /></label>
+                <label>Index final<input type="number" formControlName="endIndex" step=".001" /></label>
+                <label>RC / Retour cuve<input type="number" formControlName="returnToTank" step=".001" /></label>
+                <label>PU TTC (Ar/L)<input appMoney type="text" formControlName="unitPrice" /></label>
               </div>
-            </label>
-          </div>
-          <div class="calculation">
-            <div>
-              <small>SORTIE</small><strong>{{ output | number: '1.3-3' }} L</strong>
-            </div>
-            <span>− RC</span>
-            <div>
-              <small>QUANTITÉ VENDUE</small><strong>{{ sold | number: '1.3-3' }} L</strong>
-            </div>
-            <span>× PU</span>
-            <div class="total">
-              <small>MONTANT VENTE</small><strong>{{ money(total) }} Ar</strong>
-            </div>
+            } @empty { <p class="attendant-note">Aucun pistolet actif n’est affecté à ce pompiste.</p> }
           </div>
         </section>
         @if (error) {

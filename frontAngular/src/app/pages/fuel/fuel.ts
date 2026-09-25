@@ -37,6 +37,10 @@ export class Fuel implements OnInit {
   loading = true;
   modal: 'reading' | 'paymentEntry' | 'delivery' | 'setup' | 'paymentMethod' | null = null;
   selectedPaymentReading: any = null;
+  attendantPaymentsOpen = false;
+  attendantPaymentFilter = 0;
+  attendantPaymentFrom = '';
+  attendantPaymentTo = '';
   paymentDate = new Date().toISOString().slice(0, 10);
   paymentMethodReturn: 'reading' | 'paymentEntry' = 'reading';
   saving = false;
@@ -68,14 +72,10 @@ export class Fuel implements OnInit {
   ) {
     this.readingForm = fb.group({
       date: [new Date().toISOString().slice(0, 10), Validators.required],
-      nozzleId: [0, Validators.min(1)],
-      startIndex: [0, Validators.min(0)],
-      endIndex: [0, Validators.min(0)],
-      returnToTank: [0, Validators.min(0)],
-      unitPrice: [0, Validators.min(0)],
+      attendantId: [0, Validators.min(1)],
+      readings: fb.array([]),
       payments: fb.array([]),
     });
-    if (!this.auth.hasAnyRole(['ROLE_GERANT'])) this.readingForm.controls.unitPrice.disable({ emitEvent: false });
     this.deliveryForm = fb.group({
       date: [new Date().toISOString().slice(0, 10), Validators.required],
       tankId: [0, Validators.min(1)],
@@ -160,38 +160,22 @@ export class Fuel implements OnInit {
     this.payments.clear();
     this.readingForm.reset({
       date: new Date().toISOString().slice(0, 10),
-      nozzleId: 0,
-      startIndex: 0,
-      endIndex: 0,
-      returnToTank: 0,
-      unitPrice: 0,
+      attendantId: 0,
+      readings: [],
       payments: [],
     });
+    this.readings.clear();
     this.modal = 'reading';
   }
-  selectNozzle() {
-    const n = this.data?.nozzles.find((x) => x.id === this.readingForm.value.nozzleId);
-    if (n)
-      this.readingForm.patchValue({
-        startIndex: n.currentIndex,
-        endIndex: n.currentIndex,
-        unitPrice: n.unitPrice,
-      });
-  }
-  get selectedNozzleAttendant(): string {
-    return this.data?.nozzles.find((nozzle) => Number(nozzle.id) === Number(this.readingForm.value.nozzleId))?.attendant ?? 'Aucun pompiste associé';
-  }
-  get output() {
-    return Math.max(
-      0,
-      Number(this.readingForm.value.endIndex) - Number(this.readingForm.value.startIndex),
-    );
-  }
-  get sold() {
-    return Math.max(0, this.output - Number(this.readingForm.value.returnToTank));
-  }
-  get total() {
-    return this.sold * Number(this.readingForm.getRawValue().unitPrice);
+  get readings(): FormArray { return this.readingForm.get('readings') as FormArray; }
+  get assignedReadingNozzles(): any[] { return (this.data?.nozzles ?? []).filter(n => Number(n.attendantId) === Number(this.readingForm.value.attendantId)); }
+  selectAttendant() {
+    this.readings.clear();
+    for (const nozzle of this.assignedReadingNozzles) {
+      const row = this.fb.group({ nozzleId: [nozzle.id], startIndex: [nozzle.currentIndex, [Validators.required, Validators.min(0)]], endIndex: [nozzle.currentIndex, [Validators.required, Validators.min(0)]], returnToTank: [0, Validators.min(0)], unitPrice: [nozzle.unitPrice, Validators.min(0)] });
+      if (!this.auth.hasAnyRole(['ROLE_GERANT'])) row.controls.unitPrice.disable({ emitEvent: false });
+      this.readings.push(row);
+    }
   }
   get paid() {
     return this.payments.controls.reduce((sum, payment) => sum + Number(payment.value.amount || 0), 0);
@@ -257,6 +241,15 @@ export class Fuel implements OnInit {
       ...this.options(this.data?.attendants ?? []),
     ];
   }
+  get attendantPaymentOptions(): DropdownOption[] {
+    const options = new Map<number, DropdownOption>();
+    for (const attendant of this.data?.attendants ?? []) options.set(Number(attendant.id), { value: Number(attendant.id), label: attendant.name });
+    for (const reading of this.data?.readings ?? []) {
+      const id = Number(reading.attendantId ?? 0);
+      if (id && !options.has(id)) options.set(id, { value: id, label: reading.responsible || `Pompiste ${id}` });
+    }
+    return [{ value: 0, label: 'Tous les pompistes' }, ...[...options.values()].sort((a, b) => a.label.localeCompare(b.label))];
+  }
   get nozzleOptions(): DropdownOption[] {
     return [
       { value: 0, label: 'Toutes les pompes' },
@@ -274,9 +267,6 @@ export class Fuel implements OnInit {
   }
   get filteredReadings() {
     return (this.data?.readings ?? []).filter((reading: any) => {
-      const attendant = (this.data?.attendants ?? []).find(
-        (item: any) => item.name === reading.responsible,
-      );
       const nozzle = (this.data?.nozzles ?? []).find((item: any) => item.code === reading.nozzle);
       const due = this.canCollect(reading);
       const matchesPayment = this.paymentFilter === 'ALL' ||
@@ -287,16 +277,18 @@ export class Fuel implements OnInit {
       return (
         (!this.fromDate || reading.date >= this.fromDate) &&
         (!this.toDate || reading.date <= this.toDate) &&
-        (!this.attendantFilter || attendant?.id === Number(this.attendantFilter)) &&
+        (!this.attendantFilter || Number(reading.attendantId ?? 0) === Number(this.attendantFilter)) &&
         (!this.nozzleFilter || nozzle?.id === Number(this.nozzleFilter)) &&
         matchesPayment
       );
     });
   }
   get attendantSales() {
-    const rows = new Map<string, any>();
+    const rows = new Map<number, any>();
     for (const reading of this.filteredReadings) {
-      const row = rows.get(reading.responsible) ?? {
+      const attendantId = Number(reading.attendantId ?? 0);
+      const row = rows.get(attendantId) ?? {
+        id: attendantId,
         name: reading.responsible || 'Non renseigné',
         nozzle: reading.nozzle,
         transactions: 0,
@@ -313,10 +305,30 @@ export class Fuel implements OnInit {
       row.transactions += 1;
       row.volume += Number(reading.quantitySold || 0);
       row.total += Number(reading.totalAmount || 0);
-      rows.set(reading.responsible, row);
+      rows.set(attendantId, row);
     }
     return [...rows.values()].sort((a, b) => b.total - a.total);
   }
+  openAttendantPayments() { this.attendantPaymentFilter = 0; this.attendantPaymentFrom = ''; this.attendantPaymentTo = ''; this.attendantPaymentsOpen = true; }
+  get attendantPaymentRows(): any[] {
+    const rows: any[] = [];
+    for (const reading of this.data?.readings ?? []) {
+      if (this.attendantPaymentFilter && Number(reading.attendantId ?? 0) !== Number(this.attendantPaymentFilter)) continue;
+      const lines: { label?: string; type?: string; amount: number; date?: string }[] = reading.payments?.length ? reading.payments : [{ label: 'Aucun versement', amount: 0 }];
+      for (const payment of lines) {
+        const date = payment.date || reading.date || '';
+        if ((this.attendantPaymentFrom && date < this.attendantPaymentFrom) || (this.attendantPaymentTo && date > this.attendantPaymentTo)) continue;
+        rows.push({ id: `${reading.id}-${rows.length}`, readingId: reading.id, date, invoiceNumber: reading.invoiceNumber, nozzle: reading.nozzle, responsible: reading.responsible, method: payment.label || payment.type || 'Aucun versement', amount: Number(payment.amount ?? 0), gap: this.amountRemaining(reading) });
+      }
+    }
+    return rows.sort((a, b) => String(b.date).localeCompare(String(a.date)));
+  }
+  get attendantPaymentGapTotal(): number {
+    const readings = new Map<string, number>();
+    for (const row of this.attendantPaymentRows) readings.set(String(row.readingId), row.gap);
+    return [...readings.values()].reduce((sum, gap) => sum + gap, 0);
+  }
+  get attendantPaymentAmountTotal(): number { return this.attendantPaymentRows.reduce((sum, row) => sum + Number(row.amount || 0), 0); }
   get filteredPaymentHistory() {
     return this.paymentHistory.filter(
       (payment) =>
@@ -348,12 +360,13 @@ export class Fuel implements OnInit {
   resetSalesPage() { this.readingsPage = 1; }
   resetPaymentsPage() { this.paymentsPage = 1; }
   saveReading() {
-    if (this.saving || this.readingForm.invalid) return;
+    if (this.saving || this.readingForm.invalid || !this.readings.length || this.readings.invalid) return;
+    for (const control of this.readings.controls) { const v = control.value; if (Number(v.endIndex) < Number(v.startIndex) || Number(v.returnToTank) > Number(v.endIndex) - Number(v.startIndex)) { this.error = 'Vérifiez les index et le retour cuve de chaque pistolet.'; return; } }
     this.saving = true;
     this.savingLabel = 'Enregistrement du relevé...';
     this.error = '';
-    const { payments: _payments, ...v } = this.readingForm.getRawValue();
-    this.fuel.createSimpleReading({ ...v, stationId: this.stationId }).subscribe({
+    const v = this.readingForm.getRawValue();
+    this.fuel.createSimpleReading({ stationId: this.stationId, date: v.date, attendantId: v.attendantId, readings: this.readings.getRawValue() }).subscribe({
       next: (r) => {
         if (this.data) this.data.readings = [r, ...this.data.readings];
         this.modal = null;

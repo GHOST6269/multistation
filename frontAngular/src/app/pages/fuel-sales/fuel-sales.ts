@@ -25,6 +25,10 @@ export class FuelSales implements OnInit {
   modalOpen = false;
   paymentOpen = false;
   paymentHistoryOpen = false;
+  attendantPaymentsOpen = false;
+  attendantPaymentFilter = 0;
+  attendantPaymentFrom = '';
+  attendantPaymentTo = '';
   quickCustomerOpen = false;
   saving = false;
   savingCustomer = false;
@@ -39,10 +43,9 @@ export class FuelSales implements OnInit {
   settlementView = false;
   form; customerForm; settlementForm;
   constructor(private articles: ArticleService, private fuel: FuelService, private customersApi: CustomerService, private fb: FormBuilder, private cdr: ChangeDetectorRef, public auth: AuthService, private readonly route: ActivatedRoute) {
-    this.form = fb.group({ date: [new Date().toISOString().slice(0, 10), Validators.required], attendantId: [0, Validators.min(1)], nozzleId: [0, Validators.min(1)], startIndex: [0, Validators.min(0)], endIndex: [0, Validators.min(0)], returnToTank: [0, Validators.min(0)], unitPrice: [0, Validators.min(0)] });
+    this.form = fb.group({ date: [new Date().toISOString().slice(0, 10), Validators.required], attendantId: [0, Validators.min(1)], readings: fb.array([]) });
     this.settlementForm = fb.group({ attendantId: [0], nozzleId: [0], customerId: [0], payments: fb.array([]) });
     this.customerForm = fb.group({ code: [''], name: ['', Validators.required], contactPerson: [''], phone: [''] });
-    if (!this.auth.hasAnyRole(['ROLE_GERANT'])) this.form.controls.unitPrice.disable({ emitEvent: false });
   }
   ngOnInit() {
     this.route.data.subscribe((data) => {
@@ -75,7 +78,7 @@ export class FuelSales implements OnInit {
       const customerSale = Number(row.customerId ?? 0) > 0;
       const matchesCustomer = !this.creditMode || (customerSale && (hasCustomerVoucher || (!Array.isArray(row.payments) || row.payments.length === 0)));
       const nozzle = this.nozzles.find((item) => item.code === row.nozzle);
-      const matchesAttendant = !this.attendantFilter || Number(nozzle?.attendantId ?? 0) === Number(this.attendantFilter);
+      const matchesAttendant = !this.attendantFilter || Number(row.attendantId ?? 0) === Number(this.attendantFilter);
       const matchesNozzle = !this.nozzleFilter || Number(nozzle?.id ?? 0) === Number(this.nozzleFilter);
       const due = this.canCollect(row);
       const matchesPayment = this.paymentFilter === 'ALL' ||
@@ -114,18 +117,42 @@ export class FuelSales implements OnInit {
   resetPage() { this.page = 1; }
   get nozzleOptions(): DropdownOption[] { return this.nozzles.map(nozzle => ({ value: nozzle.id, label: `${nozzle.code} · ${nozzle.fuel ?? ''}`, hint: nozzle.tank ?? '' })); }
   get readingAttendantOptions(): DropdownOption[] { return this.attendants.map((attendant) => ({ value: attendant.id, label: attendant.name, hint: attendant.code ?? '' })); }
+  get attendantPaymentOptions(): DropdownOption[] {
+    const options = new Map<number, DropdownOption>();
+    for (const attendant of this.attendants) options.set(Number(attendant.id), { value: Number(attendant.id), label: attendant.name });
+    for (const reading of this.readings) { const id = Number(reading.attendantId ?? 0); if (id && !options.has(id)) options.set(id, { value: id, label: reading.responsible || `Pompiste ${id}` }); }
+    return [{ value: 0, label: 'Tous les pompistes' }, ...[...options.values()].sort((a, b) => a.label.localeCompare(b.label))];
+  }
+  openAttendantPayments() { this.attendantPaymentFilter = 0; this.attendantPaymentFrom = ''; this.attendantPaymentTo = ''; this.attendantPaymentsOpen = true; }
+  get attendantPaymentRows(): any[] {
+    const rows: any[] = [];
+    for (const reading of this.readings) {
+      if (this.attendantPaymentFilter && Number(reading.attendantId ?? 0) !== Number(this.attendantPaymentFilter)) continue;
+      const lines: { label?: string; type?: string; amount: number; date?: string }[] = reading.payments?.length ? reading.payments : [{ label: 'Aucun versement', amount: 0 }];
+      for (const payment of lines) { const date = payment.date || reading.date || ''; if ((this.attendantPaymentFrom && date < this.attendantPaymentFrom) || (this.attendantPaymentTo && date > this.attendantPaymentTo)) continue; rows.push({ id: `${reading.id}-${rows.length}`, readingId: reading.id, date, invoiceNumber: reading.invoiceNumber, nozzle: reading.nozzle, responsible: reading.responsible, method: payment.label || payment.type || 'Aucun versement', amount: Number(payment.amount || 0), gap: this.amountRemaining(reading) }); }
+    }
+    return rows.sort((a, b) => String(b.date).localeCompare(String(a.date)));
+  }
+  get attendantPaymentGapTotal(): number { const gaps = new Map<number, number>(); for (const row of this.attendantPaymentRows) gaps.set(Number(row.readingId), row.gap); return [...gaps.values()].reduce((sum, gap) => sum + gap, 0); }
+  get attendantPaymentAmountTotal(): number { return this.attendantPaymentRows.reduce((sum, row) => sum + Number(row.amount || 0), 0); }
   get settlementAttendantOptions(): DropdownOption[] { return this.readingAttendantOptions; }
-  get settlementReadings(): any[] { const attendant = this.attendants.find(item => Number(item.id) === Number(this.settlementForm.value.attendantId)); const customerId = Number(this.settlementForm.value.customerId || 0); return this.readings.filter(row => attendant && row.responsible === attendant.name && (!customerId || !row.customerId || Number(row.customerId) === customerId) && this.canCollect(row)); }
+  get settlementReadings(): any[] { const attendantId = Number(this.settlementForm.value.attendantId || 0); const customerId = Number(this.settlementForm.value.customerId || 0); return this.readings.filter(row => attendantId && Number(row.attendantId ?? 0) === attendantId && (!customerId || !row.customerId || Number(row.customerId) === customerId) && this.canCollect(row)); }
   get settlementTotalDue(): number { return this.settlementReadings.reduce((sum, row) => sum + this.amountRemaining(row), 0); }
   settlementAttendantChanged() { this.selectedPaymentReading = null; this.payments.clear(); if (this.settlementForm.value.attendantId) this.addPayment(); }
   openSettlementModal() { this.error = ''; this.selectedPaymentReading = null; this.settlementForm.reset({ attendantId: 0, nozzleId: 0, customerId: 0 }); this.payments.clear(); this.paymentDate = new Date().toISOString().slice(0, 10); this.paymentOpen = true; }
   get filterNozzleOptions(): DropdownOption[] { return this.nozzles.filter(nozzle => !this.attendantFilter || Number(nozzle.attendantId) === Number(this.attendantFilter)).map(nozzle => ({ value: nozzle.id, label: `${nozzle.code} · ${nozzle.fuel ?? ''}`, hint: nozzle.tank ?? '' })); }
   get assignedNozzles(): any[] { return this.nozzles.filter(nozzle => Number(nozzle.attendantId) === Number(this.form.value.attendantId)); }
-  attendantChanged() { this.form.patchValue({ nozzleId: 0, startIndex: 0, endIndex: 0, unitPrice: 0 }); }
-  get assignedNozzleOptions(): DropdownOption[] { return this.assignedNozzles.map(nozzle => ({ value: nozzle.id, label: `${nozzle.code} · ${nozzle.fuel ?? ''}`, hint: nozzle.tank ?? '' })); }
-  get selectedNozzleAttendant(): string { return this.nozzles.find(nozzle => Number(nozzle.id) === Number(this.form.value.nozzleId))?.attendant ?? 'Aucun pompiste associé'; }
-  get sold() { return Math.max(0, Number(this.form.value.endIndex) - Number(this.form.value.startIndex) - Number(this.form.value.returnToTank)); }
-  get total() { return this.sold * Number(this.form.getRawValue().unitPrice); }
+  get readingRows(): FormArray { return this.form.get('readings') as FormArray; }
+  attendantChanged() {
+    this.readingRows.clear();
+    for (const nozzle of this.assignedNozzles) {
+      const row = this.fb.group({ nozzleId: [nozzle.id], startIndex: [nozzle.currentIndex, [Validators.required, Validators.min(0)]], endIndex: [nozzle.currentIndex, [Validators.required, Validators.min(0)]], returnToTank: [0, Validators.min(0)], unitPrice: [nozzle.unitPrice, Validators.min(0)] });
+      if (!this.auth.hasAnyRole(['ROLE_GERANT'])) row.controls.unitPrice.disable({ emitEvent: false });
+      this.readingRows.push(row);
+    }
+  }
+  soldAt(i: number) { const row = this.readingRows.at(i).value; return Math.max(0, Number(row.endIndex) - Number(row.startIndex) - Number(row.returnToTank)); }
+  totalAt(i: number) { return this.soldAt(i) * Number(this.readingRows.at(i).value.unitPrice); }
   get payments(): FormArray { return this.settlementForm.get('payments') as FormArray; }
   get paid() { return this.payments.controls.reduce((sum, payment) => sum + Number(payment.value.amount || 0), 0); }
   addPayment() {
@@ -143,27 +170,23 @@ export class FuelSales implements OnInit {
     }));
   }
   removePayment(index: number) { if (this.payments.length > 1) this.payments.removeAt(index); }
-  openReading() { this.error = ''; this.form.reset({ date: new Date().toISOString().slice(0, 10), attendantId: 0, nozzleId: 0, startIndex: 0, endIndex: 0, returnToTank: 0, unitPrice: 0 }); this.modalOpen = true; }
+  openReading() { this.error = ''; this.form.reset({ date: new Date().toISOString().slice(0, 10), attendantId: 0 }); this.readingRows.clear(); this.modalOpen = true; }
   openQuickCustomer() { if (this.saving) return; this.customerForm.reset({ code: '', name: '', contactPerson: '', phone: '' }); this.quickCustomerOpen = true; }
   saveQuickCustomer() { if (this.customerForm.invalid || this.savingCustomer) { this.customerForm.markAllAsTouched(); return; } this.savingCustomer = true; this.customersApi.create({ ...this.customerForm.getRawValue(), stationId: this.stationId }).subscribe({ next: customer => { const option = { value: customer.id, label: customer.name, hint: customer.code ?? '' }; this.customers = [...this.customers, option]; this.settlementForm.patchValue({ customerId: customer.id }); this.savingCustomer = false; this.quickCustomerOpen = false; this.cdr.detectChanges(); }, error: error => { this.error = error.error?.message ?? 'Le client n’a pas pu être créé.'; this.savingCustomer = false; this.cdr.detectChanges(); } }); }
-  selectNozzle() { const nozzle = this.nozzles.find(item => item.id === Number(this.form.value.nozzleId)); if (nozzle) this.form.patchValue({ startIndex: nozzle.currentIndex, endIndex: nozzle.currentIndex, unitPrice: nozzle.unitPrice }); }
   save() {
     if (this.saving) return;
     this.error = this.readingError();
-    if (this.form.invalid || this.error) { this.form.markAllAsTouched(); return; }
+    if (this.form.invalid || this.readingRows.length === 0 || this.error) { this.form.markAllAsTouched(); return; }
     this.saving = true;
-    this.fuel.createSimpleReading({ ...this.form.getRawValue(), stationId: this.stationId, creditMode: false }).subscribe({
+    const value = this.form.getRawValue();
+    this.fuel.createSimpleReading({ stationId: this.stationId, date: value.date, attendantId: value.attendantId, readings: value.readings }).subscribe({
       next: () => { this.saving = false; this.modalOpen = false; this.load(); },
       error: (e) => { this.error = e.error?.message ?? 'Le relevé n’a pas pu être enregistré.'; this.saving = false; this.cdr.detectChanges(); },
     });
   }
   private readingError(): string {
-    if (this.form.invalid) return 'Veuillez renseigner tous les champs obligatoires avec des valeurs valides.';
-    const start = Number(this.form.value.startIndex || 0);
-    const end = Number(this.form.value.endIndex || 0);
-    const returnToTank = Number(this.form.value.returnToTank || 0);
-    if (end < start) return 'L’index final ne peut pas être inférieur à l’index de départ.';
-    if (returnToTank > end - start) return 'Le retour cuve ne peut pas être supérieur à la sortie de pompe.';
+    if (this.readingRows.invalid) return 'Veuillez renseigner tous les champs obligatoires avec des valeurs valides.';
+    for (let i = 0; i < this.readingRows.length; i++) { const row = this.readingRows.at(i).value; const start = Number(row.startIndex); const end = Number(row.endIndex); const rc = Number(row.returnToTank); if (end < start) return 'Un index final ne peut pas être inférieur à son index de départ.'; if (rc > end - start) return 'Un retour cuve dépasse la sortie du pistolet.'; }
     return '';
   }
   amountPaid(reading: any): number { return (reading.payments ?? []).reduce((sum: number, payment: any) => sum + Number(payment.amount ?? 0), 0); }
