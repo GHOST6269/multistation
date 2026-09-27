@@ -129,15 +129,16 @@ export class FuelSales implements OnInit {
     for (const reading of this.readings) {
       if (this.attendantPaymentFilter && Number(reading.attendantId ?? 0) !== Number(this.attendantPaymentFilter)) continue;
       const lines: { label?: string; type?: string; amount: number; date?: string }[] = reading.payments?.length ? reading.payments : [{ label: 'Aucun versement', amount: 0 }];
-      for (const payment of lines) { const date = payment.date || reading.date || ''; if ((this.attendantPaymentFrom && date < this.attendantPaymentFrom) || (this.attendantPaymentTo && date > this.attendantPaymentTo)) continue; rows.push({ id: `${reading.id}-${rows.length}`, readingId: reading.id, date, invoiceNumber: reading.invoiceNumber, nozzle: reading.nozzle, responsible: reading.responsible, method: payment.label || payment.type || 'Aucun versement', amount: Number(payment.amount || 0), gap: this.amountRemaining(reading) }); }
+      for (const payment of lines) { const date = payment.date || reading.date || ''; if ((this.attendantPaymentFrom && date < this.attendantPaymentFrom) || (this.attendantPaymentTo && date > this.attendantPaymentTo)) continue; rows.push({ id: `${reading.id}-${rows.length}`, readingId: reading.id, date, invoiceNumber: reading.invoiceNumber, nozzle: reading.nozzle, responsible: reading.responsible, method: payment.label || payment.type || 'Aucun versement', amount: Number(payment.amount || 0), gap: this.attendantGap(reading), customerAccountPayment: this.isCustomerAccountPayment(payment) }); }
     }
     return rows.sort((a, b) => String(b.date).localeCompare(String(a.date)));
   }
   get attendantPaymentGapTotal(): number { const gaps = new Map<number, number>(); for (const row of this.attendantPaymentRows) gaps.set(Number(row.readingId), row.gap); return [...gaps.values()].reduce((sum, gap) => sum + gap, 0); }
-  get attendantPaymentAmountTotal(): number { return this.attendantPaymentRows.reduce((sum, row) => sum + Number(row.amount || 0), 0); }
+  get attendantPaymentAmountTotal(): number { return this.attendantPaymentRows.filter(row => !row.customerAccountPayment).reduce((sum, row) => sum + Number(row.amount || 0), 0); }
   get settlementAttendantOptions(): DropdownOption[] { return this.readingAttendantOptions; }
-  get settlementReadings(): any[] { const attendantId = Number(this.settlementForm.value.attendantId || 0); const customerId = Number(this.settlementForm.value.customerId || 0); return this.readings.filter(row => attendantId && Number(row.attendantId ?? 0) === attendantId && (!customerId || !row.customerId || Number(row.customerId) === customerId) && this.canCollect(row)); }
-  get settlementTotalDue(): number { return this.settlementReadings.reduce((sum, row) => sum + this.amountRemaining(row), 0); }
+  get settlementReadings(): any[] { const attendantId = Number(this.settlementForm.value.attendantId || 0); const customerId = Number(this.settlementForm.value.customerId || 0); return this.readings.filter(row => attendantId && Number(row.attendantId ?? 0) === attendantId && (!customerId || !row.customerId || Number(row.customerId) === customerId) && (this.canCollect(row) || this.hasClientVoucher(row))); }
+  get collectibleSettlementReadings(): any[] { return this.settlementReadings.filter(row => this.canCollect(row)); }
+  get settlementTotalDue(): number { return this.collectibleSettlementReadings.reduce((sum, row) => sum + this.amountRemaining(row), 0); }
   settlementAttendantChanged() { this.selectedPaymentReading = null; this.payments.clear(); if (this.settlementForm.value.attendantId) this.addPayment(); }
   openSettlementModal() { this.error = ''; this.selectedPaymentReading = null; this.settlementForm.reset({ attendantId: 0, nozzleId: 0, customerId: 0 }); this.payments.clear(); this.paymentDate = new Date().toISOString().slice(0, 10); this.paymentOpen = true; }
   get filterNozzleOptions(): DropdownOption[] { return this.nozzles.filter(nozzle => !this.attendantFilter || Number(nozzle.attendantId) === Number(this.attendantFilter)).map(nozzle => ({ value: nozzle.id, label: `${nozzle.code} · ${nozzle.fuel ?? ''}`, hint: nozzle.tank ?? '' })); }
@@ -190,6 +191,11 @@ export class FuelSales implements OnInit {
     return '';
   }
   amountPaid(reading: any): number { return (reading.payments ?? []).reduce((sum: number, payment: any) => sum + Number(payment.amount ?? 0), 0); }
+  hasClientVoucher(reading: any): boolean { return (reading.payments ?? []).some((payment: any) => String(payment.type ?? '').toUpperCase() === 'CLIENT_VOUCHER'); }
+  isCustomerAccountPayment(payment: any): boolean { return payment.customerAccountPayment === true || String(payment.label ?? '').startsWith('Règlement client ·'); }
+  customerPaid(reading: any): number { return (reading.payments ?? []).filter((payment: any) => this.isCustomerAccountPayment(payment)).reduce((sum: number, payment: any) => sum + Number(payment.amount ?? 0), 0); }
+  attendantPaid(reading: any): number { return (reading.payments ?? []).filter((payment: any) => !this.isCustomerAccountPayment(payment)).reduce((sum: number, payment: any) => sum + Number(payment.amount ?? 0), 0); }
+  attendantGap(reading: any): number { return Math.max(0, Number(reading.totalAmount ?? 0) - this.attendantPaid(reading)); }
   amountRemaining(reading: any): number { return Math.max(0, Number(reading.totalAmount ?? 0) - this.amountPaid(reading)); }
   canCollect(reading: any): boolean { return !this.creditMode && reading.paymentStatus !== 'CUSTOMER_CREDIT' && this.amountRemaining(reading) > 0.01; }
   paymentState(reading: any): string { if (reading.paymentStatus === 'CUSTOMER_CREDIT') return 'Compte client'; const remaining = this.amountRemaining(reading); return remaining <= 0.01 ? 'Versé' : (this.amountPaid(reading) > 0 ? 'Partiel' : 'À verser'); }
@@ -204,7 +210,7 @@ export class FuelSales implements OnInit {
   }
   openPaymentHistory(reading: any) { this.selectedPaymentReading = reading; this.paymentHistoryOpen = true; }
   get priorPayments(): any[] { return this.selectedPaymentReading?.payments ?? []; }
-  paymentGap(reading: any): number { return Number(reading?.totalAmount ?? 0) - this.amountPaid(reading); }
+  paymentGap(reading: any): number { return Math.max(0, Number(reading?.totalAmount ?? 0) - this.amountPaid(reading)); }
   get paymentEntryAmount(): number { return this.paid; }
   get paymentEntryGap(): number { return this.settlementTotalDue - this.paymentEntryAmount; }
   savePaymentEntry() {

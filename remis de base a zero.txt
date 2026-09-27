@@ -1,0 +1,29 @@
+USE multistation;
+
+SET FOREIGN_KEY_CHECKS = 0;
+
+TRUNCATE TABLE customer_payment;
+TRUNCATE TABLE customer;
+TRUNCATE TABLE expense;
+TRUNCATE TABLE fuel_delivery;
+TRUNCATE TABLE fuel_shift_reading;
+TRUNCATE TABLE fuel_nozzle;
+TRUNCATE TABLE fuel_pump;
+TRUNCATE TABLE fuel_tank;
+TRUNCATE TABLE fuel_type;
+TRUNCATE TABLE pump_attendant;
+TRUNCATE TABLE supplier_payment;
+TRUNCATE TABLE supplier_invoice;
+TRUNCATE TABLE supplier;
+TRUNCATE TABLE shop_sale_items;
+TRUNCATE TABLE mouvement_stock;
+TRUNCATE TABLE station_article_units;
+TRUNCATE TABLE station_articles;
+TRUNCATE TABLE articles_units;
+TRUNCATE TABLE articles;
+TRUNCATE TABLE article_categorie;
+TRUNCATE TABLE units;
+TRUNCATE TABLE station_users;
+TRUNCATE TABLE messenger_messages;
+
+SET FOREIGN_KEY_CHECKS = 1;

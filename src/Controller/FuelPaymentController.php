@@ -236,6 +236,8 @@ final class FuelPaymentController extends AbstractController
         foreach ($readings as $reading) {
             $credit = count(array_filter($reading->getPayments(), static fn (array $line): bool => ($line['type'] ?? '') === 'CLIENT_VOUCHER')) > 0;
             $remaining = round((float) $reading->getTotalAmount() - array_sum(array_map(static fn (array $line): float => (float) ($line['amount'] ?? 0), $reading->getPayments())), 2);
+            // Customer-account sales belong to the customer ledger; never use the
+            // attendant's payment to settle them, even if a customer was selected.
             if (!$credit && $remaining > .01 && (!$customer || !$reading->getCustomer() || $reading->getCustomer()?->getId() === $customer->getId())) $due[] = ['reading' => $reading, 'remaining' => $remaining];
         }
         $lines = $data['payments'] ?? [];
