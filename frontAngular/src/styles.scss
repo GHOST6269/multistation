@@ -524,3 +524,29 @@ body {
   .operation-form input, .operation-form .money-input { min-height: 34px; }
   .operation-modal footer { padding: 9px 18px; }
 }
+/* Discreet scrollbars that match the blue-gray interface palette. */
+* {
+  scrollbar-color: #c8d7e3 transparent;
+  scrollbar-width: thin;
+}
+
+*::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: #c8d7e3;
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: #9fb6c9;
+  background-clip: padding-box;
+}

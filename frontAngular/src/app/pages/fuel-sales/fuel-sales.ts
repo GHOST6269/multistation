@@ -24,6 +24,7 @@ export class FuelSales implements OnInit {
   loading = true;
   modalOpen = false;
   paymentOpen = false;
+  settlementReadingsVisible = false;
   paymentHistoryOpen = false;
   attendantPaymentsOpen = false;
   attendantPaymentFilter = 0;
@@ -43,13 +44,21 @@ export class FuelSales implements OnInit {
   settlementView = false;
   form; customerForm; settlementForm;
   constructor(private articles: ArticleService, private fuel: FuelService, private customersApi: CustomerService, private fb: FormBuilder, private cdr: ChangeDetectorRef, public auth: AuthService, private readonly route: ActivatedRoute) {
-    this.form = fb.group({ date: [new Date().toISOString().slice(0, 10), Validators.required], attendantId: [0, Validators.min(1)], readings: fb.array([]) });
+    this.form = fb.group({ date: [new Date().toISOString().slice(0, 10), Validators.required], dueDate: [''], attendantId: [0, Validators.min(1)], customerId: [0], readings: fb.array([]) });
     this.settlementForm = fb.group({ attendantId: [0], nozzleId: [0], customerId: [0], payments: fb.array([]) });
     this.customerForm = fb.group({ code: [''], name: ['', Validators.required], contactPerson: [''], phone: [''] });
   }
   ngOnInit() {
     this.route.data.subscribe((data) => {
       this.creditMode = data['creditMode'] === true;
+      const customerControl = this.form.get('customerId');
+      if (this.creditMode) customerControl?.setValidators([Validators.required, Validators.min(1)]);
+      else customerControl?.clearValidators();
+      customerControl?.updateValueAndValidity();
+      const dueDateControl = this.form.get('dueDate');
+      if (this.creditMode) dueDateControl?.setValidators(Validators.required);
+      else dueDateControl?.clearValidators();
+      dueDateControl?.updateValueAndValidity();
       this.settlementView = data['settlementView'] === true;
       if (this.settlementView) this.paymentFilter = 'DUE';
       this.loadPaymentMethods();
@@ -139,8 +148,8 @@ export class FuelSales implements OnInit {
   get settlementReadings(): any[] { const attendantId = Number(this.settlementForm.value.attendantId || 0); const customerId = Number(this.settlementForm.value.customerId || 0); return this.readings.filter(row => attendantId && Number(row.attendantId ?? 0) === attendantId && (!customerId || !row.customerId || Number(row.customerId) === customerId) && (this.canCollect(row) || this.hasClientVoucher(row))); }
   get collectibleSettlementReadings(): any[] { return this.settlementReadings.filter(row => this.canCollect(row)); }
   get settlementTotalDue(): number { return this.collectibleSettlementReadings.reduce((sum, row) => sum + this.amountRemaining(row), 0); }
-  settlementAttendantChanged() { this.selectedPaymentReading = null; this.payments.clear(); if (this.settlementForm.value.attendantId) this.addPayment(); }
-  openSettlementModal() { this.error = ''; this.selectedPaymentReading = null; this.settlementForm.reset({ attendantId: 0, nozzleId: 0, customerId: 0 }); this.payments.clear(); this.paymentDate = new Date().toISOString().slice(0, 10); this.paymentOpen = true; }
+  settlementAttendantChanged() { this.selectedPaymentReading = null; this.settlementReadingsVisible = false; this.payments.clear(); if (this.settlementForm.value.attendantId) this.addPayment(); }
+  openSettlementModal() { this.error = ''; this.settlementReadingsVisible = false; this.selectedPaymentReading = null; this.settlementForm.reset({ attendantId: 0, nozzleId: 0, customerId: 0 }); this.payments.clear(); this.paymentDate = new Date().toISOString().slice(0, 10); this.paymentOpen = true; }
   get filterNozzleOptions(): DropdownOption[] { return this.nozzles.filter(nozzle => !this.attendantFilter || Number(nozzle.attendantId) === Number(this.attendantFilter)).map(nozzle => ({ value: nozzle.id, label: `${nozzle.code} · ${nozzle.fuel ?? ''}`, hint: nozzle.tank ?? '' })); }
   get assignedNozzles(): any[] { return this.nozzles.filter(nozzle => Number(nozzle.attendantId) === Number(this.form.value.attendantId)); }
   get readingRows(): FormArray { return this.form.get('readings') as FormArray; }
@@ -171,7 +180,7 @@ export class FuelSales implements OnInit {
     }));
   }
   removePayment(index: number) { if (this.payments.length > 1) this.payments.removeAt(index); }
-  openReading() { this.error = ''; this.form.reset({ date: new Date().toISOString().slice(0, 10), attendantId: 0 }); this.readingRows.clear(); this.modalOpen = true; }
+  openReading() { this.error = ''; this.form.reset({ date: new Date().toISOString().slice(0, 10), dueDate: '', attendantId: 0, customerId: 0 }); this.readingRows.clear(); this.modalOpen = true; }
   openQuickCustomer() { if (this.saving) return; this.customerForm.reset({ code: '', name: '', contactPerson: '', phone: '' }); this.quickCustomerOpen = true; }
   saveQuickCustomer() { if (this.customerForm.invalid || this.savingCustomer) { this.customerForm.markAllAsTouched(); return; } this.savingCustomer = true; this.customersApi.create({ ...this.customerForm.getRawValue(), stationId: this.stationId }).subscribe({ next: customer => { const option = { value: customer.id, label: customer.name, hint: customer.code ?? '' }; this.customers = [...this.customers, option]; this.settlementForm.patchValue({ customerId: customer.id }); this.savingCustomer = false; this.quickCustomerOpen = false; this.cdr.detectChanges(); }, error: error => { this.error = error.error?.message ?? 'Le client n’a pas pu être créé.'; this.savingCustomer = false; this.cdr.detectChanges(); } }); }
   save() {
@@ -180,7 +189,9 @@ export class FuelSales implements OnInit {
     if (this.form.invalid || this.readingRows.length === 0 || this.error) { this.form.markAllAsTouched(); return; }
     this.saving = true;
     const value = this.form.getRawValue();
-    this.fuel.createSimpleReading({ stationId: this.stationId, date: value.date, attendantId: value.attendantId, readings: value.readings }).subscribe({
+    const readings = value.readings.filter((row: any) => Number(row.endIndex) !== Number(row.startIndex));
+    if (!readings.length) { this.error = 'Aucun pistolet à enregistrer : les index départ et final sont identiques.'; this.saving = false; return; }
+    this.fuel.createSimpleReading({ stationId: this.stationId, date: value.date, dueDate: value.dueDate, attendantId: value.attendantId, customerId: value.customerId, creditMode: this.creditMode, readings }).subscribe({
       next: () => { this.saving = false; this.modalOpen = false; this.load(); },
       error: (e) => { this.error = e.error?.message ?? 'Le relevé n’a pas pu être enregistré.'; this.saving = false; this.cdr.detectChanges(); },
     });

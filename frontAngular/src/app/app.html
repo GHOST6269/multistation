@@ -69,6 +69,21 @@
         <span class="chevron">⌄</span>
       </div>
       <div class="top-actions">
+        <div class="notification-wrap">
+          <button type="button" class="notification-button" aria-label="Notifications" [attr.aria-expanded]="notificationsOpen" (click)="notificationsOpen = !notificationsOpen; notificationsOpen && loadNotifications()">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></svg>
+            @if (notifications.length) { <span>{{ notifications.length > 99 ? '99+' : notifications.length }}</span> }
+          </button>
+          @if (notificationsOpen) {
+            <section class="notification-panel"><header><strong>Notifications</strong><small>{{ filteredNotifications.length }} alerte(s)</small></header>
+              <label class="notification-filter">Filtrer par<select [value]="notificationFilter" (change)="setNotificationFilter($any($event.target).value)"><option value="ALL">Toutes les alertes</option><option value="tank">Cuves au seuil</option><option value="supplier">Paiements fournisseurs</option><option value="customer">Paiements clients</option></select></label>
+              @for (item of pagedNotifications; track $index) {
+                <a [routerLink]="item.route" (click)="notificationsOpen = false"><i [class.tank-alert]="item.type === 'tank'" [class.customer-alert]="item.type === 'customer'">{{ item.type === 'tank' ? '⛽' : item.type === 'customer' ? '♧' : '↗' }}</i><span><strong>{{ item.title }}</strong><small>{{ item.detail }}</small></span></a>
+              } @empty { <p>Aucune alerte pour ce filtre.</p> }
+              @if (filteredNotifications.length > notificationPageSize) { <footer class="notification-pagination"><span>Page {{ notificationPage }} / {{ notificationTotalPages }}</span><div><button type="button" [disabled]="notificationPage <= 1" (click)="notificationPage = notificationPage - 1">‹</button><button type="button" [disabled]="notificationPage >= notificationTotalPages" (click)="notificationPage = notificationPage + 1">›</button></div></footer> }
+            </section>
+          }
+        </div>
         <a class="user-name" routerLink="/profil">
           <strong>{{ user?.firstName || 'Utilisateur' }}</strong>
           <small>{{ user?.roleLabel || 'Session active' }}</small>

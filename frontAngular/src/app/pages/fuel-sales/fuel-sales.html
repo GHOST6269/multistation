@@ -123,6 +123,10 @@
       <div class="operation-form">
         <div class="operation-step-title"><span>01</span><strong>Index du pistolet</strong></div>
         <label>Date<input type="date" formControlName="date" /></label>
+        @if (creditMode) {
+          <label>Client *<app-dropdown formControlName="customerId" [options]="customers" [selectedTag]="'Client'" [emptyTag]="'Sélectionner un client'" [placeholder]="'Sélectionner un client'" /></label>
+          <label>Échéance de paiement *<input type="date" formControlName="dueDate" />@if(form.get('dueDate')?.touched && form.get('dueDate')?.invalid){<small class="field-error" role="alert">Veuillez saisir une date d’échéance.</small>}</label>
+        }
         <label>
           Pompiste
           <app-dropdown formControlName="attendantId" (valueChange)="attendantChanged()" [options]="readingAttendantOptions" [selectedTag]="'Pompiste'" [emptyTag]="'Sélectionner'" placeholder="Sélectionner" />
@@ -163,15 +167,13 @@
           <div class="settlement-step"><span>1</span><div><strong>Responsable</strong><small>Sélectionnez le pompiste</small></div><label>Pompiste<app-dropdown formControlName="attendantId" (valueChange)="settlementAttendantChanged()" [options]="settlementAttendantOptions" placeholder="Sélectionner" /></label></div>
         }
         @if (settlementForm.value.attendantId) {
-        <section class="reading-summary"><strong>Relevés du pompiste</strong><span>{{ settlementReadings.length }} relevé(s) affiché(s)</span><span>Total à verser : {{ money(settlementTotalDue) }} Ar</span></section>
-        @if (settlementReadings.length) {
-          <section class="settlement-reading-list"><h3>Relevés et bons clients</h3>
+        <section class="reading-summary"><strong>Relevés du pompiste</strong><span>{{ settlementReadings.length }} relevé(s)</span><span>Total à verser : {{ money(settlementTotalDue) }} Ar</span><button type="button" class="show-settlement-readings" [attr.aria-expanded]="settlementReadingsVisible" (click)="settlementReadingsVisible = !settlementReadingsVisible">{{ settlementReadingsVisible ? 'Masquer les relevés' : 'Voir les relevés' }}</button></section>
+        @if (settlementReadingsVisible) {
+          <section class="settlement-reading-list"><h3>Relevés du pompiste</h3>
             @for (reading of settlementReadings; track reading.id) {
-              <article><div><strong>{{ reading.invoiceNumber || ('Relevé #' + reading.id) }}</strong><small>{{ reading.date | date:'dd/MM/yyyy' }} · {{ reading.nozzle }} · {{ reading.customerName || 'Vente comptant' }}</small></div>
-                @if (hasClientVoucher(reading)) { <div class="settlement-reading-state"><strong>Bon client · {{ attendantGap(reading) <= 0.01 ? 'Soldé' : 'Compte client' }}</strong><small>Payé par le client : {{ money(customerPaid(reading)) }} Ar</small>@if (attendantGap(reading) > 0.01) { <small>Reste au compte client : {{ money(attendantGap(reading)) }} Ar</small> }</div> }
-                @else { <div class="settlement-reading-state"><strong>À verser au pompiste : {{ money(amountRemaining(reading)) }} Ar</strong><small>Déjà versé : {{ money(attendantPaid(reading)) }} Ar</small></div> }
-              </article>
+              <article><div><strong>{{ reading.invoiceNumber || ('Relevé #' + reading.id) }}</strong><small>{{ reading.date | date:'dd/MM/yyyy' }} · {{ reading.nozzle }} · {{ reading.customerName || 'Vente comptant' }}</small></div><div class="settlement-reading-state"><strong>{{ hasClientVoucher(reading) ? 'Compte client' : 'À verser au pompiste' }}</strong><small>Montant : {{ money(reading.totalAmount) }} Ar</small><small>Reste : {{ money(hasClientVoucher(reading) ? attendantGap(reading) : amountRemaining(reading)) }} Ar</small></div></article>
             }
+            @if (!settlementReadings.length) { <p class="settlement-later-note">Aucun relevé à afficher.</p> }
           </section>
         }
         <label>Client (facultatif)<span class="customer-choice"><app-dropdown formControlName="customerId" [options]="customers" [selectedTag]="'Client'" [emptyTag]="'Aucun client'" [placeholder]="'Client'" />@if (auth.hasAnyRole(['ROLE_GERANT'])) { <button type="button" [disabled]="saving" (click)="openQuickCustomer()">＋ Nouveau</button> }</span></label>

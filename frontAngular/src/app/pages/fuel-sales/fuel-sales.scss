@@ -1,4 +1,15 @@
 :host { display: block; }
+.field-error{color:#c33b3b;font-size:10px;font-weight:700}
+.show-settlement-readings{margin-left:auto;padding:7px 11px;border:1px solid #cfe1ef;border-radius:8px;background:#fff;color:#347fb8;font-size:10px;font-weight:800;cursor:pointer}
+.settlement-entry-card .settlement-reading-list{grid-column:1/-1;display:grid;gap:9px;padding:14px;border:1px solid #dce9f3;border-radius:12px;background:#f8fbfe}
+.settlement-entry-card .settlement-reading-list h3{margin:0 0 2px;color:#284a66;font-size:12px}
+.settlement-entry-card .settlement-reading-list article{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:12px 14px;border:1px solid #e1ebf3;border-radius:10px;background:#fff}
+.settlement-entry-card .settlement-reading-list article>div:first-child,.settlement-entry-card .settlement-reading-state{display:grid;gap:5px}
+.settlement-entry-card .settlement-reading-list article>div:first-child strong{color:#294a65;font-size:11px}
+.settlement-entry-card .settlement-reading-list article small{color:#8095a7;font-size:9px}
+.settlement-entry-card .settlement-reading-state{text-align:right}
+.settlement-entry-card .settlement-reading-state strong{color:#347fb8;font-size:10px}
+@media(max-width:620px){.settlement-entry-card .settlement-reading-list article{align-items:flex-start;flex-direction:column;gap:9px}.settlement-entry-card .settlement-reading-state{text-align:left}}
 .payment-lines { grid-column: 1 / -1; display: grid; gap: 10px; padding: 14px; border: 1px solid #d9e9f6; border-radius: 11px; background: #f8fbfe; }
 .payment-lines > div { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) auto; gap: 10px; align-items: end; padding-bottom: 10px; border-bottom: 1px solid #e5eef5; }
 .payment-lines > div label { min-width: 0; }

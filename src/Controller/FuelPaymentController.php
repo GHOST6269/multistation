@@ -118,14 +118,21 @@ final class FuelPaymentController extends AbstractController
             $em->getConnection()->beginTransaction();
             foreach ($data['readings'] as $line) {
                 if (!is_array($line)) { $em->getConnection()->rollBack(); return $this->json(['message' => 'Relevé de pistolet invalide'], 422); }
+                if ((float) ($line['endIndex'] ?? 0) === (float) ($line['startIndex'] ?? 0)) continue;
                 $line['stationId'] = $data['stationId'] ?? 0;
                 $line['attendantId'] = $data['attendantId'] ?? 0;
                 $line['date'] = $data['date'] ?? 'today';
+                if (!empty($data['creditMode'])) {
+                    $line['customerId'] = $data['customerId'] ?? 0;
+                    $line['creditMode'] = true;
+                    $line['dueDate'] = $data['dueDate'] ?? '';
+                }
                 $subRequest = Request::create('/api/fuel/simple-readings', 'POST', [], [], [], ['CONTENT_TYPE' => 'application/json'], json_encode($line));
                 $response = $this->createReading($subRequest, $em, $access);
                 if ($response->getStatusCode() >= 400) { $em->getConnection()->rollBack(); return $response; }
                 $results[] = json_decode((string) $response->getContent(), true);
             }
+            if (!$results) { $em->getConnection()->rollBack(); return $this->json(['message' => 'Aucun pistolet à enregistrer : les index départ et final sont identiques.'], 422); }
             $em->getConnection()->commit();
             return $this->json(['readings' => $results], 201);
         }
@@ -135,10 +142,13 @@ final class FuelPaymentController extends AbstractController
         $attendant = $attendantId ? $em->getRepository(PumpAttendant::class)->find($attendantId) : $nozzle?->getAttendant();
         $customerId = (int) ($data['customerId'] ?? 0);
         $customer = $customerId ? $em->getRepository(Customer::class)->find($customerId) : null;
+        if (!empty($data['creditMode']) && !$customerId) return $this->json(['message' => 'Le client est obligatoire pour un relevé client.'], 422);
+        if (!empty($data['creditMode']) && empty($data['dueDate'])) return $this->json(['message' => 'La date d’échéance est obligatoire pour un relevé client.'], 422);
         if ($station && !$access->canAccessStation($station)) return $access->denyStation();
         if (!$station || !$nozzle || $nozzle->getPump()?->getStation()?->getId() !== $station->getId() || !$attendant || !$attendant->isActive() || $attendant->getStation()?->getId() !== $station->getId() || $nozzle->getAttendant()?->getId() !== $attendant->getId()) return $this->json(['message' => 'Le pistolet doit être attribué au pompiste sélectionné'], 422);
         if ($customerId && (!$customer || !$customer->isActive() || $customer->getStation()?->getId() !== $station->getId())) return $this->json(['message' => 'Client invalide'], 422);
         $start = (float) ($data['startIndex'] ?? 0); $end = (float) ($data['endIndex'] ?? 0);
+        if ($end === $start) return $this->json(['message' => 'Les index départ et final sont identiques : aucun relevé à enregistrer.'], 422);
         $rc = max(0, (float) ($data['returnToTank'] ?? 0)); $output = $end - $start; $sold = $output - $rc;
         $price = (float) $nozzle->getUnitPrice();
         if ($access->canEditFuelUnitPrice() && array_key_exists('unitPrice', $data)) $price = max(0, (float) $data['unitPrice']);
@@ -174,7 +184,7 @@ final class FuelPaymentController extends AbstractController
         }
         $tank = $nozzle->getTank();
         if ((float) $tank->getCurrentStock() < $sold) return $this->json(['message' => 'Stock cuve insuffisant'], 422);
-        $reading = (new FuelShiftReading())->setStation($station)->setNozzle($nozzle)->setAttendant($attendant)->setCustomer($customer)->setWorkDate(new \DateTimeImmutable($data['date'] ?? 'today'))->setStartIndex((string) $start)->setEndIndex((string) $end)->setReturnToTank((string) $rc)->setQuantitySold((string) $sold)->setUnitPrice((string) $price)->setTotalAmount((string) $total)->setPayments($payment)->setStatus($creditSale ? 'CUSTOMER_CREDIT' : ($payment ? 'CLOSED' : 'PENDING'))->setCreatedAt(new \DateTimeImmutable());
+        $reading = (new FuelShiftReading())->setStation($station)->setNozzle($nozzle)->setAttendant($attendant)->setCustomer($customer)->setDueDate(!empty($data['dueDate']) ? new \DateTimeImmutable($data['dueDate']) : null)->setWorkDate(new \DateTimeImmutable($data['date'] ?? 'today'))->setStartIndex((string) $start)->setEndIndex((string) $end)->setReturnToTank((string) $rc)->setQuantitySold((string) $sold)->setUnitPrice((string) $price)->setTotalAmount((string) $total)->setPayments($payment)->setStatus($creditSale ? 'CUSTOMER_CREDIT' : ($payment ? 'CLOSED' : 'PENDING'))->setCreatedAt(new \DateTimeImmutable());
         $nozzle->setCurrentIndex((string) $end); $tank->setCurrentStock((string) ((float) $tank->getCurrentStock() - $sold));
         $em->persist($reading); $em->flush();
         $reading->setInvoiceNumber('F-'.(new \DateTimeImmutable())->format('Y').'-'.$reading->getId());
