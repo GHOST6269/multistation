@@ -15,6 +15,7 @@ export class FuelConfig implements OnInit {
   stationId = 0;
   data: any;
   tab = 'fuel';
+  paymentStatusFilter: 'ACTIVE' | 'INACTIVE' | 'ALL' = 'ACTIVE';
   editing: any = null;
   assignmentTarget: any = null;
   nozzleAssignmentTarget: any = null;
@@ -46,6 +47,7 @@ export class FuelConfig implements OnInit {
       contact: [''],
       allowedRoles: fb.nonNullable.control<string[]>([]),
       supplierDeduction: [false],
+      isCredit: [false],
     });
   }
   ngOnInit() {
@@ -61,7 +63,7 @@ export class FuelConfig implements OnInit {
       this.data = { ...x, paymentMethods: this.data?.paymentMethods ?? [] };
       this.cdr.detectChanges();
     });
-    if (this.auth.hasAnyRole(['ROLE_GERANT'])) this.service.paymentMethods(this.stationId, true).subscribe((x) => {
+    if (this.auth.hasAnyRole(['ROLE_GERANT'])) this.service.paymentMethods(this.stationId, true, 'all').subscribe((x) => {
       this.data = { ...(this.data ?? {}), paymentMethods: x.methods ?? [] };
       this.cdr.detectChanges();
     });
@@ -69,9 +71,15 @@ export class FuelConfig implements OnInit {
   get items() {
     return this.tab === 'payment' ? this.data?.paymentMethods ?? [] : this.data?.[`${this.tab}s`] ?? [];
   }
-  get totalPages() { return Math.max(1, Math.ceil(this.items.length / this.pageSize)); }
+  get filteredItems() {
+    if (this.tab !== 'payment' || this.paymentStatusFilter === 'ALL') return this.items;
+    const active = this.paymentStatusFilter === 'ACTIVE';
+    return this.items.filter((item: any) => Boolean(item.active) === active);
+  }
+  get paymentStatusOptions(): DropdownOption[] { return [{ value: 'ACTIVE', label: 'Actifs' }, { value: 'INACTIVE', label: 'Désactivés' }, { value: 'ALL', label: 'Tous' }]; }
+  get totalPages() { return Math.max(1, Math.ceil(this.filteredItems.length / this.pageSize)); }
   get pages() { return Array.from({ length: this.totalPages }, (_, index) => index + 1); }
-  get pagedItems() { const page = Math.min(this.page, this.totalPages); return this.items.slice((page - 1) * this.pageSize, page * this.pageSize); }
+  get pagedItems() { const page = Math.min(this.page, this.totalPages); return this.filteredItems.slice((page - 1) * this.pageSize, page * this.pageSize); }
   options(items: any[]): DropdownOption[] {
     return (items ?? [])
       .filter((x) => x.active)
@@ -165,6 +173,7 @@ export class FuelConfig implements OnInit {
       contact: x.contact ?? '',
       allowedRoles: x.allowedRoles ?? [],
       supplierDeduction: x.supplierDeduction ?? false,
+      isCredit: Boolean(x.isCredit) || String(x.code ?? '').toUpperCase() === 'CLIENT_VOUCHER',
     });
   }
   changeTab(tab: string) {
@@ -177,7 +186,7 @@ export class FuelConfig implements OnInit {
   openCreate() {
     if (this.saving) return;
     this.editing = null;
-    this.form.reset({ code: '', name: '', fuelTypeId: 0, capacity: 0, minimumStock: 0, pumpId: 0, tankId: 0, attendantId: 0, nozzleIds: [], currentIndex: 0, unitPrice: 0, contact: '', allowedRoles: ['ROLE_GERANT'], supplierDeduction: false });
+    this.form.reset({ code: '', name: '', fuelTypeId: 0, capacity: 0, minimumStock: 0, pumpId: 0, tankId: 0, attendantId: 0, nozzleIds: [], currentIndex: 0, unitPrice: 0, contact: '', allowedRoles: ['ROLE_GERANT'], supplierDeduction: false, isCredit: false });
     this.formOpen = true;
   }
   closeForm() {
@@ -208,6 +217,11 @@ export class FuelConfig implements OnInit {
   deactivate(x: any) {
     if (confirm(`Désactiver ${x.name || x.code} ?`))
       (this.tab === 'payment' ? this.service.deactivatePaymentMethod(x.id) : this.service.deactivate(this.tab, x.id)).subscribe(() => this.load());
+  }
+  activatePaymentMethod(x: any) {
+    if (this.saving) return;
+    this.saving = true;
+    this.service.activatePaymentMethod(x.id).subscribe({ next: () => { this.saving = false; this.load(); }, error: () => { this.saving = false; this.cdr.detectChanges(); } });
   }
 
   readonly paymentRoles = [

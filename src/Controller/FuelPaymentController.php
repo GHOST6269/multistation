@@ -27,13 +27,8 @@ final class FuelPaymentController extends AbstractController
     public static function filterMethodsForMode(array $methods, string $mode): array
     {
         $mode = strtolower($mode);
-        $codes = array_values(array_filter(array_map(static fn (array $method): ?string => ($method['code'] ?? '') ?: null, $methods), static fn (?string $code): bool => $code !== null));
-
-        if ($mode === 'credit') {
-            return array_values(array_filter($codes, static fn (string $code): bool => $code === 'CLIENT_VOUCHER'));
-        }
-
-        return array_values(array_filter($codes, static fn (string $code): bool => !in_array($code, ['CLIENT_VOUCHER'], true)));
+        if ($mode === 'all') return $methods;
+        return array_values(array_filter($methods, static fn (array $method): bool => (bool) ($method['isCredit'] ?? false) === ($mode === 'credit')));
     }
 
     #[Route('/payment-methods', methods: ['GET'])]
@@ -47,7 +42,7 @@ final class FuelPaymentController extends AbstractController
         if (!$items) {
             foreach (self::DEFAULT_METHODS as $code => $name) {
                 $roles = $code === 'CASH' ? [UserAccessService::ROLE_GERANT, UserAccessService::ROLE_ASSISTANT] : [UserAccessService::ROLE_GERANT];
-                $item = (new FuelPaymentMethod())->setStation($station)->setCode($code)->setName($name)->setAllowedRoles($roles)->setSupplierDeduction(in_array($code, ['FANILO', 'TPE', 'VISA', 'FMS'], true))->setCreatedAt(new \DateTimeImmutable());
+                $item = (new FuelPaymentMethod())->setStation($station)->setCode($code)->setName($name)->setAllowedRoles($roles)->setSupplierDeduction(in_array($code, ['FANILO', 'TPE', 'VISA', 'FMS'], true))->setIsCredit($code === 'CLIENT_VOUCHER')->setCreatedAt(new \DateTimeImmutable());
                 $em->persist($item);
                 $items[] = $item;
             }
@@ -58,7 +53,7 @@ final class FuelPaymentController extends AbstractController
         if ($manage && !$access->isSuperAdmin() && !$access->canEditFuelUnitPrice()) return $this->json(['message' => 'Accès refusé pour ce rôle.'], 403);
         if (!$manage) $items = array_values(array_filter($items, fn(FuelPaymentMethod $item) => $this->canUseMethod($item, $access)));
         $methods = array_map(fn(FuelPaymentMethod $x) => $this->methodRow($x), $items);
-        $methods = self::filterMethodsForMode($methods, $mode) === [] ? $methods : array_values(array_filter($methods, fn(array $method): bool => in_array((string) ($method['code'] ?? ''), self::filterMethodsForMode($methods, $mode), true)));
+        if ($mode !== 'all') $methods = self::filterMethodsForMode($methods, $mode);
         return $this->json(['methods' => $methods]);
     }
 
@@ -80,6 +75,7 @@ final class FuelPaymentController extends AbstractController
             ->setName($name)
             ->setAllowedRoles($this->allowedRoles($data))
             ->setSupplierDeduction((bool) ($data['supplierDeduction'] ?? false))
+            ->setIsCredit((bool) ($data['isCredit'] ?? false))
             ->setCreatedAt(new \DateTimeImmutable());
         $em->persist($item); $em->flush();
         return $this->json($this->methodRow($item), 201);
@@ -92,8 +88,17 @@ final class FuelPaymentController extends AbstractController
         if (!$access->canAccessStation($method->getStation())) return $access->denyStation();
         $data = $request->toArray(); $name = trim((string) ($data['name'] ?? ''));
         if ($name === '') return $this->json(['message' => 'Libellé obligatoire'], 422);
-        $method->setName($name)->setAllowedRoles($this->allowedRoles($data))->setSupplierDeduction((bool) ($data['supplierDeduction'] ?? false));
+        $method->setName($name)->setAllowedRoles($this->allowedRoles($data))->setSupplierDeduction((bool) ($data['supplierDeduction'] ?? false))->setIsCredit((bool) ($data['isCredit'] ?? false));
         $em->flush(); return $this->json($this->methodRow($method));
+    }
+
+    #[Route('/payment-methods/{id}/activate', methods: ['PATCH'])]
+    public function activateMethod(FuelPaymentMethod $method, EntityManagerInterface $em, UserAccessService $access): JsonResponse
+    {
+        if ($denied = $access->require(UserAccessService::ROLE_GERANT)) return $denied;
+        if (!$access->canAccessStation($method->getStation())) return $access->denyStation();
+        $method->setIsActive(true); $em->flush();
+        return $this->json($this->methodRow($method));
     }
 
     #[Route('/payment-methods/{id}/deactivate', methods: ['PATCH'])]
@@ -165,10 +170,10 @@ final class FuelPaymentController extends AbstractController
                 $method = $em->getRepository(FuelPaymentMethod::class)->find((int) ($line['paymentMethodId'] ?? 0));
                 $amount = max(0, (float) ($line['amount'] ?? 0));
                 if (!$method || !$method->isActive() || !$this->canUseMethod($method, $access) || $method->getStation()?->getId() !== $station->getId()) return $this->json(['message' => 'Mode de paiement non autorisé'], 422);
-                if ($customer !== null && $method->getCode() !== 'CLIENT_VOUCHER') return $this->json(['message' => 'En mode crédit, seul le bon client est autorisé.'], 422);
-                $paymentEntry = ['type' => $method->getCode(), 'methodId' => $method->getId(), 'label' => $method->getName(), 'supplierDeduction' => $method->isSupplierDeduction(), 'amount' => $amount, 'reference' => trim((string) ($line['reference'] ?? '')) ?: null, 'performedBy' => trim(($access->currentUser()?->getFirstName() ?? '').' '.($access->currentUser()?->getLastName() ?? '')) ?: null];
+                if ($customer !== null && !$method->isCredit()) return $this->json(['message' => 'En mode crédit, seul un paiement à crédit est autorisé.'], 422);
+                $paymentEntry = ['type' => $method->getCode(), 'methodId' => $method->getId(), 'label' => $method->getName(), 'supplierDeduction' => $method->isSupplierDeduction(), 'isCredit' => $method->isCredit(), 'amount' => $amount, 'reference' => trim((string) ($line['reference'] ?? '')) ?: null, 'performedBy' => trim(($access->currentUser()?->getFirstName() ?? '').' '.($access->currentUser()?->getLastName() ?? '')) ?: null];
                 if ($amount <= 0) {
-                    if ($customer !== null && $method->getCode() === 'CLIENT_VOUCHER') $payment[] = $paymentEntry;
+                    if ($customer !== null && $method->isCredit()) $payment[] = $paymentEntry;
                     continue;
                 }
                 $paid += $amount;
@@ -176,7 +181,7 @@ final class FuelPaymentController extends AbstractController
             }
         }
         $creditSale = $customer !== null && (bool) ($data['creditMode'] ?? false);
-        if ($creditSale && !$payment) $payment[] = ['type' => 'CLIENT_VOUCHER', 'label' => 'Compte client', 'supplierDeduction' => false, 'amount' => 0];
+        if ($creditSale && !$payment) $payment[] = ['type' => 'CLIENT_VOUCHER', 'label' => 'Compte client', 'supplierDeduction' => false, 'isCredit' => true, 'amount' => 0];
         if ($creditSale) {
             if ($paid > $total + .01) return $this->json(['message' => sprintf('Le paiement ne peut pas dépasser %.2f Ar', $total)], 422);
         } elseif ($paid > 0 && abs($paid - $total) > .01) {
@@ -199,7 +204,7 @@ final class FuelPaymentController extends AbstractController
         $reading = $em->getRepository(FuelShiftReading::class)->find($id);
         if (!$reading) return $this->json(['message' => 'Relevé introuvable'], 404);
         if (!$access->canAccessStation($reading->getStation())) return $access->denyStation();
-        $isCustomerCredit = count(array_filter($reading->getPayments(), static fn (array $line): bool => ($line['type'] ?? '') === 'CLIENT_VOUCHER')) > 0;
+        $isCustomerCredit = count(array_filter($reading->getPayments(), static fn (array $line): bool => !empty($line['isCredit']) || ($line['type'] ?? '') === 'CLIENT_VOUCHER')) > 0;
         if ($reading->getCustomer() && $isCustomerCredit) {
             return $this->json(['message' => 'Ce relevé est sur le compte client. Enregistrez le règlement dans le compte client.'], 422);
         }
@@ -207,6 +212,13 @@ final class FuelPaymentController extends AbstractController
         $data = $request->toArray();
         $lines = $data['payments'] ?? null;
         if (!is_array($lines) || !$lines) return $this->json(['message' => 'Ajoutez au moins un versement'], 422);
+        $customer = $reading->getCustomer();
+        if (!empty($data['customerId'])) {
+            $selectedCustomer = $em->getRepository(Customer::class)->find((int) $data['customerId']);
+            if (!$selectedCustomer || !$selectedCustomer->isActive() || $selectedCustomer->getStation()?->getId() !== $reading->getStation()?->getId()) return $this->json(['message' => 'Client invalide'], 422);
+            if ($customer && $customer->getId() !== $selectedCustomer->getId()) return $this->json(['message' => 'Ce relevé est déjà associé à un autre client.'], 422);
+            $customer = $selectedCustomer;
+        }
         $existing = $reading->getPayments();
         $alreadyPaid = array_sum(array_map(static fn (array $line): float => (float) ($line['amount'] ?? 0), $existing));
         $remaining = round((float) $reading->getTotalAmount() - $alreadyPaid, 2);
@@ -218,13 +230,15 @@ final class FuelPaymentController extends AbstractController
             $method = $em->getRepository(FuelPaymentMethod::class)->find((int) ($line['paymentMethodId'] ?? 0));
             $amount = round((float) ($line['amount'] ?? 0), 2);
             if (!$method || !$method->isActive() || !$this->canUseMethod($method, $access) || $method->getStation()?->getId() !== $reading->getStation()?->getId()) return $this->json(['message' => 'Mode de paiement non autorisé'], 422);
+            if ($method->isCredit() && !$customer) return $this->json(['message' => 'Le client est obligatoire pour un paiement à crédit.'], 422);
             if ($amount <= 0) return $this->json(['message' => 'Le montant de chaque versement doit être positif'], 422);
             $newAmount += $amount;
-            $newLines[] = ['type' => $method->getCode(), 'methodId' => $method->getId(), 'label' => $method->getName(), 'supplierDeduction' => $method->isSupplierDeduction(), 'amount' => $amount, 'reference' => trim((string) ($line['reference'] ?? '')) ?: null, 'performedBy' => $paidBy, 'date' => $date->format('Y-m-d')];
+            $newLines[] = ['type' => $method->getCode(), 'methodId' => $method->getId(), 'label' => $method->getName(), 'supplierDeduction' => $method->isSupplierDeduction(), 'isCredit' => $method->isCredit(), 'customerId' => $method->isCredit() ? $customer?->getId() : null, 'customerName' => $method->isCredit() ? $customer?->getName() : null, 'amount' => $amount, 'reference' => trim((string) ($line['reference'] ?? '')) ?: null, 'performedBy' => $paidBy, 'date' => $date->format('Y-m-d')];
         }
         if ($newAmount > $remaining + .01) return $this->json(['message' => sprintf('Le versement dépasse le reste dû de %.2f Ar', $remaining)], 422);
         $allPayments = array_merge($existing, $newLines);
         $totalPaid = $alreadyPaid + $newAmount;
+        if (array_filter($newLines, static fn (array $line): bool => !empty($line['isCredit']))) $reading->setCustomer($customer);
         $reading->setPayments($allPayments)->setStatus($totalPaid >= (float) $reading->getTotalAmount() - .01 ? 'CLOSED' : 'PARTIAL');
         $em->flush();
         return $this->json(['id' => $reading->getId(), 'paid' => round($totalPaid, 2), 'remaining' => max(0, round((float) $reading->getTotalAmount() - $totalPaid, 2)), 'status' => $reading->getStatus()]);
@@ -244,11 +258,11 @@ final class FuelPaymentController extends AbstractController
         $readings = $em->getRepository(FuelShiftReading::class)->findBy(['station' => $station, 'attendant' => $attendant], ['workDate' => 'ASC', 'id' => 'ASC']);
         $due = [];
         foreach ($readings as $reading) {
-            $credit = count(array_filter($reading->getPayments(), static fn (array $line): bool => ($line['type'] ?? '') === 'CLIENT_VOUCHER')) > 0;
+            $credit = count(array_filter($reading->getPayments(), static fn (array $line): bool => !empty($line['isCredit']) || ($line['type'] ?? '') === 'CLIENT_VOUCHER')) > 0;
             $remaining = round((float) $reading->getTotalAmount() - array_sum(array_map(static fn (array $line): float => (float) ($line['amount'] ?? 0), $reading->getPayments())), 2);
             // Customer-account sales belong to the customer ledger; never use the
             // attendant's payment to settle them, even if a customer was selected.
-            if (!$credit && $remaining > .01 && (!$customer || !$reading->getCustomer() || $reading->getCustomer()?->getId() === $customer->getId())) $due[] = ['reading' => $reading, 'remaining' => $remaining];
+            if (!$credit && $remaining > .01) $due[] = ['reading' => $reading, 'remaining' => $remaining];
         }
         $lines = $data['payments'] ?? [];
         if (!is_array($lines) || !$lines) return $this->json(['message' => 'Ajoutez au moins un mode de paiement'], 422);
@@ -257,25 +271,38 @@ final class FuelPaymentController extends AbstractController
             $method = is_array($line) ? $em->getRepository(FuelPaymentMethod::class)->find((int) ($line['paymentMethodId'] ?? 0)) : null;
             $amount = round((float) ($line['amount'] ?? 0), 2);
             if (!$method || !$method->isActive() || !$this->canUseMethod($method, $access) || $method->getStation()?->getId() !== $station->getId() || $amount <= 0) return $this->json(['message' => 'Mode ou montant de versement invalide'], 422);
-            $validLines[] = [$method, $amount, trim((string) ($line['reference'] ?? '')) ?: null]; $total += $amount;
+            $lineCustomer = null;
+            if ($method->isCredit()) {
+                $lineCustomerId = (int) ($line['customerId'] ?? $data['customerId'] ?? 0);
+                $lineCustomer = $lineCustomerId ? $em->getRepository(Customer::class)->find($lineCustomerId) : null;
+                if (!$lineCustomer || !$lineCustomer->isActive() || $lineCustomer->getStation()?->getId() !== $station->getId()) return $this->json(['message' => 'Le client est obligatoire pour chaque paiement par bons clients.'], 422);
+            }
+            $validLines[] = [$method, $amount, trim((string) ($line['reference'] ?? '')) ?: null, $lineCustomer]; $total += $amount;
         }
         $available = array_sum(array_column($due, 'remaining'));
         if ($total > $available + .01) return $this->json(['message' => sprintf('Le versement dépasse le total restant dû de %.2f Ar', $available)], 422);
         $paidBy = trim(($access->currentUser()?->getFirstName() ?? '').' '.($access->currentUser()?->getLastName() ?? '')) ?: null;
-        foreach ($validLines as [$method, $amount, $reference]) {
+        foreach ($validLines as [$method, $amount, $reference, $lineCustomer]) {
             $left = $amount;
             foreach ($due as &$item) {
                 if ($left <= .001) break;
                 $part = min($left, $item['remaining']);
                 if ($part <= 0) continue;
                 $reading = $item['reading']; $payments = $reading->getPayments();
-                $payments[] = ['type' => $method->getCode(), 'methodId' => $method->getId(), 'label' => $method->getName(), 'supplierDeduction' => $method->isSupplierDeduction(), 'amount' => round($part, 2), 'reference' => $reference, 'performedBy' => $paidBy, 'date' => $date->format('Y-m-d')];
+                $isVoucher = $method->isCredit();
+                if ($isVoucher && $reading->getCustomer() && $reading->getCustomer()?->getId() !== $lineCustomer?->getId()) continue;
+                $payments[] = ['type' => $method->getCode(), 'methodId' => $method->getId(), 'label' => $method->getName(), 'supplierDeduction' => $method->isSupplierDeduction(), 'isCredit' => $method->isCredit(), 'amount' => round($part, 2), 'reference' => $reference, 'performedBy' => $paidBy, 'date' => $date->format('Y-m-d')];
                 $item['remaining'] = round($item['remaining'] - $part, 2); $left = round($left - $part, 2);
                 $paid = array_sum(array_map(static fn (array $line): float => (float) ($line['amount'] ?? 0), $payments));
-                if ($customer && !$reading->getCustomer()) $reading->setCustomer($customer);
+                if ($isVoucher) {
+                    $payments[array_key_last($payments)]['customerId'] = $lineCustomer?->getId();
+                    $payments[array_key_last($payments)]['customerName'] = $lineCustomer?->getName();
+                    if (!$reading->getCustomer()) $reading->setCustomer($lineCustomer);
+                }
                 $reading->setPayments($payments)->setStatus($paid >= (float) $reading->getTotalAmount() - .01 ? 'CLOSED' : 'PARTIAL');
             }
             unset($item);
+            if ($left > .01) return $this->json(['message' => 'Le montant du paiement dépasse le solde disponible pour le client sélectionné.'], 422);
         }
         $em->flush();
         return $this->json(['paid' => round($total, 2), 'remaining' => max(0, round($available - $total, 2))]);
@@ -295,7 +322,7 @@ final class FuelPaymentController extends AbstractController
 
     private function methodRow(FuelPaymentMethod $method): array
     {
-        return ['id' => $method->getId(), 'code' => $method->getCode(), 'name' => $method->getName(), 'active' => $method->isActive(), 'supplierDeduction' => $method->isSupplierDeduction(), 'allowedRoles' => $method->getAllowedRoles()];
+        return ['id' => $method->getId(), 'code' => $method->getCode(), 'name' => $method->getName(), 'active' => $method->isActive(), 'supplierDeduction' => $method->isSupplierDeduction(), 'isCredit' => $method->isCredit(), 'allowedRoles' => $method->getAllowedRoles()];
     }
 
     private function allowedRoles(array $data): array

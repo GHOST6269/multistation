@@ -57,13 +57,13 @@
           <tr>
             <th>DATE</th>
             <th>N° FACTURE</th>
-            <th>CLIENT</th>
             <th>POMPISTE</th>
             <th>CARBURANT</th>
             <th>INDEX DÉPART</th>
             <th>INDEX FINAL</th>
             <th>VOLUME VENDU</th>
             <th>MONTANT</th>
+            <th>VERSEMENTS</th>
             <th>DÉTAIL</th>
           </tr>
         </thead>
@@ -72,7 +72,6 @@
             <tr class="history-row" (click)="openPaymentHistory(row)" title="Afficher l’historique des versements">
               <td>{{ row.date | date: 'dd/MM/yyyy' }}</td>
               <td>{{ row.invoiceNumber || '—' }}</td>
-              <td><strong>{{ row.customerName || '—' }}</strong></td>
               <td>
                 <strong>{{ row.responsible }}</strong>
               </td>
@@ -85,6 +84,7 @@
                 <strong>{{ row.quantitySold | number: '1.3-3' }} L</strong>
               </td>
               <td class="amount">{{ money(row.totalAmount) }} Ar</td>
+              <td class="amount">{{ money(amountPaid(row)) }} Ar</td>
               <td><span class="history-hint">Voir le détail →</span></td>
             </tr>
           } @empty {
@@ -161,7 +161,7 @@
 @if (paymentOpen) {
   <div class="operation-modal" (click)="!saving && (paymentOpen = false)">
     <form class="settlement-entry-card" [formGroup]="settlementForm" (ngSubmit)="savePaymentEntry()" (click)="$event.stopPropagation()">
-      <header class="settlement-entry-header"><div><p>ENCAISSEMENT CARBURANT</p><h2>Nouveau versement</h2><span>Choisissez le pompiste, puis le client à rattacher au versement si nécessaire.</span></div><button type="button" [disabled]="saving" (click)="paymentOpen = false">×</button></header>
+      <header class="settlement-entry-header"><div><p>ENCAISSEMENT CARBURANT</p><h2>Nouveau versement</h2><span>Choisissez le pompiste et saisissez le versement.</span></div><button type="button" [disabled]="saving" (click)="paymentOpen = false">×</button></header>
       <div class="operation-form settlement-modal-fields">
         @if (settlementView) {
           <div class="settlement-step"><span>1</span><div><strong>Responsable</strong><small>Sélectionnez le pompiste</small></div><label>Pompiste<app-dropdown formControlName="attendantId" (valueChange)="settlementAttendantChanged()" [options]="settlementAttendantOptions" placeholder="Sélectionner" /></label></div>
@@ -171,21 +171,23 @@
         @if (settlementReadingsVisible) {
           <section class="settlement-reading-list"><h3>Relevés du pompiste</h3>
             @for (reading of settlementReadings; track reading.id) {
-              <article><div><strong>{{ reading.invoiceNumber || ('Relevé #' + reading.id) }}</strong><small>{{ reading.date | date:'dd/MM/yyyy' }} · {{ reading.nozzle }} · {{ reading.customerName || 'Vente comptant' }}</small></div><div class="settlement-reading-state"><strong>{{ hasClientVoucher(reading) ? 'Compte client' : 'À verser au pompiste' }}</strong><small>Montant : {{ money(reading.totalAmount) }} Ar</small><small>Reste : {{ money(hasClientVoucher(reading) ? attendantGap(reading) : amountRemaining(reading)) }} Ar</small></div></article>
+              <article><div><strong>{{ reading.invoiceNumber || ('Relevé #' + reading.id) }}</strong><small>{{ reading.date | date:'dd/MM/yyyy' }} · {{ reading.nozzle }}</small></div><div class="settlement-reading-state"><strong>{{ hasClientVoucher(reading) ? 'Compte client' : 'À verser au pompiste' }}</strong><small>Montant : {{ money(reading.totalAmount) }} Ar</small><small>Reste : {{ money(hasClientVoucher(reading) ? attendantGap(reading) : amountRemaining(reading)) }} Ar</small></div></article>
             }
             @if (!settlementReadings.length) { <p class="settlement-later-note">Aucun relevé à afficher.</p> }
           </section>
         }
-        <label>Client (facultatif)<span class="customer-choice"><app-dropdown formControlName="customerId" [options]="customers" [selectedTag]="'Client'" [emptyTag]="'Aucun client'" [placeholder]="'Client'" />@if (auth.hasAnyRole(['ROLE_GERANT'])) { <button type="button" [disabled]="saving" (click)="openQuickCustomer()">＋ Nouveau</button> }</span></label>
         <label>Date du versement<input [value]="paymentDate" (input)="paymentDate = $any($event.target).value" type="date" /></label>
         <div class="settlement-balance"><span>Total à verser</span><strong>{{ money(settlementTotalDue) }} Ar</strong></div>
         @if (settlementReadings.length) {
         <div formArrayName="payments" class="payment-lines">
           @for (payment of payments.controls; track $index; let index = $index) {
             <div [formGroupName]="index">
-              <label>Mode de paiement<app-dropdown formControlName="paymentMethodId" [options]="paymentMethods" placeholder="Sélectionner" /></label>
+              <label>Mode de paiement<app-dropdown formControlName="paymentMethodId" (valueChange)="paymentMethodChanged(index, $event)" [options]="paymentMethods" placeholder="Sélectionner" /></label>
               <label>Montant versé<div class="money-input"><input appMoney type="text" inputmode="decimal" formControlName="amount" /><span>Ar</span></div></label>
               <label>Référence paiement<input formControlName="reference" placeholder="N° ticket, TPE…" /></label>
+              @if (usesClientVoucher(index)) {
+                <label class="wide-field">Client du compte *<app-dropdown formControlName="customerId" (valueChange)="updateVoucherCustomerRequirement()" [options]="customers" [selectedTag]="'Client'" [emptyTag]="'Sélectionner un client'" [placeholder]="'Sélectionner un client'" /></label>
+              }
               <button type="button" class="cancel" [disabled]="saving || payments.length === 1" (click)="removePayment(index)">Retirer</button>
             </div>
           }
@@ -197,7 +199,7 @@
         } @else { <p class="settlement-later-note">Sélectionnez un pompiste pour afficher le total de ses versements en attente.</p> }
         @if (error) { <p class="operation-form-error" role="alert">{{ error }}</p> }
       </div>
-      <footer><button type="button" class="cancel" [disabled]="saving" (click)="paymentOpen = false">Annuler</button>@if (settlementReadings.length) { <button class="settlement-submit" [disabled]="saving || payments.invalid || paymentEntryAmount <= 0 || paymentEntryAmount > settlementTotalDue + 0.01">{{ saving ? 'Enregistrement…' : 'Confirmer le versement' }}</button> }</footer>
+      <footer><button type="button" class="cancel" [disabled]="saving" (click)="paymentOpen = false">Annuler</button>@if (settlementReadings.length) { <button class="settlement-submit" [disabled]="saving || payments.invalid || needsVoucherCustomer || paymentEntryAmount <= 0 || paymentEntryAmount > settlementTotalDue + 0.01">{{ saving ? 'Enregistrement…' : 'Confirmer le versement' }}</button> }</footer>
     </form>
   </div>
 }
@@ -208,7 +210,7 @@
       <div class="attendant-payment-filters"><label>Du<input type="date" [(ngModel)]="attendantPaymentFrom" /></label><label>Au<input type="date" [(ngModel)]="attendantPaymentTo" /></label><label>Pompiste<app-dropdown [(ngModel)]="attendantPaymentFilter" [options]="attendantPaymentOptions" /></label></div>
       <div class="attendant-payment-kpis"><article><small>VERSEMENTS AFFICHÉS</small><strong>{{ attendantPaymentRows.length }}</strong></article><article><small>TOTAL DES VERSEMENTS</small><strong>{{ money(attendantPaymentAmountTotal) }} Ar</strong></article><article class="balance"><small>ÉCART RESTANT TOTAL</small><strong>{{ money(attendantPaymentGapTotal) }} Ar</strong></article></div>
       <div class="attendant-payment-table"><table><thead><tr><th>DATE</th><th>POMPISTE</th><th>MODE DE PAIEMENT</th><th>MONTANT</th><th>ÉCART POMPISTE</th></tr></thead><tbody>
-        @for (row of attendantPaymentRows; track row.id) { <tr><td>{{ row.date | date:'dd/MM/yyyy' }}</td><td>{{ row.responsible }}</td><td>{{ row.method }}{{ row.customerAccountPayment ? ' · client' : '' }}</td><td>{{ money(row.amount) }} Ar</td><td class="reading-gap">{{ money(row.gap) }} Ar</td></tr> }
+        @for (row of attendantPaymentRows; track row.id) { <tr><td>{{ row.date | date:'dd/MM/yyyy' }}</td><td>{{ row.responsible }}</td><td>{{ row.method }}</td><td>{{ money(row.amount) }} Ar</td><td class="reading-gap">{{ money(row.gap) }} Ar</td></tr> }
         @empty { <tr><td colspan="5" class="empty-history">Aucun versement pour ces critères.</td></tr> }
       </tbody></table></div>
       <footer><button type="button" class="cancel" (click)="attendantPaymentsOpen = false">Fermer</button></footer>
@@ -221,12 +223,12 @@
       <header class="history-modal-header"><div><p>HISTORIQUE DES VERSEMENTS</p><h2>Relevé {{ selectedPaymentReading.invoiceNumber || ('#' + selectedPaymentReading.id) }}</h2><div class="history-meta"><span>{{ selectedPaymentReading.date | date:'dd/MM/yyyy' }}</span><span>Pompiste <strong>{{ selectedPaymentReading.responsible }}</strong></span><span>Pistolet <strong>{{ selectedPaymentReading.nozzle }}</strong></span><span>Carburant <strong>{{ selectedPaymentReading.fuel }}</strong></span></div></div><button type="button" aria-label="Fermer" (click)="paymentHistoryOpen = false">×</button></header>
       <div class="history-reading-summary">
         <article><small>MONTANT DU RELEVÉ</small><strong>{{ money(selectedPaymentReading.totalAmount) }} <em>Ar</em></strong></article>
-        <article><small>{{ hasClientVoucher(selectedPaymentReading) ? 'PAYÉ PAR LE CLIENT' : 'TOTAL VERSÉ' }}</small><strong>{{ money(hasClientVoucher(selectedPaymentReading) ? customerPaid(selectedPaymentReading) : amountPaid(selectedPaymentReading)) }} <em>Ar</em></strong></article>
+        <article><small>{{ hasClientVoucher(selectedPaymentReading) ? 'CRÉDITÉ AU CLIENT' : 'TOTAL VERSÉ' }}</small><strong>{{ money(hasClientVoucher(selectedPaymentReading) ? customerCreditAmount(selectedPaymentReading) : amountPaid(selectedPaymentReading)) }} <em>Ar</em></strong></article>
         <article class="history-balance" [class.settled]="paymentGap(selectedPaymentReading) <= 0.01"><small>{{ paymentGap(selectedPaymentReading) <= 0.01 ? 'STATUT' : 'ÉCART RESTANT' }}</small><strong>@if (paymentGap(selectedPaymentReading) <= 0.01) { Soldé } @else { {{ money(paymentGap(selectedPaymentReading)) }} Ar }</strong></article>
       </div>
       <section class="history-index-strip"><span><small>INDEX DÉPART</small><strong>{{ selectedPaymentReading.startIndex | number:'1.3-3' }}</strong></span><i>→</i><span><small>INDEX FINAL</small><strong>{{ selectedPaymentReading.endIndex | number:'1.3-3' }}</strong></span><span class="history-volume"><small>VOLUME VENDU</small><strong>{{ selectedPaymentReading.quantitySold | number:'1.3-3' }} L</strong></span></section>
       <section class="history-payment-list"><header><div><h3>Versements enregistrés</h3><p>{{ priorPayments.length }} paiement(s) associé(s) à ce relevé</p></div></header>
-        @for (item of priorPayments; track $index) { <article class="history-payment-item"><span class="history-payment-icon">✓</span><div class="history-payment-main"><strong>{{ item.label || item.type || 'Paiement' }}</strong><small>{{ (item.date || selectedPaymentReading.date) | date:'dd/MM/yyyy' }} · Réf. {{ item.reference || 'Aucune' }}</small></div><strong class="history-payment-amount">{{ money(item.amount || 0) }} Ar</strong></article> }
+        @for (item of priorPayments; track $index) { <article class="history-payment-item"><span class="history-payment-icon">✓</span><div class="history-payment-main"><strong>{{ item.label || item.type || 'Paiement' }}</strong><small>{{ (item.date || selectedPaymentReading.date) | date:'dd/MM/yyyy' }} · Réf. {{ item.reference || 'Aucune' }}@if (item.customerName) { · Client {{ item.customerName }} }</small></div><strong class="history-payment-amount">{{ money(item.amount || 0) }} Ar</strong></article> }
         @if (!priorPayments.length) { <div class="empty-history"><span>—</span><strong>Aucun versement enregistré</strong><small>Les paiements liés à ce relevé apparaîtront ici.</small></div> }
       </section>
       <footer><button type="button" class="cancel" (click)="paymentHistoryOpen = false">Fermer</button></footer>

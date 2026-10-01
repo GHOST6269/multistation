@@ -44,6 +44,7 @@ const routes: Routes = [
   { path: 'fournisseurs/prelevements', component: Suppliers, title: 'Prélèvements fournisseurs · StationFlow', canActivate: [AuthGuard, RoleGuard], data: { roles: ['ROLE_GERANT'], view: 'deductions' } },
   { path: 'clients', redirectTo: 'clients/credit', pathMatch: 'full' },
   { path: 'clients/credit', component: Customers, title: 'Clients · StationFlow', canActivate: [AuthGuard, RoleGuard], data: { customerAccess: true, view: 'credit' } },
+  { path: 'clients/achats', component: Customers, title: 'Historique des achats clients · StationFlow', canActivate: [AuthGuard, RoleGuard], data: { customerAccess: true, view: 'purchases' } },
   { path: 'clients/releve', component: FuelSales, title: 'Relevé client · StationFlow', canActivate: [AuthGuard, RoleGuard], data: { customerAccess: true, creditMode: true } },
   { path: 'clients/historique', component: Customers, title: 'Historique clients · StationFlow', canActivate: [AuthGuard, RoleGuard], data: { customerAccess: true, view: 'payments' } },
   { path: 'depenses', component: Expenses, title: 'Dépenses · StationFlow', canActivate: [AuthGuard, RoleGuard], data: { roles: ['ROLE_GERANT', 'ROLE_ASSISTANT'] } },

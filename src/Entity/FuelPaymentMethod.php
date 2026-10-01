@@ -26,6 +26,9 @@ class FuelPaymentMethod
     #[ORM\Column(options: ['default' => false])]
     private bool $supplierDeduction = false;
 
+    #[ORM\Column(options: ['default' => false])]
+    private bool $isCredit = false;
+
     #[ORM\Column]
     private array $allowedRoles = ['ROLE_GERANT'];
 
@@ -43,6 +46,8 @@ class FuelPaymentMethod
     public function setIsActive(bool $active): static { $this->isActive = $active; return $this; }
     public function isSupplierDeduction(): bool { return $this->supplierDeduction; }
     public function setSupplierDeduction(bool $enabled): static { $this->supplierDeduction = $enabled; return $this; }
+    public function isCredit(): bool { return $this->isCredit; }
+    public function setIsCredit(bool $credit): static { $this->isCredit = $credit; return $this; }
     public function getAllowedRoles(): array { return $this->allowedRoles; }
     public function setAllowedRoles(array $roles): static { $this->allowedRoles = array_values($roles); return $this; }
     public function getCreatedAt(): ?\DateTimeImmutable { return $this->createdAt; }

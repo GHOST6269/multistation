@@ -72,7 +72,7 @@ export class App implements OnInit {
       label: 'Clients', route: '/clients', icon: '♧', roles: ['ROLE_GERANT'],
       children: [
         { label: 'Compte client', route: '/clients/credit' },
-        { label: 'Relevé client', route: '/clients/releve' },
+        { label: 'Historique achat', route: '/clients/achats' },
         { label: 'Historique des paiements', route: '/clients/historique' },
       ],
     },

@@ -32,10 +32,16 @@
         <div>
           <p>RÉFÉRENTIEL</p>
           <h2>{{ tab === 'fuel' ? 'Carburants' : tab === 'tank' ? 'Cuves' : tab === 'pump' ? 'Pompes' : tab === 'nozzle' ? 'Pistolets' : tab === 'attendant' ? 'Pompistes' : 'Modes de paiement' }}</h2>
-          <span>{{ items.length }} élément(s) configuré(s)</span>
+          <span>{{ filteredItems.length }} élément(s) affiché(s)</span>
         </div>
         <button class="settings-add" [disabled]="saving" (click)="openCreate()">＋ Ajouter {{ tab === 'fuel' ? 'un carburant' : tab === 'tank' ? 'une cuve' : tab === 'pump' ? 'une pompe' : tab === 'nozzle' ? 'un pistolet' : tab === 'attendant' ? 'un pompiste' : 'un mode' }}</button>
       </header>
+
+      @if (tab === 'payment') {
+        <div class="settings-toolbar">
+          <label>ÉTAT DES MODES<app-dropdown [(ngModel)]="paymentStatusFilter" (ngModelChange)="page = 1" [options]="paymentStatusOptions" /></label>
+        </div>
+      }
 
       <div class="settings-list">
         @for (x of pagedItems; track x.id) {
@@ -48,11 +54,11 @@
               @else if (tab === 'pump') { {{ x.nozzleCount || 0 }} pistolet{{ x.nozzleCount === 1 ? '' : 's' }} associé{{ x.nozzleCount === 1 ? '' : 's' }} }
               @else if (tab === 'nozzle') { Pompe {{ x.pump || 'non liée' }} · Cuve {{ x.tank || 'non liée' }} · Pompiste {{ x.attendant || 'non affecté' }} · Index {{ x.currentIndex | number:'1.0-3' }} }
               @else if (tab === 'attendant') { Contact : {{ x.contact || 'Non renseigné' }} · Pistolets : {{ x.nozzles?.join(', ') || 'Aucun' }} }
-              @else if (tab === 'payment') { {{ x.supplierDeduction ? 'Prélèvement fournisseur' : 'Paiement classique' }} }
+              @else if (tab === 'payment') { {{ x.isCredit ? 'Paiement à crédit · compte client' : (x.supplierDeduction ? 'Prélèvement fournisseur' : 'Paiement classique') }} }
               @else { Accessible : {{ roleLabels(x.allowedRoles || []) || 'aucun rôle' }} }
             </p>
             <span class="item-status" [class.off]="!x.active"><i></i>{{ x.active ? 'Actif' : 'Inactif' }}</span>
-            <div class="item-actions">@if (tab === 'attendant') { <button (click)="openNozzleAssignment(x)">Pistolets</button> }@if (tab === 'nozzle') { <button (click)="openAttendantAssignment(x)">Pompiste</button> }<button (click)="edit(x)">Modifier</button>@if (x.active) { <button class="danger" (click)="deactivate(x)">Désactiver</button> }</div>
+            <div class="item-actions">@if (tab === 'attendant') { <button (click)="openNozzleAssignment(x)">Pistolets</button> }@if (tab === 'nozzle') { <button (click)="openAttendantAssignment(x)">Pompiste</button> }<button (click)="edit(x)">Modifier</button>@if (x.active) { <button class="danger" (click)="deactivate(x)">Désactiver</button> } @else if (tab === 'payment') { <button [disabled]="saving" (click)="activatePaymentMethod(x)">Réactiver</button> }</div>
           </article>
         } @empty {
           <div class="settings-empty"><span>{{ tab === 'fuel' ? '⛽' : tab === 'tank' ? '▱' : tab === 'pump' ? '◉' : tab === 'nozzle' ? '⌁' : tab === 'attendant' ? '♙' : '◈' }}</span><strong>Aucun élément configuré</strong><p>Créez le premier élément pour cette rubrique.</p><button (click)="openCreate()">＋ Commencer la configuration</button></div>
@@ -75,7 +81,10 @@
         @if (tab === 'attendant') {
           <label>Contact<input formControlName="contact" placeholder="Téléphone ou e-mail" /></label>
         }
-        @if (tab === 'payment') { <label class="payment-deduction-toggle"><input type="checkbox" formControlName="supplierDeduction" /><span>Enregistrer les paiements de ce mode dans les prélèvements fournisseur.</span></label> }
+        @if (tab === 'payment') {
+          <label class="payment-deduction-toggle"><input type="checkbox" formControlName="isCredit" /><span>Ce mode crée une vente à crédit et ajoute le montant au compte du client.</span></label>
+          <label class="payment-deduction-toggle"><input type="checkbox" formControlName="supplierDeduction" /><span>Enregistrer les paiements de ce mode dans les prélèvements fournisseur.</span></label>
+        }
         @if (tab === 'payment') {
           <div class="wide payment-role-group">
             <div class="payment-role-header">

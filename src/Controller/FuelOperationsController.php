@@ -15,7 +15,7 @@ final class FuelOperationsController extends AbstractController{
   foreach ($readings as $reading) {
    $lines = $reading->getPayments();
    $paymentsByReading[$reading->getId()] = $lines;
-   if ($reading->getCustomer() && in_array('CLIENT_VOUCHER', array_column($lines, 'type'), true)) {
+   if ($reading->getCustomer() && count(array_filter($lines, static fn(array $line): bool => !empty($line['isCredit']) || ($line['type'] ?? '') === 'CLIENT_VOUCHER')) > 0) {
     $creditReadingsByCustomer[$reading->getCustomer()->getId()][] = $reading;
    }
   }
@@ -36,8 +36,11 @@ final class FuelOperationsController extends AbstractController{
     if ($left <= .001) break;
     if ($reading->getWorkDate() && $customerPayment->getPaymentDate() && $reading->getWorkDate() > $customerPayment->getPaymentDate()) continue;
     $readingId = $reading->getId();
-    $alreadyPaid = array_sum(array_map(static fn(array $line): float => (float) ($line['amount'] ?? 0), $paymentsByReading[$readingId]));
-    $due = max(0, (float) $reading->getTotalAmount() - $alreadyPaid);
+    $creditLines = array_values(array_filter($paymentsByReading[$readingId], static fn(array $line): bool => !empty($line['isCredit']) || ($line['type'] ?? '') === 'CLIENT_VOUCHER'));
+    $creditAmount = array_sum(array_map(static fn(array $line): float => (float) ($line['amount'] ?? 0), $creditLines));
+    $billedAmount = $creditLines && $creditAmount > 0 ? $creditAmount : (float) $reading->getTotalAmount();
+    $alreadyPaid = array_sum(array_map(static fn(array $line): float => !empty($line['customerAccountPayment']) ? (float) ($line['amount'] ?? 0) : 0.0, $paymentsByReading[$readingId]));
+    $due = max(0, $billedAmount - $alreadyPaid);
     $part = min($left, $due);
     if ($part <= .001) continue;
     $method = $customerPayment->getPaymentMethod();
@@ -48,5 +51,5 @@ final class FuelOperationsController extends AbstractController{
   return array_map(fn(FuelShiftReading $reading): array => $this->reading($reading, $paymentsByReading[$reading->getId()] ?? []), $readings);
  }
  private function fuelType(FuelType $x):array{return ['id'=>$x->getId(),'code'=>$x->getCode(),'name'=>$x->getName()];}private function tank(FuelTank $x):array{return ['id'=>$x->getId(),'code'=>$x->getCode(),'name'=>$x->getName(),'fuel'=>$x->getFuelType()?->getCode(),'fuelTypeId'=>$x->getFuelType()?->getId(),'capacity'=>(float)$x->getCapacity(),'stock'=>(float)$x->getCurrentStock(),'minimum'=>(float)$x->getMinimumStock()];}private function pump(FuelPump $x,array $nozzles):array{$pumpNozzles=array_values(array_filter($nozzles,fn(FuelNozzle $nozzle)=>$nozzle->getPump()?->getId()===$x->getId()));return ['id'=>$x->getId(),'code'=>$x->getCode(),'name'=>$x->getName(),'nozzleCount'=>count($pumpNozzles),'nozzles'=>array_map(fn(FuelNozzle $nozzle)=>['id'=>$nozzle->getId(),'code'=>$nozzle->getCode(),'tankId'=>$nozzle->getTank()?->getId(),'tank'=>$nozzle->getTank()?->getName(),'fuel'=>$nozzle->getTank()?->getFuelType()?->getCode()],$pumpNozzles)];}private function nozzle(FuelNozzle $x):array{return ['id'=>$x->getId(),'code'=>$x->getCode(),'pump'=>$x->getPump()?->getName(),'pumpId'=>$x->getPump()?->getId(),'tank'=>$x->getTank()?->getName(),'tankId'=>$x->getTank()?->getId(),'attendantId'=>$x->getAttendant()?->getId() ?? 0,'attendant'=>$x->getAttendant()?->getFullName(),'fuel'=>$x->getTank()?->getFuelType()?->getCode(),'currentIndex'=>(float)$x->getCurrentIndex(),'unitPrice'=>(float)$x->getUnitPrice()];}private function reading(FuelShiftReading $x, ?array $payments = null):array{$lines=$payments ?? $x->getPayments();return ['id'=>$x->getId(),'date'=>$x->getWorkDate()?->format('Y-m-d'),'dueDate'=>$x->getDueDate()?->format('Y-m-d'),'attendantId'=>$x->getAttendant()?->getId() ?? 0,'responsible'=>$x->getAttendant()?->getFullName() ?? 'Non affecté','nozzle'=>$x->getNozzle()?->getCode(),'fuel'=>$x->getNozzle()?->getTank()?->getFuelType()?->getCode(),'customerId'=>$x->getCustomer()?->getId() ?? 0,'customerName'=>$x->getCustomer()?->getName(),'invoiceNumber'=>$x->getInvoiceNumber(),'startIndex'=>(float)$x->getStartIndex(),'endIndex'=>(float)$x->getEndIndex(),'output'=>(float)$x->getEndIndex()-(float)$x->getStartIndex(),'returnToTank'=>(float)$x->getReturnToTank(),'quantitySold'=>(float)$x->getQuantitySold(),'unitPrice'=>(float)$x->getUnitPrice(),'totalAmount'=>(float)$x->getTotalAmount(),'payments'=>$lines,'paymentStatus'=>$this->paymentStatus($x,$lines)];}
- private function paymentStatus(FuelShiftReading $x, array $lines):string{$paid=array_sum(array_map(static fn(array $line)=>(float)($line['amount']??0),$lines));$total=(float)$x->getTotalAmount();$credit=$x->getCustomer()&&in_array('CLIENT_VOUCHER',array_column($lines,'type'),true);if($credit&&$paid<$total-.01)return 'CUSTOMER_CREDIT';return $paid>=$total-.01?'PAID':($paid>0?'PARTIAL':'PENDING');}
+ private function paymentStatus(FuelShiftReading $x, array $lines):string{$creditLines=array_values(array_filter($lines,static fn(array $line):bool=>!empty($line['isCredit'])||($line['type']??'')==='CLIENT_VOUCHER'));$credit=$x->getCustomer()&&$creditLines;if($credit){$creditAmount=array_sum(array_map(static fn(array $line):float=>(float)($line['amount']??0),$creditLines));$billed=$creditAmount>0?$creditAmount:(float)$x->getTotalAmount();$paid=array_sum(array_map(static fn(array $line):float=>!empty($line['customerAccountPayment'])?(float)($line['amount']??0):0.0,$lines));return $paid>=$billed-.01?'PAID':'CUSTOMER_CREDIT';}$paid=array_sum(array_map(static fn(array $line):float=>(float)($line['amount']??0),$lines));$total=(float)$x->getTotalAmount();return $paid>=$total-.01?'PAID':($paid>0?'PARTIAL':'PENDING');}
 }

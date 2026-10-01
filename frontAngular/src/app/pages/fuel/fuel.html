@@ -461,9 +461,12 @@
         <div class="wide" formArrayName="payments">
           @for (payment of payments.controls; track $index; let index = $index) {
             <div class="payment-grid" [formGroupName]="index">
-              <label>Mode de paiement *<app-dropdown formControlName="paymentMethodId" [options]="paymentMethods" placeholder="Choisir" /></label>
+              <label>Mode de paiement *<app-dropdown formControlName="paymentMethodId" (valueChange)="updateCreditCustomerRequirement()" [options]="paymentMethods" placeholder="Choisir" /></label>
               <label>Montant versé<div class="money-field"><input appMoney type="text" formControlName="amount" /><small>Ar</small></div></label>
               <label>Référence<input formControlName="reference" placeholder="N° ticket, TPE…" /></label>
+              @if (usesCreditPayment(index) && index === firstCreditPaymentIndex) {
+                <label class="wide">Client du compte *<app-dropdown [formControl]="customerControl" [options]="customers" [selectedTag]="'Client'" [emptyTag]="'Sélectionner un client'" [placeholder]="'Sélectionner un client'" /></label>
+              }
               <button type="button" class="cancel" [disabled]="saving || payments.length === 1" (click)="removePayment(index)">Retirer</button>
             </div>
           }
@@ -472,7 +475,7 @@
         <div class="wide settlement-actions"><button type="button" class="mini-add" [disabled]="saving" (click)="addPayment()">＋ Ajouter un mode</button><button type="button" class="mini-add" [disabled]="saving" (click)="openPaymentMethod()">＋ Nouveau mode</button></div>
         @if (error) { <div class="api-error wide">! {{ error }}</div> }
       </div>
-      <footer><button type="button" class="cancel" [disabled]="saving" (click)="modal = null">Plus tard</button><button [disabled]="saving || payments.invalid || paymentEntryAmount <= 0 || paymentEntryAmount > amountRemaining(selectedPaymentReading) + 0.01">{{ saving ? 'Enregistrement…' : 'Enregistrer le versement' }}</button></footer>
+      <footer><button type="button" class="cancel" [disabled]="saving" (click)="modal = null">Plus tard</button><button [disabled]="saving || payments.invalid || (needsCreditCustomer && customerControl.invalid) || paymentEntryAmount <= 0 || paymentEntryAmount > amountRemaining(selectedPaymentReading) + 0.01">{{ saving ? 'Enregistrement…' : 'Enregistrer le versement' }}</button></footer>
     </form>
   </div>
 }

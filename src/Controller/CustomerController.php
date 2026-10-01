@@ -28,6 +28,12 @@ final class CustomerController extends AbstractController
             $customer = $reading->getCustomer();
             if (!$customer) continue;
             $customerId = $customer->getId();
+            $creditLines = array_values(array_filter($reading->getPayments(), static fn (array $line): bool => !empty($line['isCredit']) || ($line['type'] ?? '') === 'CLIENT_VOUCHER'));
+            if ($creditLines) {
+                $creditAmount = array_sum(array_map(static fn (array $line): float => (float) ($line['amount'] ?? 0), $creditLines));
+                $billedByCustomer[$customerId] = ($billedByCustomer[$customerId] ?? 0.0) + ($creditAmount > 0 ? $creditAmount : (float) $reading->getTotalAmount());
+                continue;
+            }
             $billedByCustomer[$customerId] = ($billedByCustomer[$customerId] ?? 0.0) + (float) $reading->getTotalAmount();
             $paidOnReading = array_sum(array_map(static fn (array $line): float => (float) ($line['amount'] ?? 0), $reading->getPayments()));
             $paidByCustomer[$customerId] = ($paidByCustomer[$customerId] ?? 0.0) + $paidOnReading;
@@ -70,12 +76,12 @@ final class CustomerController extends AbstractController
             return $this->json(['message' => 'Client ou station invalide'], 422);
         }
 
-        $amount = max(0.0, (float) ($data['amount'] ?? 0));
-        if ($amount < 0) return $this->json(['message' => 'Le montant du paiement ne peut pas être négatif'], 422);
+        $amount = (float) ($data['amount'] ?? 0);
+        if ($amount <= 0) return $this->json(['message' => 'Le montant du paiement doit être supérieur à zéro'], 422);
 
         $billed = 0.0;
         $sales = $em->getRepository(FuelShiftReading::class)->findBy(['station' => $station, 'customer' => $customer], ['workDate' => 'DESC', 'id' => 'DESC']);
-        foreach ($sales as $reading) $billed += (float) $reading->getTotalAmount();
+        foreach ($sales as $reading) $billed += $this->billedAmount($reading);
 
         $paidBefore = 0.0;
         $payments = $em->getRepository(CustomerPayment::class)->findBy(['station' => $station, 'customer' => $customer], ['paymentDate' => 'DESC', 'id' => 'DESC']);
@@ -103,6 +109,35 @@ final class CustomerController extends AbstractController
         $em->persist($payment);
         $em->flush();
         return $this->json(['id' => $payment->getId()], 201);
+    }
+
+    #[Route('/purchase-history', methods: ['GET'])]
+    public function purchaseHistory(Request $request, EntityManagerInterface $em, UserAccessService $access): JsonResponse
+    {
+        if ($denied = $access->requireCustomerAccess()) return $denied;
+        $station = $em->getRepository(Stations::class)->find((int) $request->query->get('station'));
+        if (!$station || !$access->canAccessStation($station)) return $access->denyStation();
+        $readings = $em->getRepository(FuelShiftReading::class)->findBy(['station' => $station], ['workDate' => 'DESC', 'id' => 'DESC']);
+        $rows = [];
+        foreach ($readings as $reading) {
+            $creditLines = array_filter($reading->getPayments(), static fn (array $line): bool => !empty($line['isCredit']) || ($line['type'] ?? '') === 'CLIENT_VOUCHER');
+            if (!$reading->getCustomer() || !$creditLines) continue;
+            $rows[] = [
+                'id' => $reading->getId(),
+                'date' => $reading->getWorkDate()?->format('Y-m-d'),
+                'customerId' => $reading->getCustomer()?->getId(),
+                'customer' => $reading->getCustomer()?->getName(),
+                'startIndex' => (float) $reading->getStartIndex(),
+                'endIndex' => (float) $reading->getEndIndex(),
+                'amount' => $this->billedAmount($reading),
+                'quantitySold' => (float) $reading->getQuantitySold(),
+                'reference' => implode(' / ', array_values(array_filter(array_map(static fn (array $line): string => trim((string) ($line['reference'] ?? '')), $creditLines)))),
+                'fuel' => $reading->getNozzle()?->getTank()?->getFuelType()?->getCode(),
+                'nozzle' => $reading->getNozzle()?->getCode(),
+                'attendant' => $reading->getAttendant()?->getFullName(),
+            ];
+        }
+        return $this->json(['purchases' => $rows]);
     }
 
     #[Route('/payment-history', methods: ['GET'])]
@@ -141,8 +176,9 @@ final class CustomerController extends AbstractController
             foreach ($sales as $sale) {
                 $saleDate = $sale->getWorkDate();
                 if ($saleDate && $saleDate <= $paymentDate) {
-                    $billedBefore += (float) $sale->getTotalAmount();
-                    foreach ($sale->getPayments() as $line) {
+                    $creditLines = array_filter($sale->getPayments(), static fn (array $line): bool => !empty($line['isCredit']) || ($line['type'] ?? '') === 'CLIENT_VOUCHER');
+                    $billedBefore += $this->billedAmount($sale);
+                    if (!$creditLines) foreach ($sale->getPayments() as $line) {
                         $settlementDate = !empty($line['date']) ? new \DateTimeImmutable($line['date']) : $saleDate;
                         if ($settlementDate && $settlementDate <= $paymentDate) $billedBefore -= (float) ($line['amount'] ?? 0);
                     }
@@ -206,5 +242,12 @@ final class CustomerController extends AbstractController
     }
 
     private function nullable(mixed $value): ?string { $value = trim((string) $value); return $value ?: null; }
+    private function billedAmount(FuelShiftReading $reading): float
+    {
+        $creditLines = array_values(array_filter($reading->getPayments(), static fn (array $line): bool => !empty($line['isCredit']) || ($line['type'] ?? '') === 'CLIENT_VOUCHER'));
+        if (!$creditLines) return (float) $reading->getTotalAmount();
+        $creditAmount = array_sum(array_map(static fn (array $line): float => (float) ($line['amount'] ?? 0), $creditLines));
+        return $creditAmount > 0 ? $creditAmount : (float) $reading->getTotalAmount();
+    }
     private function row(Customer $customer, float $billed = 0.0, float $paid = 0.0): array { $balance = $billed - $paid; return ['id' => $customer->getId(), 'code' => $customer->getCode(), 'name' => $customer->getName(), 'contactPerson' => $customer->getContactPerson(), 'phone' => $customer->getPhone(), 'email' => $customer->getEmail(), 'address' => $customer->getAddress(), 'active' => $customer->isActive(), 'billed' => round($billed, 2), 'paid' => round($paid, 2), 'balance' => round($balance, 2)]; }
 }

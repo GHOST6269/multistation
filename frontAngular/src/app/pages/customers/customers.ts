@@ -8,8 +8,8 @@ import { formatMoney } from '../../shared/money-format';
 
 @Component({ selector: 'app-customers', standalone: false, templateUrl: './customers.html', styleUrl: './customers.scss' })
 export class Customers implements OnInit {
-  stations: DropdownOption[] = []; stationId = 0; customers: any[] = []; payments: any[] = []; loading = false; saving = false; error = '';
-  editing: any = null; modalOpen = false; paymentModal = false; selectedCustomer: any = null; view: 'credit' | 'payments' = 'credit';
+  stations: DropdownOption[] = []; stationId = 0; customers: any[] = []; payments: any[] = []; purchases: any[] = []; loading = false; saving = false; error = '';
+  editing: any = null; modalOpen = false; paymentModal = false; selectedCustomer: any = null; view: 'credit' | 'payments' | 'purchases' = 'credit';
   paymentSearch = '';
   paymentFromDate = '';
   paymentToDate = '';
@@ -24,11 +24,11 @@ export class Customers implements OnInit {
     private readonly cdr: ChangeDetectorRef,
   ) {
     this.form = fb.group({ code: [''], name: ['', Validators.required], contactPerson: [''], phone: [''], email: [''], address: [''] });
-    this.paymentForm = fb.group({ amount: [0, Validators.min(0)], date: [new Date().toISOString().slice(0, 10)], method: ['CASH'], reference: [''], note: [''] });
+    this.paymentForm = fb.group({ amount: [0, [Validators.required, Validators.min(.01)]], date: [new Date().toISOString().slice(0, 10)], method: ['CASH'], reference: [''], note: [''] });
   }
   ngOnInit() {
     this.route.data.subscribe((data) => {
-      this.view = data['view'] === 'payments' ? 'payments' : 'credit';
+      this.view = data['view'] === 'payments' || data['view'] === 'purchases' ? data['view'] : 'credit';
       this.load();
     });
 
@@ -48,6 +48,7 @@ export class Customers implements OnInit {
   get inactiveCount() { return this.customers.length - this.activeCount; }
   get totalBalance() { return this.customers.reduce((sum, customer) => sum + Number(customer.balance || 0), 0); }
   get totalBilled() { return this.customers.reduce((sum, customer) => sum + Number(customer.billed || 0), 0); }
+  get paymentExceedsBalance(): boolean { return Number(this.paymentForm.get('amount')?.value ?? 0) > Number(this.selectedCustomer?.balance ?? 0); }
   get filteredPayments() {
     const query = this.paymentSearch.trim().toLowerCase();
     return (this.payments ?? []).filter((payment) => {
@@ -83,6 +84,10 @@ export class Customers implements OnInit {
         this.cdr.detectChanges();
       },
     });
+    this.customersApi.purchaseHistory(this.stationId).subscribe({
+      next: (data) => { this.purchases = data.purchases ?? []; this.cdr.detectChanges(); },
+      error: () => { this.purchases = []; this.cdr.detectChanges(); },
+    });
   }
   open(customer?: any) { this.error = ''; this.editing = customer ?? null; this.form.reset(customer ?? { code: '', name: '', contactPerson: '', phone: '', email: '', address: '' }); this.modalOpen = true; }
   save() { if (this.form.invalid || this.saving) { this.form.markAllAsTouched(); return; } this.saving = true; const request = this.editing ? this.customersApi.update(this.editing.id, this.form.value) : this.customersApi.create({ ...this.form.value, stationId: this.stationId }); request.subscribe({ next: () => { this.saving = false; this.modalOpen = false; this.load(); }, error: e => { this.error = e.error?.message ?? 'Enregistrement impossible.'; this.saving = false; } }); }
@@ -90,7 +95,7 @@ export class Customers implements OnInit {
   openPayment(customer: any) { this.selectedCustomer = customer; this.paymentForm.reset({ amount: Math.max(0, Number(customer.balance || 0)), date: new Date().toISOString().slice(0, 10), method: 'CASH', reference: '', note: '' }); this.paymentModal = true; }
   savePayment() {
     const amount = Number(this.paymentForm.value.amount ?? 0);
-    if (!this.selectedCustomer || this.paymentForm.invalid || amount < 0) {
+    if (!this.selectedCustomer || this.paymentForm.invalid || amount <= 0 || amount > Number(this.selectedCustomer.balance ?? 0) + .01) {
       this.paymentForm.markAllAsTouched();
       return;
     }

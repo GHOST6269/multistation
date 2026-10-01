@@ -13,6 +13,7 @@ export interface DropdownOption {
   value: string | number;
   label: string;
   hint?: string;
+  isCredit?: boolean;
 }
 
 @Component({

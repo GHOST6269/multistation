@@ -60,13 +60,13 @@ export class FuelSales implements OnInit {
       else dueDateControl?.clearValidators();
       dueDateControl?.updateValueAndValidity();
       this.settlementView = data['settlementView'] === true;
-      if (this.settlementView) this.paymentFilter = 'DUE';
+      if (this.settlementView) this.paymentFilter = 'ALL';
       this.loadPaymentMethods();
     });
     this.articles.options().subscribe(data => { this.stations = data.stations.map(s => ({ value: s.id, label: s.name })); this.stationId = data.stations[0]?.id ?? 0; this.load(); });
   }
   load() { if (!this.stationId) return; this.loading = true; this.page = 1; this.fuel.workspace(this.stationId).subscribe({ next: data => { this.readings = data.readings ?? []; this.nozzles = data.nozzles ?? []; this.attendants = data.attendants ?? []; this.loading = false; this.cdr.detectChanges(); }, error: () => { this.readings = []; this.loading = false; } }); this.loadPaymentMethods(); this.customersApi.list(this.stationId).subscribe(data => { this.customers = [{ value: 0, label: 'Aucun client' }, ...(data.customers ?? []).filter((customer: any) => customer.active).map((customer: any) => ({ value: customer.id, label: customer.name, hint: customer.code ?? '' }))]; }); }
-  private loadPaymentMethods() { this.fuel.paymentMethods(this.stationId, false, this.creditMode ? 'credit' : 'simple').subscribe(data => { this.paymentMethods = (data.methods ?? []).filter((method: any) => method.active).map((method: any) => ({ value: method.id, label: method.name, hint: method.code })); if (!this.paymentMethods.length) { this.payments.clear(); this.addPayment(); return; } const preferred = this.creditMode ? this.paymentMethods.find((method) => (method.hint ?? '').toUpperCase() === 'CLIENT_VOUCHER') ?? this.paymentMethods[0] : this.paymentMethods[0]; if (this.payments.length) { const current = this.payments.at(0)?.get('paymentMethodId')?.value; if (current === undefined || !this.paymentMethods.some((method) => Number(method.value) === Number(current))) { this.payments.at(0)?.patchValue({ paymentMethodId: Number(preferred.value) }); } } else { this.payments.clear(); this.addPayment(); } }); }
+  private loadPaymentMethods() { this.fuel.paymentMethods(this.stationId, false, 'all').subscribe(data => { this.paymentMethods = (data.methods ?? []).filter((method: any) => method.active).map((method: any) => ({ value: method.id, label: method.name, hint: method.code, isCredit: Boolean(method.isCredit) || String(method.code ?? '').toUpperCase() === 'CLIENT_VOUCHER' })); if (!this.paymentMethods.length) { this.payments.clear(); this.addPayment(); return; } const preferred = this.paymentMethods.find((method) => (method.hint ?? '').toUpperCase() === 'CASH') ?? this.paymentMethods[0]; if (this.payments.length) { const current = this.payments.at(0)?.get('paymentMethodId')?.value; if (current === undefined || !this.paymentMethods.some((method) => Number(method.value) === Number(current))) { this.payments.at(0)?.patchValue({ paymentMethodId: Number(preferred.value) }); } } else { this.payments.clear(); this.addPayment(); } }); }
   get attendantOptions(): DropdownOption[] {
     return [{ value: 0, label: 'Tous les pompistes' }, ...this.attendants.map(attendant => ({ value: attendant.id, label: attendant.name }))];
   }
@@ -83,7 +83,7 @@ export class FuelSales implements OnInit {
   get filtered() {
     const filteredRows = this.readings.filter((row) => {
       const matchesDate = (!this.fromDate || row.date >= this.fromDate) && (!this.toDate || row.date <= this.toDate);
-      const hasCustomerVoucher = Array.isArray(row.payments) && row.payments.some((payment: any) => String(payment.type ?? '').toUpperCase() === 'CLIENT_VOUCHER');
+      const hasCustomerVoucher = Array.isArray(row.payments) && row.payments.some((payment: any) => payment.isCredit === true || String(payment.type ?? '').toUpperCase() === 'CLIENT_VOUCHER');
       const customerSale = Number(row.customerId ?? 0) > 0;
       const matchesCustomer = !this.creditMode || (customerSale && (hasCustomerVoucher || (!Array.isArray(row.payments) || row.payments.length === 0)));
       const nozzle = this.nozzles.find((item) => item.code === row.nozzle);
@@ -164,22 +164,39 @@ export class FuelSales implements OnInit {
   soldAt(i: number) { const row = this.readingRows.at(i).value; return Math.max(0, Number(row.endIndex) - Number(row.startIndex) - Number(row.returnToTank)); }
   totalAt(i: number) { return this.soldAt(i) * Number(this.readingRows.at(i).value.unitPrice); }
   get payments(): FormArray { return this.settlementForm.get('payments') as FormArray; }
+  usesClientVoucher(index: number): boolean {
+    const methodId = Number(this.payments.at(index)?.get('paymentMethodId')?.value ?? 0);
+    const method = this.paymentMethods.find((item) => Number(item.value) === methodId);
+    return method?.isCredit === true || (method?.hint ?? '').toUpperCase() === 'CLIENT_VOUCHER';
+  }
+  get needsVoucherCustomer(): boolean { return this.payments.controls.some((payment, index) => this.usesClientVoucher(index) && Number(payment.get('customerId')?.value ?? 0) <= 0); }
+  updateVoucherCustomerRequirement() {
+    this.payments.controls.forEach((payment, index) => {
+      const control = payment.get('customerId');
+      if (this.usesClientVoucher(index)) control?.setValidators([Validators.required, Validators.min(1)]);
+      else { control?.clearValidators(); control?.setValue(0, { emitEvent: false }); }
+      control?.updateValueAndValidity({ emitEvent: false });
+    });
+  }
+  paymentMethodChanged(index: number, methodId: string | number) {
+    this.payments.at(index)?.get('paymentMethodId')?.setValue(Number(methodId), { emitEvent: false });
+    this.updateVoucherCustomerRequirement();
+    this.cdr.detectChanges();
+  }
   get paid() { return this.payments.controls.reduce((sum, payment) => sum + Number(payment.value.amount || 0), 0); }
   addPayment() {
-    const initialAmount = this.payments.length === 0 && this.selectedPaymentReading
-      ? this.amountRemaining(this.selectedPaymentReading)
-      : 0;
-    const defaultMethod = this.creditMode
-      ? this.paymentMethods.find((method) => (method.hint ?? '').toUpperCase() === 'CLIENT_VOUCHER')?.value ?? this.paymentMethods[0]?.value ?? 0
-      : this.paymentMethods[0]?.value ?? 0;
+    const initialAmount = 0;
+    const defaultMethod = this.paymentMethods.find((method) => (method.hint ?? '').toUpperCase() === 'CASH')?.value ?? this.paymentMethods[0]?.value ?? 0;
 
     this.payments.push(this.fb.group({
       paymentMethodId: [Number(defaultMethod), Validators.min(1)],
       amount: [initialAmount, Validators.min(0.01)],
+      customerId: [0],
       reference: [''],
     }));
+    this.updateVoucherCustomerRequirement();
   }
-  removePayment(index: number) { if (this.payments.length > 1) this.payments.removeAt(index); }
+  removePayment(index: number) { if (this.payments.length > 1) { this.payments.removeAt(index); this.updateVoucherCustomerRequirement(); } }
   openReading() { this.error = ''; this.form.reset({ date: new Date().toISOString().slice(0, 10), dueDate: '', attendantId: 0, customerId: 0 }); this.readingRows.clear(); this.modalOpen = true; }
   openQuickCustomer() { if (this.saving) return; this.customerForm.reset({ code: '', name: '', contactPerson: '', phone: '' }); this.quickCustomerOpen = true; }
   saveQuickCustomer() { if (this.customerForm.invalid || this.savingCustomer) { this.customerForm.markAllAsTouched(); return; } this.savingCustomer = true; this.customersApi.create({ ...this.customerForm.getRawValue(), stationId: this.stationId }).subscribe({ next: customer => { const option = { value: customer.id, label: customer.name, hint: customer.code ?? '' }; this.customers = [...this.customers, option]; this.settlementForm.patchValue({ customerId: customer.id }); this.savingCustomer = false; this.quickCustomerOpen = false; this.cdr.detectChanges(); }, error: error => { this.error = error.error?.message ?? 'Le client n’a pas pu être créé.'; this.savingCustomer = false; this.cdr.detectChanges(); } }); }
@@ -202,9 +219,10 @@ export class FuelSales implements OnInit {
     return '';
   }
   amountPaid(reading: any): number { return (reading.payments ?? []).reduce((sum: number, payment: any) => sum + Number(payment.amount ?? 0), 0); }
-  hasClientVoucher(reading: any): boolean { return (reading.payments ?? []).some((payment: any) => String(payment.type ?? '').toUpperCase() === 'CLIENT_VOUCHER'); }
-  isCustomerAccountPayment(payment: any): boolean { return payment.customerAccountPayment === true || String(payment.label ?? '').startsWith('Règlement client ·'); }
+  hasClientVoucher(reading: any): boolean { return (reading.payments ?? []).some((payment: any) => payment.isCredit === true || String(payment.type ?? '').toUpperCase() === 'CLIENT_VOUCHER'); }
+  isCustomerAccountPayment(payment: any): boolean { return payment.customerAccountPayment === true || payment.isCredit === true || String(payment.label ?? '').startsWith('Règlement client ·') || String(payment.type ?? '').toUpperCase() === 'CLIENT_VOUCHER'; }
   customerPaid(reading: any): number { return (reading.payments ?? []).filter((payment: any) => this.isCustomerAccountPayment(payment)).reduce((sum: number, payment: any) => sum + Number(payment.amount ?? 0), 0); }
+  customerCreditAmount(reading: any): number { return (reading.payments ?? []).filter((payment: any) => payment.isCredit === true || String(payment.type ?? '').toUpperCase() === 'CLIENT_VOUCHER').reduce((sum: number, payment: any) => sum + Number(payment.amount ?? 0), 0); }
   attendantPaid(reading: any): number { return (reading.payments ?? []).filter((payment: any) => !this.isCustomerAccountPayment(payment)).reduce((sum: number, payment: any) => sum + Number(payment.amount ?? 0), 0); }
   attendantGap(reading: any): number { return Math.max(0, Number(reading.totalAmount ?? 0) - this.attendantPaid(reading)); }
   amountRemaining(reading: any): number { return Math.max(0, Number(reading.totalAmount ?? 0) - this.amountPaid(reading)); }
@@ -225,7 +243,7 @@ export class FuelSales implements OnInit {
   get paymentEntryAmount(): number { return this.paid; }
   get paymentEntryGap(): number { return this.settlementTotalDue - this.paymentEntryAmount; }
   savePaymentEntry() {
-    if (this.saving || this.payments.invalid || !this.settlementForm.value.attendantId) return;
+    if (this.saving || this.payments.invalid || this.needsVoucherCustomer || !this.settlementForm.value.attendantId) { this.settlementForm.markAllAsTouched(); return; }
     if (this.paymentEntryAmount <= 0 || this.paymentEntryAmount > this.settlementTotalDue + .01) { this.error = 'Le versement doit être positif et ne peut pas dépasser le total restant dû.'; return; }
     this.saving = true;
     this.error = '';

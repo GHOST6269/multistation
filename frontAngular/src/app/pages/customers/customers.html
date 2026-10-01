@@ -1,5 +1,5 @@
 <div class="customer-heading">
-  <div><p>COMPTES CLIENTS</p><h1>{{ view === 'payments' ? 'Historique des paiements' : 'Compte client' }}</h1><span>{{ view === 'payments' ? 'Consultez le règlement des clients et les références associées.' : 'Suivez le montant facturé, le paiement reçu et le solde restant.' }}</span></div>
+  <div><p>COMPTES CLIENTS</p><h1>{{ view === 'payments' ? 'Historique des paiements' : view === 'purchases' ? 'Historique des achats' : 'Compte client' }}</h1><span>{{ view === 'payments' ? 'Consultez le règlement des clients et les références associées.' : view === 'purchases' ? 'Consultez les achats portés au compte client.' : 'Suivez le montant facturé, le paiement reçu et le solde restant.' }}</span></div>
   <button (click)="open()">＋ Nouveau client</button>
 </div>
 <div class="customer-toolbar"><app-dropdown [(ngModel)]="stationId" (ngModelChange)="load()" [options]="stations" /><div><strong>{{ money(totalBalance) }} Ar</strong><small>SOLDE CLIENTS</small></div></div>
@@ -10,6 +10,14 @@
   @for (customer of customers; track customer.id) { <tr><td><strong>{{ customer.name }}</strong><small>{{ customer.contactPerson || customer.phone || 'Aucun contact' }}</small></td><td>{{ customer.code || '—' }}</td><td>{{ money(customer.billed) }} Ar</td><td class="paid">{{ money(customer.paid) }} Ar</td><td class="balance">{{ money(customer.balance) }} Ar</td><td><span [class.inactive]="!customer.active">{{ customer.active ? 'Actif' : 'Inactif' }}</span></td><td><button class="edit-button" (click)="open(customer)">Modifier</button><button class="pay-button" (click)="openPayment(customer)">Paiement</button>@if (customer.active) { <button class="deactivate-button" (click)="deactivate(customer)">Désactiver</button> }</td></tr> }
   @if (!loading && !customers.length) { <tr><td colspan="7" class="empty">Aucun client pour cette station.</td></tr> }
 </tbody></table></section>
+}
+@if (view === 'purchases') {
+<section class="customer-panel"><header><div><h2>Achats à crédit</h2><p>Chaque montant correspond à la ligne créditée au compte client.</p></div><span>{{ purchases.length }} achat(s)</span></header>
+  <table><thead><tr><th>DATE</th><th>CLIENT</th><th>RÉFÉRENCE PAIEMENT</th><th>VOLUME VENDU</th><th>MONTANT CRÉDITÉ</th><th>CARBURANT</th><th>PISTOLET</th><th>POMPISTE</th></tr></thead><tbody>
+    @for (purchase of purchases; track purchase.id) { <tr><td>{{ purchase.date | date:'dd/MM/yyyy' }}</td><td><strong>{{ purchase.customer }}</strong></td><td>{{ purchase.reference || '—' }}</td><td><strong>{{ purchase.quantitySold | number:'1.0-3' }} L</strong></td><td class="balance"><strong>{{ money(purchase.amount) }} Ar</strong></td><td><span class="fuel-badge">{{ purchase.fuel || '—' }}</span></td><td>{{ purchase.nozzle || '—' }}</td><td>{{ purchase.attendant || '—' }}</td></tr> }
+    @if (!loading && !purchases.length) { <tr><td colspan="8" class="empty">Aucun achat à crédit pour cette station.</td></tr> }
+  </tbody></table>
+</section>
 }
 @if (view === 'payments') {
 <section class="customer-panel"><header><div><h2>Historique des paiements</h2><p>Chaque règlement de client est conservé avec sa référence et sa date.</p></div><span>{{ filteredPayments.length }} règlement(s)</span></header>
@@ -39,8 +47,8 @@
         <label>Adresse<input formControlName="address" /></label>
       </div>
       <footer>
-        <button type="button" (click)="modalOpen=false">Annuler</button>
-        <button [disabled]="saving">{{ saving ? 'Enregistrement…' : 'Enregistrer' }}</button>
+        <button type="button" class="modal-cancel" [disabled]="saving" (click)="modalOpen=false">Annuler</button>
+        <button type="submit" class="modal-submit" [disabled]="saving || form.invalid">{{ saving ? 'Enregistrement…' : (editing ? 'Enregistrer les modifications' : 'Créer le client') }}</button>
       </footer>
     </form>
   </div>
@@ -64,7 +72,7 @@
       </div>
       <footer>
         <button type="button" (click)="paymentModal=false">Annuler</button>
-        <button [disabled]="saving">{{ saving ? 'Enregistrement…' : 'Enregistrer le paiement' }}</button>
+        <button [disabled]="saving || paymentForm.invalid || paymentExceedsBalance">{{ saving ? 'Enregistrement…' : 'Enregistrer le paiement' }}</button>
       </footer>
     </form>
   </div>

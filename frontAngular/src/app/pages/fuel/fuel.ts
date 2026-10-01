@@ -1,5 +1,5 @@
 import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
-import { FormArray, FormBuilder, Validators } from '@angular/forms';
+import { FormArray, FormBuilder, FormControl, Validators } from '@angular/forms';
 import { FuelWorkspace } from '../../models/fuel.model';
 import { ArticleService } from '../../services/article.service';
 import { FuelService } from '../../services/fuel.service';
@@ -8,6 +8,7 @@ import { DropdownOption } from '../../shared/dropdown/dropdown';
 import { ActivatedRoute } from '@angular/router';
 import { formatMoney } from '../../shared/money-format';
 import { AuthService } from '../../services/auth.service';
+import { CustomerService } from '../../services/customer.service';
 @Component({
   selector: 'app-fuel',
   standalone: false,
@@ -20,6 +21,7 @@ export class Fuel implements OnInit {
   stations: DropdownOption[] = [];
   suppliers: DropdownOption[] = [];
   paymentMethods: DropdownOption[] = [];
+  customers: DropdownOption[] = [];
   paymentHistory: any[] = [];
   stationId = 0;
   salesView: 'journal' | 'attendants' = 'attendants';
@@ -69,10 +71,12 @@ export class Fuel implements OnInit {
     private cdr: ChangeDetectorRef,
     private route: ActivatedRoute,
     public readonly auth: AuthService,
+    private readonly customersApi: CustomerService,
   ) {
     this.readingForm = fb.group({
       date: [new Date().toISOString().slice(0, 10), Validators.required],
       attendantId: [0, Validators.min(1)],
+      customerId: [0],
       readings: fb.array([]),
       payments: fb.array([]),
     });
@@ -137,10 +141,14 @@ export class Fuel implements OnInit {
     });
   }
   loadPaymentData() {
-    this.fuel.paymentMethods(this.stationId).subscribe((x) => {
+    this.fuel.paymentMethods(this.stationId, false, 'all').subscribe((x) => {
       this.paymentMethods = (x.methods ?? [])
         .filter((method: any) => method.active)
-        .map((method: any) => ({ value: method.id, label: method.name, hint: method.code }));
+        .map((method: any) => ({ value: method.id, label: method.name, hint: method.code, isCredit: Boolean(method.isCredit) || String(method.code ?? '').toUpperCase() === 'CLIENT_VOUCHER' }));
+      this.cdr.detectChanges();
+    });
+    this.customersApi.list(this.stationId).subscribe((x) => {
+      this.customers = (x.customers ?? []).filter((customer: any) => customer.active).map((customer: any) => ({ value: customer.id, label: customer.name, hint: customer.code ?? '' }));
       this.cdr.detectChanges();
     });
     this.fuel.paymentHistory(this.stationId).subscribe((x) => {
@@ -181,13 +189,27 @@ export class Fuel implements OnInit {
     return this.payments.controls.reduce((sum, payment) => sum + Number(payment.value.amount || 0), 0);
   }
   get payments(): FormArray { return this.readingForm.get('payments') as FormArray; }
+  get customerControl(): FormControl { return this.readingForm.get('customerId') as FormControl; }
+  usesCreditPayment(index: number): boolean {
+    const id = Number(this.payments.at(index)?.get('paymentMethodId')?.value ?? 0);
+    const method = this.paymentMethods.find((option) => Number(option.value) === id);
+    return method?.isCredit === true || (method?.hint ?? '').toUpperCase() === 'CLIENT_VOUCHER';
+  }
+  get needsCreditCustomer(): boolean { return this.payments.controls.some((_, index) => this.usesCreditPayment(index)); }
+  get firstCreditPaymentIndex(): number { return this.payments.controls.findIndex((_, index) => this.usesCreditPayment(index)); }
+  updateCreditCustomerRequirement() {
+    if (this.needsCreditCustomer) this.customerControl?.setValidators([Validators.required, Validators.min(1)]);
+    else this.customerControl?.clearValidators();
+    this.customerControl?.updateValueAndValidity({ emitEvent: false });
+  }
   addPayment() {
     this.payments.push(this.fb.group({
-      paymentMethodId: [this.paymentMethods[0]?.value != null ? Number(this.paymentMethods[0].value) : 0, Validators.min(1)],
+      paymentMethodId: [Number((this.paymentMethods.find((method) => (method.hint ?? '').toUpperCase() === 'CASH') ?? this.paymentMethods[0])?.value ?? 0), Validators.min(1)],
       amount: [0, Validators.min(0.01)], reference: [''],
     }));
+    this.updateCreditCustomerRequirement();
   }
-  removePayment(index: number) { if (this.payments.length > 1) this.payments.removeAt(index); }
+  removePayment(index: number) { if (this.payments.length > 1) { this.payments.removeAt(index); this.updateCreditCustomerRequirement(); } }
   amountPaid(reading: any): number { return (reading.payments ?? []).reduce((sum: number, payment: any) => sum + Number(payment.amount ?? 0), 0); }
   amountRemaining(reading: any): number { return Math.max(0, Number(reading.totalAmount ?? 0) - this.amountPaid(reading)); }
   canCollect(reading: any): boolean { return reading.paymentStatus !== 'CUSTOMER_CREDIT' && this.amountRemaining(reading) > 0.01; }
@@ -196,22 +218,24 @@ export class Fuel implements OnInit {
     this.selectedPaymentReading = reading;
     this.paymentDate = new Date().toISOString().slice(0, 10);
     this.payments.clear();
+    this.readingForm.patchValue({ customerId: 0 });
     this.addPayment();
     this.payments.at(0)?.patchValue({ amount: this.amountRemaining(reading) });
+    this.updateCreditCustomerRequirement();
     this.error = '';
     this.modal = 'paymentEntry';
   }
   get paymentEntryAmount(): number { return this.paid; }
   get paymentEntryGap(): number { return this.amountRemaining(this.selectedPaymentReading) - this.paymentEntryAmount; }
   savePaymentEntry() {
-    if (!this.selectedPaymentReading || this.saving || !this.payments.length || this.payments.invalid) return;
+    if (!this.selectedPaymentReading || this.saving || !this.payments.length || this.payments.invalid || (this.needsCreditCustomer && Number(this.customerControl?.value ?? 0) <= 0)) return;
     if (this.paymentEntryAmount <= 0 || this.paymentEntryAmount > this.amountRemaining(this.selectedPaymentReading) + 0.01) {
       this.error = 'Le versement doit être positif et ne peut pas dépasser le reste dû.';
       return;
     }
     this.saving = true;
     this.error = '';
-    this.fuel.addReadingPayments(this.selectedPaymentReading.id, { date: this.paymentDate, payments: this.payments.getRawValue() }).subscribe({
+    this.fuel.addReadingPayments(this.selectedPaymentReading.id, { date: this.paymentDate, customerId: this.customerControl?.value, payments: this.payments.getRawValue() }).subscribe({
       next: () => { this.saving = false; this.modal = null; this.selectedPaymentReading = null; this.load(); },
       error: (e) => { this.error = e.error?.message ?? 'Le versement n’a pas pu être enregistré.'; this.saving = false; this.cdr.detectChanges(); },
     });
