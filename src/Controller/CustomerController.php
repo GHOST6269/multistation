@@ -26,14 +26,20 @@ final class CustomerController extends AbstractController
         $sales = $em->getRepository(FuelShiftReading::class)->findBy(['station' => $station], ['workDate' => 'DESC', 'id' => 'DESC']);
         foreach ($sales as $reading) {
             $customer = $reading->getCustomer();
-            if (!$customer) continue;
-            $customerId = $customer->getId();
             $creditLines = array_values(array_filter($reading->getPayments(), static fn (array $line): bool => !empty($line['isCredit']) || ($line['type'] ?? '') === 'CLIENT_VOUCHER'));
             if ($creditLines) {
-                $creditAmount = array_sum(array_map(static fn (array $line): float => (float) ($line['amount'] ?? 0), $creditLines));
-                $billedByCustomer[$customerId] = ($billedByCustomer[$customerId] ?? 0.0) + ($creditAmount > 0 ? $creditAmount : (float) $reading->getTotalAmount());
+                foreach ($creditLines as $line) {
+                    $customerId = (int) ($line['customerId'] ?? $customer?->getId() ?? 0);
+                    if (!$customerId) continue;
+                    $creditAmount = (float) ($line['amount'] ?? 0);
+                    // A zero value is the legacy marker for a full credit sale.
+                    if ($creditAmount <= 0 && count($creditLines) === 1) $creditAmount = (float) $reading->getTotalAmount();
+                    $billedByCustomer[$customerId] = ($billedByCustomer[$customerId] ?? 0.0) + $creditAmount;
+                }
                 continue;
             }
+            if (!$customer) continue;
+            $customerId = $customer->getId();
             $billedByCustomer[$customerId] = ($billedByCustomer[$customerId] ?? 0.0) + (float) $reading->getTotalAmount();
             $paidOnReading = array_sum(array_map(static fn (array $line): float => (float) ($line['amount'] ?? 0), $reading->getPayments()));
             $paidByCustomer[$customerId] = ($paidByCustomer[$customerId] ?? 0.0) + $paidOnReading;
@@ -242,12 +248,17 @@ final class CustomerController extends AbstractController
     }
 
     private function nullable(mixed $value): ?string { $value = trim((string) $value); return $value ?: null; }
-    private function billedAmount(FuelShiftReading $reading): float
+    private function billedAmount(FuelShiftReading $reading, ?int $customerId = null): float
     {
         $creditLines = array_values(array_filter($reading->getPayments(), static fn (array $line): bool => !empty($line['isCredit']) || ($line['type'] ?? '') === 'CLIENT_VOUCHER'));
         if (!$creditLines) return (float) $reading->getTotalAmount();
-        $creditAmount = array_sum(array_map(static fn (array $line): float => (float) ($line['amount'] ?? 0), $creditLines));
-        return $creditAmount > 0 ? $creditAmount : (float) $reading->getTotalAmount();
+        $matchingLines = array_values(array_filter($creditLines, static function (array $line) use ($customerId, $reading): bool {
+            if ($customerId === null) return true;
+            return (int) ($line['customerId'] ?? $reading->getCustomer()?->getId() ?? 0) === $customerId;
+        }));
+        $creditAmount = array_sum(array_map(static fn (array $line): float => (float) ($line['amount'] ?? 0), $matchingLines));
+        if ($creditAmount <= 0 && count($matchingLines) === 1 && count($creditLines) === 1) return (float) $reading->getTotalAmount();
+        return $creditAmount;
     }
     private function row(Customer $customer, float $billed = 0.0, float $paid = 0.0): array { $balance = $billed - $paid; return ['id' => $customer->getId(), 'code' => $customer->getCode(), 'name' => $customer->getName(), 'contactPerson' => $customer->getContactPerson(), 'phone' => $customer->getPhone(), 'email' => $customer->getEmail(), 'address' => $customer->getAddress(), 'active' => $customer->isActive(), 'billed' => round($billed, 2), 'paid' => round($paid, 2), 'balance' => round($balance, 2)]; }
 }

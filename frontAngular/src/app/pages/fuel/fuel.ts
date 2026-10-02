@@ -29,6 +29,7 @@ export class Fuel implements OnInit {
   toDate = '';
   paymentFromDate = '';
   paymentToDate = '';
+  paymentAttendantFilter = 0;
   attendantFilter = 0;
   nozzleFilter = 0;
   paymentFilter: 'ALL' | 'DUE' | 'PARTIAL' | 'PAID' | 'CREDIT' = 'ALL';
@@ -335,15 +336,25 @@ export class Fuel implements OnInit {
   }
   openAttendantPayments() { this.attendantPaymentFilter = 0; this.attendantPaymentFrom = ''; this.attendantPaymentTo = ''; this.attendantPaymentsOpen = true; }
   get attendantPaymentRows(): any[] {
-    const rows: any[] = [];
+    const sourceRows: any[] = [];
     for (const reading of this.data?.readings ?? []) {
       if (this.attendantPaymentFilter && Number(reading.attendantId ?? 0) !== Number(this.attendantPaymentFilter)) continue;
-      const lines: { label?: string; type?: string; amount: number; date?: string }[] = reading.payments?.length ? reading.payments : [{ label: 'Aucun versement', amount: 0 }];
+      const lines: { label?: string; type?: string; methodId?: number; amount: number; date?: string; isCredit?: boolean; customerAccountPayment?: boolean }[] = reading.payments?.length ? reading.payments : [{ label: 'Aucun versement', amount: 0 }];
       for (const payment of lines) {
         const date = payment.date || reading.date || '';
         if ((this.attendantPaymentFrom && date < this.attendantPaymentFrom) || (this.attendantPaymentTo && date > this.attendantPaymentTo)) continue;
-        rows.push({ id: `${reading.id}-${rows.length}`, readingId: reading.id, date, invoiceNumber: reading.invoiceNumber, nozzle: reading.nozzle, responsible: reading.responsible, method: payment.label || payment.type || 'Aucun versement', amount: Number(payment.amount ?? 0), gap: this.amountRemaining(reading) });
+        if (payment.customerAccountPayment || String(payment.label ?? '').startsWith('Règlement client ·')) continue;
+        sourceRows.push({ id: `${reading.id}-${sourceRows.length}`, readingId: reading.id, date, attendantId: Number(reading.attendantId ?? 0), responsible: reading.responsible, method: payment.label || payment.type || 'Aucun versement', methodKey: payment.methodId ?? payment.type ?? payment.label, amount: Number(payment.amount ?? 0), isCredit: payment.isCredit === true || String(payment.type ?? '').toUpperCase() === 'CLIENT_VOUCHER', hasPayment: Boolean(reading.payments?.length) });
       }
+    }
+    const rows: any[] = [];
+    const grouped = new Map<string, any>();
+    for (const row of sourceRows) {
+      if (row.isCredit || !row.hasPayment) { rows.push(row); continue; }
+      const key = `${row.date}|${row.attendantId}|${row.methodKey}`;
+      let aggregate = grouped.get(key);
+      if (!aggregate) { aggregate = { ...row, id: key, amount: 0 }; grouped.set(key, aggregate); rows.push(aggregate); }
+      aggregate.amount += row.amount;
     }
     return rows.sort((a, b) => String(b.date).localeCompare(String(a.date)));
   }
@@ -356,6 +367,7 @@ export class Fuel implements OnInit {
   get filteredPaymentHistory() {
     return this.paymentHistory.filter(
       (payment) =>
+        (!this.paymentAttendantFilter || Number(payment.attendantId ?? 0) === Number(this.paymentAttendantFilter)) &&
         (!this.paymentFromDate || payment.date >= this.paymentFromDate) &&
         (!this.paymentToDate || payment.date <= this.paymentToDate),
     );

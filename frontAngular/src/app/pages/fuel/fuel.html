@@ -339,7 +339,7 @@
     </div>
     <span>{{ filteredPaymentHistory.length }} paiement(s)</span>
   </header>
-  <div class="history-date-filters"><label>Du<input type="date" [(ngModel)]="paymentFromDate" (ngModelChange)="resetPaymentsPage()" /></label><label>Au<input type="date" [(ngModel)]="paymentToDate" (ngModelChange)="resetPaymentsPage()" /></label></div>
+  <div class="history-date-filters"><label>Du<input type="date" [(ngModel)]="paymentFromDate" (ngModelChange)="resetPaymentsPage()" /></label><label>Au<input type="date" [(ngModel)]="paymentToDate" (ngModelChange)="resetPaymentsPage()" /></label><label>Pompiste<app-dropdown [(ngModel)]="paymentAttendantFilter" (ngModelChange)="resetPaymentsPage()" [options]="attendantPaymentOptions" /></label></div>
   <div class="reading-table">
     <table class="payment-history-table">
       <thead>
@@ -386,10 +386,10 @@
     <section class="attendant-payments-modal" (click)="$event.stopPropagation()">
       <header><div><h2>Versements des pompistes</h2><p>Versements effectués et écarts restant à régulariser.</p></div><button type="button" (click)="attendantPaymentsOpen = false">×</button></header>
       <div class="attendant-payment-filters"><label>Du<input type="date" [(ngModel)]="attendantPaymentFrom" /></label><label>Au<input type="date" [(ngModel)]="attendantPaymentTo" /></label><label>Pompiste<app-dropdown [(ngModel)]="attendantPaymentFilter" [options]="attendantPaymentOptions" /></label></div>
-      <div class="attendant-payment-kpis"><article><small>VERSEMENTS AFFICHÉS</small><strong>{{ attendantPaymentRows.length }}</strong></article><article><small>TOTAL DES VERSEMENTS</small><strong>{{ money(attendantPaymentAmountTotal) }} Ar</strong></article><article class="balance"><small>ÉCART RESTANT TOTAL</small><strong>{{ money(attendantPaymentGapTotal) }} Ar</strong></article></div>
-      <div class="attendant-payment-table"><table><thead><tr><th>DATE</th><th>POMPISTE</th><th>MODE DE PAIEMENT</th><th>MONTANT VERSÉ</th><th>ÉCART RESTANT</th></tr></thead><tbody>
-        @for (row of attendantPaymentRows; track row.id) { <tr><td>{{ row.date | date:'dd/MM/yyyy' }}</td><td>{{ row.responsible }}</td><td>{{ row.method }}</td><td>{{ money(row.amount) }} Ar</td><td class="reading-gap">{{ money(row.gap) }} Ar</td></tr> }
-        @empty { <tr><td colspan="5" class="empty">Aucun versement pour ces critères.</td></tr> }
+      <div class="attendant-payment-kpis"><article><small>VERSEMENTS AFFICHÉS</small><strong>{{ attendantPaymentRows.length }}</strong></article><article><small>TOTAL DES VERSEMENTS</small><strong>{{ money(attendantPaymentAmountTotal) }} Ar</strong></article></div>
+      <div class="attendant-payment-table"><table><thead><tr><th>DATE</th><th>POMPISTE</th><th>MODE DE PAIEMENT</th><th>MONTANT VERSÉ</th></tr></thead><tbody>
+        @for (row of attendantPaymentRows; track row.id) { <tr><td>{{ row.date | date:'dd/MM/yyyy' }}</td><td>{{ row.responsible }}</td><td>{{ row.method }}</td><td>{{ money(row.amount) }} Ar</td></tr> }
+        @empty { <tr><td colspan="4" class="empty">Aucun versement pour ces critères.</td></tr> }
       </tbody></table></div>
       <footer><button type="button" class="cancel" (click)="attendantPaymentsOpen = false">Fermer</button></footer>
     </section>

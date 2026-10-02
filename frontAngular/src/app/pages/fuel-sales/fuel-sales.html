@@ -63,13 +63,11 @@
             <th>INDEX FINAL</th>
             <th>VOLUME VENDU</th>
             <th>MONTANT</th>
-            <th>VERSEMENTS</th>
-            <th>DÉTAIL</th>
           </tr>
         </thead>
         <tbody>
           @for (row of rows; track row.id) {
-            <tr class="history-row" (click)="openPaymentHistory(row)" title="Afficher l’historique des versements">
+            <tr>
               <td>{{ row.date | date: 'dd/MM/yyyy' }}</td>
               <td>{{ row.invoiceNumber || '—' }}</td>
               <td>
@@ -84,12 +82,10 @@
                 <strong>{{ row.quantitySold | number: '1.3-3' }} L</strong>
               </td>
               <td class="amount">{{ money(row.totalAmount) }} Ar</td>
-              <td class="amount">{{ money(amountPaid(row)) }} Ar</td>
-              <td><span class="history-hint">Voir le détail →</span></td>
             </tr>
           } @empty {
             <tr>
-              <td colspan="10" class="empty">
+              <td colspan="8" class="empty">
                 {{ loading ? 'Chargement des relevés…' : 'Aucun relevé pour cette période.' }}
               </td>
             </tr>
@@ -199,7 +195,7 @@
         } @else { <p class="settlement-later-note">Sélectionnez un pompiste pour afficher le total de ses versements en attente.</p> }
         @if (error) { <p class="operation-form-error" role="alert">{{ error }}</p> }
       </div>
-      <footer><button type="button" class="cancel" [disabled]="saving" (click)="paymentOpen = false">Annuler</button>@if (settlementReadings.length) { <button class="settlement-submit" [disabled]="saving || payments.invalid || needsVoucherCustomer || paymentEntryAmount <= 0 || paymentEntryAmount > settlementTotalDue + 0.01">{{ saving ? 'Enregistrement…' : 'Confirmer le versement' }}</button> }</footer>
+      <footer><button type="button" class="cancel" [disabled]="saving" (click)="paymentOpen = false">Annuler</button>@if (settlementReadings.length) { <button class="settlement-submit" [disabled]="saving || payments.invalid || needsVoucherCustomer || paymentEntryAmount <= 0 || cashPaid > settlementTotalDue + 0.01">{{ saving ? 'Enregistrement…' : 'Confirmer le versement' }}</button> }</footer>
     </form>
   </div>
 }
@@ -208,10 +204,10 @@
     <section class="attendant-payments-modal" (click)="$event.stopPropagation()">
       <header class="history-modal-header"><div><p>ENCAISSEMENTS CARBURANT</p><h2>Versements des pompistes</h2><span>Versements effectués et écarts restant à régulariser.</span></div><button type="button" (click)="attendantPaymentsOpen = false">×</button></header>
       <div class="attendant-payment-filters"><label>Du<input type="date" [(ngModel)]="attendantPaymentFrom" /></label><label>Au<input type="date" [(ngModel)]="attendantPaymentTo" /></label><label>Pompiste<app-dropdown [(ngModel)]="attendantPaymentFilter" [options]="attendantPaymentOptions" /></label></div>
-      <div class="attendant-payment-kpis"><article><small>VERSEMENTS AFFICHÉS</small><strong>{{ attendantPaymentRows.length }}</strong></article><article><small>TOTAL DES VERSEMENTS</small><strong>{{ money(attendantPaymentAmountTotal) }} Ar</strong></article><article class="balance"><small>ÉCART RESTANT TOTAL</small><strong>{{ money(attendantPaymentGapTotal) }} Ar</strong></article></div>
-      <div class="attendant-payment-table"><table><thead><tr><th>DATE</th><th>POMPISTE</th><th>MODE DE PAIEMENT</th><th>MONTANT</th><th>ÉCART POMPISTE</th></tr></thead><tbody>
-        @for (row of attendantPaymentRows; track row.id) { <tr><td>{{ row.date | date:'dd/MM/yyyy' }}</td><td>{{ row.responsible }}</td><td>{{ row.method }}</td><td>{{ money(row.amount) }} Ar</td><td class="reading-gap">{{ money(row.gap) }} Ar</td></tr> }
-        @empty { <tr><td colspan="5" class="empty-history">Aucun versement pour ces critères.</td></tr> }
+      <div class="attendant-payment-kpis"><article><small>VERSEMENTS AFFICHÉS</small><strong>{{ attendantPaymentRows.length }}</strong></article><article><small>TOTAL DES VERSEMENTS</small><strong>{{ money(attendantPaymentAmountTotal) }} Ar</strong></article></div>
+      <div class="attendant-payment-table"><table><thead><tr><th>DATE</th><th>POMPISTE</th><th>MODE DE PAIEMENT</th><th>MONTANT</th></tr></thead><tbody>
+        @for (row of attendantPaymentRows; track row.id) { <tr><td>{{ row.date | date:'dd/MM/yyyy' }}</td><td>{{ row.responsible }}</td><td>{{ row.method }}</td><td>{{ money(row.amount) }} Ar</td></tr> }
+        @empty { <tr><td colspan="4" class="empty-history">Aucun versement pour ces critères.</td></tr> }
       </tbody></table></div>
       <footer><button type="button" class="cancel" (click)="attendantPaymentsOpen = false">Fermer</button></footer>
     </section>

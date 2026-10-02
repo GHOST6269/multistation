@@ -82,20 +82,14 @@ export class FuelSales implements OnInit {
   }
   get filtered() {
     const filteredRows = this.readings.filter((row) => {
-      const matchesDate = (!this.fromDate || row.date >= this.fromDate) && (!this.toDate || row.date <= this.toDate);
-      const hasCustomerVoucher = Array.isArray(row.payments) && row.payments.some((payment: any) => payment.isCredit === true || String(payment.type ?? '').toUpperCase() === 'CLIENT_VOUCHER');
-      const customerSale = Number(row.customerId ?? 0) > 0;
-      const matchesCustomer = !this.creditMode || (customerSale && (hasCustomerVoucher || (!Array.isArray(row.payments) || row.payments.length === 0)));
-      const nozzle = this.nozzles.find((item) => item.code === row.nozzle);
-      const matchesAttendant = !this.attendantFilter || Number(row.attendantId ?? 0) === Number(this.attendantFilter);
-      const matchesNozzle = !this.nozzleFilter || Number(nozzle?.id ?? 0) === Number(this.nozzleFilter);
+      if (!this.matchesSalesFilters(row)) return false;
       const due = this.canCollect(row);
       const matchesPayment = this.paymentFilter === 'ALL' ||
         (this.paymentFilter === 'DUE' && due) ||
         (this.paymentFilter === 'PARTIAL' && due && this.amountPaid(row) > 0) ||
         (this.paymentFilter === 'PAID' && !due && row.paymentStatus !== 'CUSTOMER_CREDIT') ||
         (this.paymentFilter === 'CREDIT' && row.paymentStatus === 'CUSTOMER_CREDIT');
-      return matchesDate && matchesCustomer && matchesAttendant && matchesNozzle && matchesPayment;
+      return matchesPayment;
     });
 
     const runningTotals = new Map<number, number>();
@@ -117,8 +111,18 @@ export class FuelSales implements OnInit {
         };
       });
   }
+  private matchesSalesFilters(row: any): boolean {
+    const matchesDate = (!this.fromDate || row.date >= this.fromDate) && (!this.toDate || row.date <= this.toDate);
+    const hasCustomerVoucher = Array.isArray(row.payments) && row.payments.some((payment: any) => payment.isCredit === true || String(payment.type ?? '').toUpperCase() === 'CLIENT_VOUCHER');
+    const customerSale = Number(row.customerId ?? 0) > 0;
+    const matchesCustomer = !this.creditMode || (customerSale && (hasCustomerVoucher || (!Array.isArray(row.payments) || row.payments.length === 0)));
+    const nozzle = this.nozzles.find((item) => item.code === row.nozzle);
+    const matchesAttendant = !this.attendantFilter || Number(row.attendantId ?? 0) === Number(this.attendantFilter);
+    const matchesNozzle = !this.nozzleFilter || Number(nozzle?.id ?? 0) === Number(this.nozzleFilter);
+    return matchesDate && matchesCustomer && matchesAttendant && matchesNozzle;
+  }
   get totalVolume() { return this.filtered.reduce((sum, row) => sum + Number(row.quantitySold || 0), 0); }
-  get totalAmount() { return this.filtered.reduce((sum, row) => sum + Number(row.totalAmount || 0), 0); }
+  get totalAmount() { return this.readings.filter((row) => this.matchesSalesFilters(row)).reduce((sum, row) => sum + Number(row.totalAmount || 0), 0); }
   get totalGap() { return this.filtered.reduce((sum, row) => sum + Math.max(0, this.paymentGap(row)), 0); }
   get totalPages() { return Math.max(1, Math.ceil(this.filtered.length / this.pageSize)); }
   get pages() { return Array.from({ length: this.totalPages }, (_, index) => index + 1); }
@@ -134,15 +138,38 @@ export class FuelSales implements OnInit {
   }
   openAttendantPayments() { this.attendantPaymentFilter = 0; this.attendantPaymentFrom = ''; this.attendantPaymentTo = ''; this.attendantPaymentsOpen = true; }
   get attendantPaymentRows(): any[] {
-    const rows: any[] = [];
+    const sourceRows: any[] = [];
     for (const reading of this.readings) {
       if (this.attendantPaymentFilter && Number(reading.attendantId ?? 0) !== Number(this.attendantPaymentFilter)) continue;
-      const lines: { label?: string; type?: string; amount: number; date?: string }[] = reading.payments?.length ? reading.payments : [{ label: 'Aucun versement', amount: 0 }];
-      for (const payment of lines) { const date = payment.date || reading.date || ''; if ((this.attendantPaymentFrom && date < this.attendantPaymentFrom) || (this.attendantPaymentTo && date > this.attendantPaymentTo)) continue; rows.push({ id: `${reading.id}-${rows.length}`, readingId: reading.id, date, invoiceNumber: reading.invoiceNumber, nozzle: reading.nozzle, responsible: reading.responsible, method: payment.label || payment.type || 'Aucun versement', amount: Number(payment.amount || 0), gap: this.attendantGap(reading), customerAccountPayment: this.isCustomerAccountPayment(payment) }); }
+      const lines: { label?: string; type?: string; methodId?: number; amount: number; date?: string; customerAccountPayment?: boolean }[] = reading.payments?.length ? reading.payments : [{ label: 'Aucun versement', amount: 0 }];
+      for (const payment of lines) {
+        const date = payment.date || reading.date || '';
+        if ((this.attendantPaymentFrom && date < this.attendantPaymentFrom) || (this.attendantPaymentTo && date > this.attendantPaymentTo)) continue;
+        const isCustomerDebtRepayment = payment.customerAccountPayment === true || String(payment.label ?? '').startsWith('Règlement client ·');
+        if (isCustomerDebtRepayment) continue;
+        sourceRows.push({ id: `${reading.id}-${sourceRows.length}`, readingId: Number(reading.id), date, attendantId: Number(reading.attendantId ?? 0), responsible: reading.responsible, method: payment.label || payment.type || 'Aucun versement', methodKey: payment.methodId ?? payment.type ?? payment.label, amount: Number(payment.amount || 0), gap: this.attendantGap(reading), customerAccountPayment: this.isCustomerAccountPayment(payment), hasPayment: Boolean(reading.payments?.length) });
+      }
     }
+    const grouped = new Map<string, any>();
+    const rows: any[] = [];
+    for (const row of sourceRows) {
+      // Keep customer credit entries separate; group only cash like payments
+      // made by the same attendant on the same date.
+      if (row.customerAccountPayment || !row.hasPayment) { rows.push(row); continue; }
+      const key = `${row.date}|${row.attendantId}|${row.methodKey}`;
+      let aggregate = grouped.get(key);
+      if (!aggregate) {
+        aggregate = { ...row, id: key, amount: 0, readingGaps: new Map<number, number>() };
+        grouped.set(key, aggregate);
+        rows.push(aggregate);
+      }
+      aggregate.amount += row.amount;
+      aggregate.readingGaps.set(row.readingId, row.gap);
+    }
+    for (const row of rows) if (row.readingGaps) row.gap = [...row.readingGaps.values()].reduce((sum: number, gap: number) => sum + gap, 0);
     return rows.sort((a, b) => String(b.date).localeCompare(String(a.date)));
   }
-  get attendantPaymentGapTotal(): number { const gaps = new Map<number, number>(); for (const row of this.attendantPaymentRows) gaps.set(Number(row.readingId), row.gap); return [...gaps.values()].reduce((sum, gap) => sum + gap, 0); }
+  get attendantPaymentGapTotal(): number { const gaps = new Map<number, number>(); for (const row of this.attendantPaymentRows) { if (row.readingGaps) for (const [id, gap] of row.readingGaps as Map<number, number>) gaps.set(id, gap); else gaps.set(Number(row.readingId), row.gap); } return [...gaps.values()].reduce((sum, gap) => sum + gap, 0); }
   get attendantPaymentAmountTotal(): number { return this.attendantPaymentRows.filter(row => !row.customerAccountPayment).reduce((sum, row) => sum + Number(row.amount || 0), 0); }
   get settlementAttendantOptions(): DropdownOption[] { return this.readingAttendantOptions; }
   get settlementReadings(): any[] { const attendantId = Number(this.settlementForm.value.attendantId || 0); const customerId = Number(this.settlementForm.value.customerId || 0); return this.readings.filter(row => attendantId && Number(row.attendantId ?? 0) === attendantId && (!customerId || !row.customerId || Number(row.customerId) === customerId) && (this.canCollect(row) || this.hasClientVoucher(row))); }
@@ -184,6 +211,7 @@ export class FuelSales implements OnInit {
     this.cdr.detectChanges();
   }
   get paid() { return this.payments.controls.reduce((sum, payment) => sum + Number(payment.value.amount || 0), 0); }
+  get cashPaid() { return this.payments.controls.reduce((sum, payment, index) => sum + (this.usesClientVoucher(index) ? 0 : Number(payment.value.amount || 0)), 0); }
   addPayment() {
     const initialAmount = 0;
     const defaultMethod = this.paymentMethods.find((method) => (method.hint ?? '').toUpperCase() === 'CASH')?.value ?? this.paymentMethods[0]?.value ?? 0;
@@ -244,7 +272,7 @@ export class FuelSales implements OnInit {
   get paymentEntryGap(): number { return this.settlementTotalDue - this.paymentEntryAmount; }
   savePaymentEntry() {
     if (this.saving || this.payments.invalid || this.needsVoucherCustomer || !this.settlementForm.value.attendantId) { this.settlementForm.markAllAsTouched(); return; }
-    if (this.paymentEntryAmount <= 0 || this.paymentEntryAmount > this.settlementTotalDue + .01) { this.error = 'Le versement doit être positif et ne peut pas dépasser le total restant dû.'; return; }
+    if (this.paymentEntryAmount <= 0 || this.cashPaid > this.settlementTotalDue + .01) { this.error = 'Les paiements encaissés dépassent le total restant dû.'; return; }
     this.saving = true;
     this.error = '';
     this.fuel.addAttendantSettlement({ stationId: this.stationId, attendantId: this.settlementForm.value.attendantId, customerId: this.settlementForm.value.customerId, date: this.paymentDate, payments: this.payments.getRawValue() }).subscribe({

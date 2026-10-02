@@ -13,9 +13,9 @@
 }
 @if (view === 'purchases') {
 <section class="customer-panel"><header><div><h2>Achats à crédit</h2><p>Chaque montant correspond à la ligne créditée au compte client.</p></div><span>{{ purchases.length }} achat(s)</span></header>
-  <table><thead><tr><th>DATE</th><th>CLIENT</th><th>RÉFÉRENCE PAIEMENT</th><th>VOLUME VENDU</th><th>MONTANT CRÉDITÉ</th><th>CARBURANT</th><th>PISTOLET</th><th>POMPISTE</th></tr></thead><tbody>
-    @for (purchase of purchases; track purchase.id) { <tr><td>{{ purchase.date | date:'dd/MM/yyyy' }}</td><td><strong>{{ purchase.customer }}</strong></td><td>{{ purchase.reference || '—' }}</td><td><strong>{{ purchase.quantitySold | number:'1.0-3' }} L</strong></td><td class="balance"><strong>{{ money(purchase.amount) }} Ar</strong></td><td><span class="fuel-badge">{{ purchase.fuel || '—' }}</span></td><td>{{ purchase.nozzle || '—' }}</td><td>{{ purchase.attendant || '—' }}</td></tr> }
-    @if (!loading && !purchases.length) { <tr><td colspan="8" class="empty">Aucun achat à crédit pour cette station.</td></tr> }
+  <table><thead><tr><th>DATE</th><th>CLIENT</th><th>RÉFÉRENCE PAIEMENT</th><th>MONTANT CRÉDITÉ</th><th>POMPISTE</th></tr></thead><tbody>
+    @for (purchase of purchases; track purchase.id) { <tr><td>{{ purchase.date | date:'dd/MM/yyyy' }}</td><td><strong>{{ purchase.customer }}</strong></td><td>{{ purchase.reference || '—' }}</td><td class="balance"><strong>{{ money(purchase.amount) }} Ar</strong></td><td>{{ purchase.attendant || '—' }}</td></tr> }
+    @if (!loading && !purchases.length) { <tr><td colspan="5" class="empty">Aucun achat à crédit pour cette station.</td></tr> }
   </tbody></table>
 </section>
 }
