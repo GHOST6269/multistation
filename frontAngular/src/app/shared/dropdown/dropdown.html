@@ -14,7 +14,7 @@
     <span class="chevron">⌄</span>
   </button>
   @if (open) {
-    <div class="menu fixed-menu" [ngStyle]="menuStyle">
+    <div #menu popover="manual" class="menu fixed-menu" [ngStyle]="menuStyle" (click)="$event.stopPropagation()">
       @if (searchable) {
         <label class="search"
           >⌕<input

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Multistation</string>
+    <string name="title_activity_main">Multistation</string>
+    <string name="package_name">mg.multistation.app</string>
+    <string name="custom_url_scheme">mg.multistation.app</string>
+</resources>

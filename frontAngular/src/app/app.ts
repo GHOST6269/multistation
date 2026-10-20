@@ -55,11 +55,11 @@ export class App implements OnInit {
         { label: 'Versements', route: '/carburants/versements', roles: ['ROLE_GERANT', 'ROLE_ASSISTANT'] },
         { label: 'Livraisons carburant', route: '/carburants/livraisons', roles: ['ROLE_GERANT', 'ROLE_QUALITY_MARSHALL', 'ROLE_ASSISTANT'] },
         { label: 'Encaissements', route: '/carburants/encaissements', roles: ['ROLE_GERANT', 'ROLE_ASSISTANT'] },
+        { label: 'Pompistes', route: '/pompistes', roles: ['ROLE_GERANT', 'ROLE_ASSISTANT'] },
         { label: 'État des cuves', route: '/stock-carburant' },
       ],
     },
     { label: 'Paramètres', route: '/carburants/configuration', icon: '⚙', roles: ['ROLE_GERANT', 'ROLE_QUALITY_MARSHALL'] },
-    { label: 'Articles', route: '/articles', icon: '▤', visible: false },
     {
       label: 'Fournisseurs', route: '/fournisseurs', icon: '▱', roles: ['ROLE_GERANT'],
       children: [

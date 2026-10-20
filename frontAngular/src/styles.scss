@@ -550,3 +550,269 @@ body {
   background: #9fb6c9;
   background-clip: padding-box;
 }
+
+/* StationFlow visual refresh: richer accents, translucent layers, and touch-first layouts. */
+:root {
+  --ui-ink: #172f4d;
+  --ui-muted: #7188a1;
+  --ui-blue: #347fd0;
+  --ui-blue-dark: #2564ad;
+  --ui-blue-soft: #eaf4ff;
+  --ui-line: rgba(165, 190, 216, .42);
+  --ui-surface: rgba(255, 255, 255, .78);
+  --ui-canvas: #eef4fa;
+  --ui-success: #18a879;
+  --ui-warning: #e69a36;
+  --ui-violet: #8166d8;
+  --ui-coral: #e87867;
+  --ui-shadow: 0 16px 42px rgba(28, 61, 96, .09);
+}
+
+html { scroll-behavior: smooth; }
+body {
+  min-width: 320px;
+  overflow-x: hidden;
+  background:
+    radial-gradient(ellipse at 8% 4%, rgba(125, 181, 245, .20), transparent 34rem),
+    radial-gradient(ellipse at 94% 18%, rgba(62, 201, 169, .13), transparent 30rem),
+    linear-gradient(145deg, #f4f8fc 0%, #edf3f9 55%, #f5f7fc 100%);
+}
+
+.app-shell {
+  min-height: 100dvh;
+  background: transparent;
+}
+
+.app-shell .sidebar {
+  background:
+    radial-gradient(ellipse at 5% 0%, rgba(71, 152, 226, .34), transparent 22rem),
+    radial-gradient(ellipse at 100% 80%, rgba(39, 192, 166, .13), transparent 18rem),
+    linear-gradient(165deg, #142f56 0%, #102746 54%, #0a1f3c 100%);
+  border-right: 1px solid rgba(193, 220, 250, .14);
+  box-shadow: 12px 0 42px rgba(12, 35, 66, .18);
+}
+.app-shell .brand-mark {
+  border: 1px solid rgba(255,255,255,.28);
+  background: linear-gradient(145deg, #74c8df 0%, #508ce0 54%, #7464d8 100%);
+  box-shadow: 0 8px 22px rgba(47, 112, 193, .4);
+}
+.app-shell nav :is(a, .nav-parent) { border-radius: 12px; }
+.app-shell nav :is(a, .nav-parent):hover { background: rgba(111, 177, 239, .15); }
+.app-shell nav :is(a, .nav-parent).active {
+  border-color: rgba(201, 232, 255, .30);
+  background: linear-gradient(105deg, rgba(73, 148, 230, .92), rgba(110, 117, 220, .78));
+  box-shadow: 0 9px 24px rgba(3, 21, 49, .3), inset 0 1px rgba(255,255,255,.2);
+}
+.app-shell .nav-icon {
+  background: linear-gradient(145deg, rgba(104, 185, 220, .22), rgba(118, 121, 226, .17));
+  color: #bceaff;
+}
+.app-shell .nav-submenu {
+  border-color: rgba(158, 201, 239, .18);
+  border-left-color: rgba(92, 207, 194, .72);
+  background: rgba(5, 24, 47, .42);
+  backdrop-filter: blur(12px);
+}
+.app-shell .nav-submenu a.active {
+  background: linear-gradient(90deg, rgba(66, 157, 229, .32), rgba(107, 123, 220, .12));
+}
+.app-shell .help-card {
+  border-color: rgba(163, 203, 239, .2);
+  background: rgba(213, 234, 255, .08);
+  backdrop-filter: blur(16px);
+}
+
+.app-shell .topbar {
+  position: sticky;
+  top: 0;
+  min-height: 66px;
+  background: rgba(249, 252, 255, .76);
+  border-bottom-color: rgba(164, 189, 215, .42);
+  box-shadow: 0 8px 26px rgba(32, 69, 107, .06);
+  backdrop-filter: blur(22px) saturate(1.35);
+  -webkit-backdrop-filter: blur(22px) saturate(1.35);
+}
+.app-shell .live-dot { background: #18b98d; box-shadow: 0 0 0 5px rgba(45, 199, 155, .14), 0 0 14px rgba(45,199,155,.45); }
+.app-shell .top-actions button,
+.app-shell .menu-button,
+.app-shell .top-avatar,
+.app-shell .top-logout {
+  border: 1px solid rgba(160, 190, 220, .42);
+  background: rgba(255,255,255,.7);
+  box-shadow: 0 4px 12px rgba(34, 69, 107, .06);
+}
+.app-shell .top-actions button:hover,
+.app-shell .top-logout:hover { transform: translateY(-1px); }
+.app-shell .top-avatar, .app-shell .avatar {
+  background: linear-gradient(145deg, #d9f3f1, #dce9ff 62%, #eee5ff);
+  color: #426cb4;
+}
+
+.app-shell .page-content {
+  width: 100%;
+  padding: clamp(18px, 2.7vw, 42px) clamp(16px, 3vw, 48px) 56px;
+}
+.app-shell :is(.panel, .table-card, .inventory-table, .invoice-panel, .config-list,
+  .attendant-page .assignment-card, .attendant-page .table-card, .operation-table) {
+  border: 1px solid rgba(165, 190, 216, .46) !important;
+  background: rgba(255,255,255,.78) !important;
+  box-shadow: var(--ui-shadow), inset 0 1px rgba(255,255,255,.82) !important;
+  backdrop-filter: blur(18px) saturate(1.15);
+  -webkit-backdrop-filter: blur(18px) saturate(1.15);
+}
+.app-shell :is(.metrics article, .stock-metrics article, .station-grid article, .supplier-cards article) {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(165, 190, 216, .46) !important;
+  background: linear-gradient(145deg, rgba(255,255,255,.92), rgba(247,251,255,.72)) !important;
+  box-shadow: 0 12px 30px rgba(39, 78, 121, .075), inset 0 1px rgba(255,255,255,.9) !important;
+}
+.app-shell :is(.metrics article, .stock-metrics article, .station-grid article, .supplier-cards article)::after {
+  position: absolute;
+  top: -34px;
+  right: -26px;
+  width: 104px;
+  height: 104px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(95, 165, 232, .12), rgba(121, 105, 217, .035) 65%, transparent 70%);
+  content: '';
+  pointer-events: none;
+}
+.app-shell .metric-icon.mint { background: linear-gradient(145deg, #d8f7ed, #b6efdf); color: #179c78; }
+.app-shell .metric-icon.purple { background: linear-gradient(145deg, #eee5ff, #d9d4ff); color: #765bd1; }
+.app-shell .metric-icon.orange { background: linear-gradient(145deg, #fff0d7, #ffdfb3); color: #c47a24; }
+.app-shell .metric-icon.blue { background: linear-gradient(145deg, #dceeff, #c4ddff); color: #347fd0; }
+.app-shell .status:not(.offline), .app-shell .status-pill.paid { background: #e4f8ef !important; color: #16845b !important; }
+.app-shell .warning, .app-shell .status-pill.partial { background: #fff1d9 !important; color: #b87520 !important; }
+.app-shell .danger, .app-shell .status-pill.unpaid { background: #ffebe8 !important; color: #c85b53 !important; }
+.app-shell :is(.page-heading, .heading, .supplier-heading, .config-heading, .operation-heading) h1 {
+  background: linear-gradient(100deg, #183958 0%, #276cae 58%, #6758bd 100%);
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.app-shell :is(.page-heading, .heading, .supplier-heading, .config-heading) .eyebrow,
+.app-shell .operation-heading > div > p {
+  color: #5388ce !important;
+}
+.app-shell .page-heading > button,
+.app-shell .heading > button,
+.app-shell .primary-button,
+.app-shell .operation-primary,
+.app-shell .delivery-button,
+.app-shell .pay-button,
+.app-shell .stocktake-button {
+  border: 1px solid rgba(255,255,255,.32) !important;
+  border-radius: 11px !important;
+  background: linear-gradient(115deg, #3788d1, #536fd0 65%, #7666d7) !important;
+  box-shadow: 0 9px 20px rgba(64, 111, 195, .25), inset 0 1px rgba(255,255,255,.22) !important;
+}
+.app-shell :is(.panel, .table-card, .inventory-table, .invoice-panel, .config-list) > header,
+.app-shell .operation-table > header { background: linear-gradient(110deg, rgba(239,247,255,.8), rgba(246,243,255,.56)); }
+.app-shell :is(.table-card, .inventory-table, .invoice-panel, .operation-table) th {
+  background: rgba(233, 243, 253, .78) !important;
+  color: #6684a4 !important;
+}
+.app-shell :is(.table-card, .inventory-table, .invoice-panel, .operation-table) tbody tr:nth-child(even) { background: rgba(243,248,253,.45); }
+.app-shell :is(.table-card, .inventory-table, .invoice-panel, .operation-table) tbody tr:hover { background: rgba(225,240,255,.58) !important; }
+.app-shell :is(input:not([type='checkbox']):not([type='radio']), textarea, select) {
+  border-color: rgba(151, 180, 207, .52) !important;
+  background-color: rgba(255,255,255,.82) !important;
+  box-shadow: inset 0 1px 2px rgba(35,72,109,.025);
+}
+.app-shell :is(input, textarea, select):focus-visible {
+  border-color: #6199df !important;
+  box-shadow: 0 0 0 3px rgba(74, 139, 214, .16) !important;
+}
+.app-shell :is(.modal form, .modal-backdrop form, .stock-modal form, .config-modal form, .operation-modal form) {
+  background: rgba(252,254,255,.94);
+  backdrop-filter: blur(24px) saturate(1.2);
+  -webkit-backdrop-filter: blur(24px) saturate(1.2);
+}
+
+button, a, input, select, textarea { touch-action: manipulation; }
+button:focus-visible, a:focus-visible {
+  outline: 3px solid rgba(81, 151, 222, .48);
+  outline-offset: 2px;
+}
+
+@media (max-width: 1024px) {
+  .app-shell .sidebar { width: min(300px, 84vw); }
+  .app-shell .topbar { padding-inline: clamp(14px, 3vw, 24px) !important; }
+  .app-shell .page-content { padding-inline: clamp(14px, 2.6vw, 26px); }
+  .app-shell :is(.operation-controls, .toolbar, .supplier-toolbar, .config-toolbar) { flex-wrap: wrap; }
+  .app-shell .operation-controls > label { min-width: min(220px, 100%); }
+  .app-shell :is(.table-scroll, .table-wrap, .operation-table .table-scroll) { max-width: 100%; overflow-x: auto; overscroll-behavior-inline: contain; }
+}
+
+@media (max-width: 720px) {
+  .app-shell.sidebar-open .sidebar { z-index: 70; }
+  .app-shell .mobile-overlay { z-index: 55; }
+  .app-shell .topbar { min-height: 58px; height: 58px !important; padding-inline: 12px !important; }
+  .app-shell .menu-button { display: grid; width: 38px; height: 38px; place-items: center; border-radius: 11px; color: #376aa8; }
+  .app-shell .station-switcher { gap: 8px; }
+  .app-shell .station-switcher small { font-size: 8px; }
+  .app-shell .station-switcher strong { font-size: 10px; }
+  .app-shell .top-actions { gap: 6px; }
+  .app-shell .top-actions .notification-button, .app-shell .top-logout { width: 36px; height: 36px; }
+  .app-shell .page-content { padding: 17px 13px 32px !important; }
+  .app-shell :is(.page-heading, .heading, .supplier-heading, .config-heading, .operation-heading) {
+    align-items: flex-start !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+    margin-bottom: 18px !important;
+  }
+  .app-shell :is(.page-heading, .heading, .supplier-heading, .config-heading, .operation-heading) h1 { font-size: clamp(22px, 6vw, 28px) !important; }
+  .app-shell :is(.page-heading, .heading, .supplier-heading, .config-heading) > button,
+  .app-shell .page-heading .primary-button,
+  .app-shell .operation-heading > button { min-height: 42px; }
+  .app-shell :is(.metrics, .stock-metrics, .operation-kpis) { grid-template-columns: repeat(2, minmax(0,1fr)) !important; gap: 9px !important; }
+  .app-shell :is(.metrics article, .stock-metrics article) { min-width: 0; padding: 12px !important; }
+  .app-shell .metric-card { min-height: 96px; gap: 9px; }
+  .app-shell .metric-card strong { font-size: clamp(16px, 4.7vw, 21px); }
+  .app-shell :is(.dashboard-grid, .supplier-cards, .station-grid) { grid-template-columns: 1fr !important; }
+  .app-shell :is(.operation-controls, .toolbar, .supplier-toolbar, .config-toolbar, .history-date-filters) {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0,1fr));
+    align-items: end;
+    gap: 9px !important;
+    padding: 11px !important;
+  }
+  .app-shell :is(.operation-controls > label, .toolbar > label, .history-date-filters label) { min-width: 0 !important; width: 100%; }
+  .app-shell .operation-controls app-dropdown, .app-shell .toolbar app-dropdown { min-width: 0; width: 100%; }
+  .app-shell .operation-controls .date-range { grid-column: 1/-1; display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .app-shell .operation-controls .date-range input { width: 100%; min-width: 0; }
+  .app-shell .operation-table { max-width: calc(100vw - 26px); }
+  .app-shell .operation-table table { min-width: 760px; }
+  .app-shell .panel, .app-shell .table-card, .app-shell .inventory-table, .app-shell .invoice-panel { border-radius: 13px !important; }
+  .app-shell .panel > header, .app-shell .operation-table > header { padding: 13px !important; }
+  .app-shell :is(.modal, .modal-backdrop, .config-modal, .stock-modal) { padding: 0 !important; }
+  .app-shell :is(.modal form, .modal-backdrop form, .config-modal form, .stock-modal form) {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    max-height: 100dvh !important;
+    min-height: 100dvh;
+    border-radius: 0 !important;
+  }
+  .app-shell .operation-modal form { min-height: 100dvh; }
+  .app-shell .table-pagination { align-items: center; min-width: 0; flex-direction: row; padding-inline: 10px; }
+  .app-shell .table-pagination > div { flex-wrap: wrap; }
+  .app-shell .notification-panel { position: fixed; top: 62px; right: 10px; }
+}
+
+@media (max-width: 480px) {
+  .app-shell .top-avatar, .app-shell .user-name { display: none !important; }
+  .app-shell .station-switcher .chevron { display: none; }
+  .app-shell .metrics, .app-shell .stock-metrics, .app-shell .operation-kpis { grid-template-columns: 1fr !important; }
+  .app-shell .metric-card { min-height: 80px; }
+  .app-shell :is(.operation-controls, .toolbar, .supplier-toolbar, .config-toolbar, .history-date-filters) { grid-template-columns: 1fr !important; }
+  .app-shell .operation-controls .date-range { grid-column: auto; grid-template-columns: 1fr; }
+  .app-shell .date-range { display: grid !important; grid-template-columns: 1fr 1fr; }
+  .app-shell .notification-panel { right: 7px; width: calc(100vw - 14px); }
+  .app-shell .station-list article { grid-template-columns: 38px minmax(0,1fr); }
+  .app-shell .station-list article > :is(.status, a) { grid-column: 2; justify-self: start; }
+  .app-shell .operation-modal footer { padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}

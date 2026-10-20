@@ -58,7 +58,7 @@
               @else { Accessible : {{ roleLabels(x.allowedRoles || []) || 'aucun rôle' }} }
             </p>
             <span class="item-status" [class.off]="!x.active"><i></i>{{ x.active ? 'Actif' : 'Inactif' }}</span>
-            <div class="item-actions">@if (tab === 'attendant') { <button (click)="openNozzleAssignment(x)">Pistolets</button> }@if (tab === 'nozzle') { <button (click)="openAttendantAssignment(x)">Pompiste</button> }<button (click)="edit(x)">Modifier</button>@if (x.active) { <button class="danger" (click)="deactivate(x)">Désactiver</button> } @else if (tab === 'payment') { <button [disabled]="saving" (click)="activatePaymentMethod(x)">Réactiver</button> }</div>
+            <div class="item-actions">@if (tab === 'attendant') { <button (click)="openNozzleAssignment(x)">Pistolets</button> }@if (tab === 'nozzle') { <button (click)="openAttendantAssignment(x)">Pompiste</button> }<button (click)="edit(x)">Modifier</button>@if (x.active) { <button class="danger" (click)="deactivate(x)">Désactiver</button> } @else { <button [disabled]="saving" (click)="activate(x)">Réactiver</button> }</div>
           </article>
         } @empty {
           <div class="settings-empty"><span>{{ tab === 'fuel' ? '⛽' : tab === 'tank' ? '▱' : tab === 'pump' ? '◉' : tab === 'nozzle' ? '⌁' : tab === 'attendant' ? '♙' : '◈' }}</span><strong>Aucun élément configuré</strong><p>Créez le premier élément pour cette rubrique.</p><button (click)="openCreate()">＋ Commencer la configuration</button></div>

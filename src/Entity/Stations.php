@@ -51,16 +51,9 @@ class Stations
     #[ORM\OneToMany(targetEntity: StationUsers::class, mappedBy: 'station')]
     private Collection $stationUsers;
 
-    /**
-     * @var Collection<int, StationArticles>
-     */
-    #[ORM\OneToMany(targetEntity: StationArticles::class, mappedBy: 'station')]
-    private Collection $stationArticles;
-
     public function __construct()
     {
         $this->stationUsers = new ArrayCollection();
-        $this->stationArticles = new ArrayCollection();
     }
 
     public function getId(): ?int
@@ -212,36 +205,6 @@ class Stations
             // set the owning side to null (unless already changed)
             if ($stationUser->getStation() === $this) {
                 $stationUser->setStation(null);
-            }
-        }
-
-        return $this;
-    }
-
-    /**
-     * @return Collection<int, StationArticles>
-     */
-    public function getStationArticles(): Collection
-    {
-        return $this->stationArticles;
-    }
-
-    public function addStationArticle(StationArticles $stationArticle): static
-    {
-        if (!$this->stationArticles->contains($stationArticle)) {
-            $this->stationArticles->add($stationArticle);
-            $stationArticle->setStation($this);
-        }
-
-        return $this;
-    }
-
-    public function removeStationArticle(StationArticles $stationArticle): static
-    {
-        if ($this->stationArticles->removeElement($stationArticle)) {
-            // set the owning side to null (unless already changed)
-            if ($stationArticle->getStation() === $this) {
-                $stationArticle->setStation(null);
             }
         }
 

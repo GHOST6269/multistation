@@ -1,29 +1,46 @@
 <div class="page-heading">
   <div>
     <p class="eyebrow">TABLEAU DE BORD</p>
-    <h2>Bonjour {{ auth.user?.firstName }} {{ auth.user?.lastName }}, <span>👋</span></h2>
-    <p class="page-intro">Une vue claire de l’activité de vos stations carburant aujourd’hui.</p>
+    <h1>Bonjour {{ auth.user?.firstName }} {{ auth.user?.lastName }}, <span>👋</span></h1>
+    <p class="page-intro">Suivez les encaissements attendus, les factures à payer et l’activité financière de vos stations.</p>
   </div>
-  @if (auth.hasAnyRole(['ROLE_SUPER_ADMIN'])) {
-    <a routerLink="/stations" class="primary-button"><span>＋</span> Nouvelle station</a>
-  }
+  @if (auth.hasAnyRole(['ROLE_SUPER_ADMIN'])) { <a routerLink="/stations" class="primary-button"><span>＋</span> Nouvelle station</a> }
 </div>
 
-@if (loading) { <div class="loading"><span></span><p>Synchronisation des stations…</p></div> }
-@else if (error) { <div class="empty-state"><span>!</span><h3>API momentanément indisponible</h3><p>Vérifiez que Symfony est lancé sur le port 8000.</p><button (click)="load()">Réessayer</button></div> }
+@if (loading) { <div class="loading"><span></span><p>Chargement des données financières…</p></div> }
+@else if (error) { <div class="empty-state"><span>!</span><h3>Impossible de charger la vue d’ensemble</h3><p>{{ errorMessage }}</p><button (click)="load()">Réessayer</button></div> }
 @else if (data) {
-  <div class="metrics fuel-metrics">
-    <article class="metric-card stations-metric"><div class="metric-icon mint">◇</div><div><span>STATIONS ACTIVES</span><strong>{{ data.metrics.activeStations }} <small>/ {{ data.metrics.stations }}</small></strong><p>Réseau opérationnel</p></div></article>
-    <article class="metric-card"><div class="metric-icon purple">♙</div><div><span>COLLABORATEURS</span><strong>{{ data.metrics.users }}</strong><p>Comptes actifs</p></div></article>
-  </div>
+  <section class="dashboard-filters">
+    <label class="station-filter"><span>STATION</span><select [(ngModel)]="stationId" (ngModelChange)="load()"><option [ngValue]="0">Sélectionner une station</option>@for (station of data.stationsForSelection; track station.id) { <option [ngValue]="station.id">{{ station.name }}{{ station.status === 'INACTIVE' ? ' · inactive' : '' }}</option> }</select></label>
+    <label><span>DU</span><input type="date" [(ngModel)]="dateFrom" (ngModelChange)="rangeError = false" /></label>
+    <label><span>AU</span><input type="date" [(ngModel)]="dateTo" (ngModelChange)="rangeError = false" /></label>
+    <button type="button" [disabled]="refreshing || !stationId || (dateFrom && dateTo && dateFrom > dateTo)" (click)="load()">{{ refreshing ? 'Actualisation…' : 'Actualiser' }}</button>
+    @if (rangeError) { <small class="date-range-error">La date de début doit précéder la date de fin.</small> }
+  </section>
+
+  @if (data.finance) {
+    <div class="finance-heading"><div><span class="finance-station-dot"></span><strong>{{ data.finance.stationName }}</strong><span>·</span><small>{{ data.finance.from | date:'dd/MM/yyyy' }} — {{ data.finance.to | date:'dd/MM/yyyy' }}</small></div>@if (refreshing) { <small class="refresh-indicator">Mise à jour…</small> }</div>
+    <section class="finance-metrics">
+      @if (data.finance.customerReceivable !== null) { <article class="finance-card receivable"><div class="finance-icon">↗</div><div><span>À ENCAISSER DES CLIENTS</span><strong>{{ data.finance.customerReceivable | money }} <small>Ar</small></strong><p>Solde client cumulé</p></div><i>CLIENTS</i></article> }
+      @if (data.finance.supplierPayable !== null) { <article class="finance-card payable"><div class="finance-icon">↙</div><div><span>À PAYER AUX FOURNISSEURS</span><strong>{{ data.finance.supplierPayable | money }} <small>Ar</small></strong><p>Factures fournisseurs ouvertes</p></div><i>FOURNISSEURS</i></article> }
+      <article class="finance-card revenue"><div class="finance-icon">↗</div><div><span>CHIFFRE D’AFFAIRES</span><strong>{{ data.finance.revenue | money }} <small>Ar</small></strong><p>Ventes sur la période sélectionnée</p></div><i>VENTES</i></article>
+      <article class="finance-card expenses"><div class="finance-icon">−</div><div><span>DÉPENSES</span><strong>{{ data.finance.expenses | money }} <small>Ar</small></strong><p>Dépenses sur la période sélectionnée</p></div><i>SORTIES</i></article>
+    </section>
+  } @else { <div class="inline-empty">Aucune station accessible pour afficher les données.</div> }
 
   <div class="dashboard-grid">
-    <section class="panel stations-panel"><header><div><h2>Activité des stations</h2><p>Vue consolidée de votre réseau</p></div>@if (auth.hasAnyRole(['ROLE_SUPER_ADMIN'])) { <a routerLink="/stations">Voir toutes →</a> }</header>
+    <section class="panel expense-panel"><header><div><h2>Dépenses récentes</h2><p>Station et période sélectionnées</p></div><a routerLink="/depenses">Voir les dépenses →</a></header>
+      @if (data.finance?.expenseRows?.length) {
+        <div class="expense-list">@for (expense of data.finance?.expenseRows; track expense.id) { <article><span class="expense-mark">−</span><div><strong>{{ expense.category }}</strong><small>{{ expense.description }}</small><time>{{ expense.date | date:'dd/MM/yyyy' }}</time></div><b>{{ expense.amount | money }} Ar</b></article> }</div>
+      } @else { <div class="inline-empty">Aucune dépense sur cette période.</div> }
+    </section>
+    <section class="panel network-panel"><header><div><h2>Activité des stations</h2><p>Vue consolidée de votre réseau</p></div>@if (auth.hasAnyRole(['ROLE_SUPER_ADMIN'])) { <a routerLink="/stations">Voir toutes →</a> }</header>
       <div class="station-list">
         @for (station of data.stations; track station.id) {
           <article><span class="station-logo">{{ initials(station.name) }}</span><div class="station-name"><strong>{{ station.name }}</strong><small>{{ station.city || 'Ville non renseignée' }} · {{ station.manager || 'Sans gérant' }}</small></div><span class="status" [class.offline]="station.status !== 'ACTIVE'">{{ station.status === 'ACTIVE' ? 'Active' : station.status }}</span><a routerLink="/carburants/ventes">Opérations →</a></article>
         } @empty { <div class="inline-empty">Aucune station enregistrée pour le moment.</div> }
       </div>
+      <footer class="network-summary"><span>{{ data.metrics.activeStations }} / {{ data.metrics.stations }} stations actives</span><span>{{ data.metrics.users }} collaborateurs</span></footer>
     </section>
   </div>
 }

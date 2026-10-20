@@ -6,9 +6,16 @@ export interface InventoryItem {
 export interface StockAdjustment { quantity:number; type:'ADD'|'REMOVE'|'SET'; reason:string }
 
 export interface DashboardData {
-  metrics: { stations: number; activeStations: number; articles: number; users: number; lowStock: number };
+  metrics: { stations: number; activeStations: number; users: number };
+  stationsForSelection: { id: number; name: string; status: string | null }[];
+  selectedStationId: number | null;
+  finance: {
+    stationId: number; stationName: string; from: string; to: string;
+    customerReceivable: number | null; supplierPayable: number | null;
+    revenue: number; expenses: number;
+    expenseRows: { id: number; date: string; category: string; description: string; amount: number }[];
+  } | null;
   stations: StationActivity[];
-  lowStock: InventoryItem[];
 }
 
-export interface StationActivity { id: number; name: string; city: string | null; status: string; articlesCount: number; manager: string | null; }
+export interface StationActivity { id: number; name: string; city: string | null; status: string; manager: string | null; }

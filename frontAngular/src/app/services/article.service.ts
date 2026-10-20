@@ -1,11 +1,12 @@
 import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
+import { map } from 'rxjs/operators';
 import { ArticleInput, ArticleOptions, StationArticle } from '../models/article.model';
 import { ApiService } from './api.service';
 @Injectable({providedIn:'root'})
 export class ArticleService {
   constructor(private api:ApiService) {}
-  options():Observable<ArticleOptions>{return this.api.get('station-articles/options')}
+  options():Observable<ArticleOptions>{return this.api.get<{id:number;name:string}[]>('stations').pipe(map(stations=>({stations:stations.map(({id,name})=>({id,name})),categories:[],units:[]})))}
   list(station:number):Observable<StationArticle[]>{return this.api.get('station-articles',{station})}
   create(data:ArticleInput):Observable<StationArticle>{return this.api.post('station-articles',data)}
   update(id:number,data:ArticleInput):Observable<StationArticle>{return this.api.put(`station-articles/${id}`,data)}

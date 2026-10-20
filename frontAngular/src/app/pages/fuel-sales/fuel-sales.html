@@ -157,23 +157,15 @@
 @if (paymentOpen) {
   <div class="operation-modal" (click)="!saving && (paymentOpen = false)">
     <form class="settlement-entry-card" [formGroup]="settlementForm" (ngSubmit)="savePaymentEntry()" (click)="$event.stopPropagation()">
-      <header class="settlement-entry-header"><div><p>ENCAISSEMENT CARBURANT</p><h2>Nouveau versement</h2><span>Choisissez le pompiste et saisissez le versement.</span></div><button type="button" [disabled]="saving" (click)="paymentOpen = false">×</button></header>
+      <header class="settlement-entry-header"><div><p>ENCAISSEMENT CARBURANT</p><h2>Nouveau versement</h2><span>Les relevés d’une même date sont regroupés.</span></div><button type="button" [disabled]="saving" (click)="paymentOpen = false">×</button></header>
       <div class="operation-form settlement-modal-fields">
         @if (settlementView) {
           <div class="settlement-step"><span>1</span><div><strong>Responsable</strong><small>Sélectionnez le pompiste</small></div><label>Pompiste<app-dropdown formControlName="attendantId" (valueChange)="settlementAttendantChanged()" [options]="settlementAttendantOptions" placeholder="Sélectionner" /></label></div>
         }
         @if (settlementForm.value.attendantId) {
-        <section class="reading-summary"><strong>Relevés du pompiste</strong><span>{{ settlementReadings.length }} relevé(s)</span><span>Total à verser : {{ money(settlementTotalDue) }} Ar</span><button type="button" class="show-settlement-readings" [attr.aria-expanded]="settlementReadingsVisible" (click)="settlementReadingsVisible = !settlementReadingsVisible">{{ settlementReadingsVisible ? 'Masquer les relevés' : 'Voir les relevés' }}</button></section>
-        @if (settlementReadingsVisible) {
-          <section class="settlement-reading-list"><h3>Relevés du pompiste</h3>
-            @for (reading of settlementReadings; track reading.id) {
-              <article><div><strong>{{ reading.invoiceNumber || ('Relevé #' + reading.id) }}</strong><small>{{ reading.date | date:'dd/MM/yyyy' }} · {{ reading.nozzle }}</small></div><div class="settlement-reading-state"><strong>{{ hasClientVoucher(reading) ? 'Compte client' : 'À verser au pompiste' }}</strong><small>Montant : {{ money(reading.totalAmount) }} Ar</small><small>Reste : {{ money(hasClientVoucher(reading) ? attendantGap(reading) : amountRemaining(reading)) }} Ar</small></div></article>
-            }
-            @if (!settlementReadings.length) { <p class="settlement-later-note">Aucun relevé à afficher.</p> }
-          </section>
-        }
+        <section class="reading-summary"><strong>Relevés du {{ settlementReadingDate | date:'dd/MM/yyyy' }}</strong><span>{{ settlementReadingCount }} relevé(s) en attente</span><span>Total à verser : {{ money(settlementTotalDue) }} Ar</span></section>
+        <label>Date des relevés à verser<input [value]="settlementReadingDate" (input)="settlementReadingDate = $any($event.target).value" type="date" /></label>
         <label>Date du versement<input [value]="paymentDate" (input)="paymentDate = $any($event.target).value" type="date" /></label>
-        <div class="settlement-balance"><span>Total à verser</span><strong>{{ money(settlementTotalDue) }} Ar</strong></div>
         @if (settlementReadings.length) {
         <div formArrayName="payments" class="payment-lines">
           @for (payment of payments.controls; track $index; let index = $index) {
@@ -195,7 +187,7 @@
         } @else { <p class="settlement-later-note">Sélectionnez un pompiste pour afficher le total de ses versements en attente.</p> }
         @if (error) { <p class="operation-form-error" role="alert">{{ error }}</p> }
       </div>
-      <footer><button type="button" class="cancel" [disabled]="saving" (click)="paymentOpen = false">Annuler</button>@if (settlementReadings.length) { <button class="settlement-submit" [disabled]="saving || payments.invalid || needsVoucherCustomer || paymentEntryAmount <= 0 || cashPaid > settlementTotalDue + 0.01">{{ saving ? 'Enregistrement…' : 'Confirmer le versement' }}</button> }</footer>
+      <footer><button type="button" class="cancel" [disabled]="saving" (click)="paymentOpen = false">Annuler</button>@if (settlementReadings.length) { <button class="settlement-submit" [disabled]="saving || payments.invalid || needsVoucherCustomer || paymentEntryAmount <= 0 || settlementPaid > settlementTotalDue + 0.01">{{ saving ? 'Enregistrement…' : 'Confirmer le versement' }}</button> }</footer>
     </form>
   </div>
 }

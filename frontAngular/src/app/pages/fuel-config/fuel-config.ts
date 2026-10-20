@@ -223,6 +223,11 @@ export class FuelConfig implements OnInit {
     this.saving = true;
     this.service.activatePaymentMethod(x.id).subscribe({ next: () => { this.saving = false; this.load(); }, error: () => { this.saving = false; this.cdr.detectChanges(); } });
   }
+  activate(x: any) {
+    if (this.saving) return;
+    this.saving = true;
+    (this.tab === 'payment' ? this.service.activatePaymentMethod(x.id) : this.service.activate(this.tab, x.id)).subscribe({ next: () => { this.saving = false; this.load(); }, error: () => { this.saving = false; this.cdr.detectChanges(); } });
+  }
 
   readonly paymentRoles = [
     { value: 'ROLE_GERANT', label: 'Gérant', short: 'Gestion' },

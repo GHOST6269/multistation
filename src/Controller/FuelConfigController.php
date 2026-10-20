@@ -3,7 +3,7 @@
 namespace App\Controller;
 
 use App\Entity\{FuelNozzle, FuelPump, FuelTank, FuelType, PumpAttendant, Stations};
-use App\Service\UserAccessService;
+use App\Service\{FuelAttendantAssignmentService, UserAccessService};
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\{JsonResponse, Request};
@@ -35,7 +35,7 @@ final class FuelConfigController extends AbstractController
     }
 
     #[Route('/{type}/{id}', requirements: ['id' => '\\d+'], methods: ['PUT'])]
-    public function update(string $type, int $id, Request $request, EntityManagerInterface $em, UserAccessService $access): JsonResponse
+    public function update(string $type, int $id, Request $request, EntityManagerInterface $em, UserAccessService $access, FuelAttendantAssignmentService $assignments): JsonResponse
     {
         if ($denied = $access->require([UserAccessService::ROLE_GERANT, UserAccessService::ROLE_QUALITY_MARSHALL])) return $denied;
         $data = $request->toArray(); $entity = $this->find($type, $id, $em);
@@ -45,18 +45,29 @@ final class FuelConfigController extends AbstractController
         if ($entity instanceof FuelType) $entity->setCode($code)->setName($name)->setUnitPrice((string) max(0, (float) ($data['unitPrice'] ?? 0)));
         elseif ($entity instanceof FuelTank) { $fuel = $em->getRepository(FuelType::class)->find((int) ($data['fuelTypeId'] ?? 0)); if (!$fuel) return $this->json(['message' => 'Carburant invalide'], 422); $entity->setCode($code)->setName($name)->setFuelType($fuel)->setCapacity((string) max(0, (float) ($data['capacity'] ?? 0)))->setMinimumStock((string) max(0, (float) ($data['minimumStock'] ?? 0))); }
         elseif ($entity instanceof FuelPump) $entity->setCode($code)->setName($name);
-        elseif ($entity instanceof FuelNozzle) { $pump = $em->getRepository(FuelPump::class)->find((int) ($data['pumpId'] ?? 0)); $tank = $em->getRepository(FuelTank::class)->find((int) ($data['tankId'] ?? 0)); if (!$pump || !$tank || !$access->canAccessStation($pump->getStation()) || !$access->canAccessStation($tank->getStation()) || $pump->getStation()?->getId() !== $tank->getStation()?->getId()) return $this->json(['message' => 'Pompe ou cuve invalide'], 422); $attendantId = (int) ($data['attendantId'] ?? 0); $attendant = $attendantId ? $em->getRepository(PumpAttendant::class)->find($attendantId) : null; if ($attendantId && (!$attendant || $attendant->getStation()?->getId() !== $pump->getStation()?->getId())) return $this->json(['message' => 'Pompiste invalide'], 422); $entity->setCode($code)->setPump($pump)->setTank($tank)->setAttendant($attendant)->setCurrentIndex((string) max(0, (float) ($data['currentIndex'] ?? 0))); }
-        elseif ($entity instanceof PumpAttendant) { $entity->setCode($code ?: null)->setFullName($name)->setContact(trim((string) ($data['contact'] ?? '')) ?: null); $selected = array_values(array_unique(array_map('intval', $data['nozzleIds'] ?? []))); foreach ($em->getRepository(FuelNozzle::class)->findAll() as $nozzle) { if ($nozzle->getPump()?->getStation()?->getId() === $entity->getStation()?->getId() && $nozzle->getAttendant()?->getId() === $entity->getId() && !in_array($nozzle->getId(), $selected, true)) $nozzle->setAttendant(null); } foreach ($selected as $nozzleId) { $nozzle = $em->getRepository(FuelNozzle::class)->find($nozzleId); if (!$nozzle || $nozzle->getPump()?->getStation()?->getId() !== $entity->getStation()?->getId()) return $this->json(['message' => 'Un pistolet sélectionné est invalide'], 422); $nozzle->setAttendant($entity); } }
+        elseif ($entity instanceof FuelNozzle) { $pump = $em->getRepository(FuelPump::class)->find((int) ($data['pumpId'] ?? 0)); $tank = $em->getRepository(FuelTank::class)->find((int) ($data['tankId'] ?? 0)); if (!$pump || !$tank || !$access->canAccessStation($pump->getStation()) || !$access->canAccessStation($tank->getStation()) || $pump->getStation()?->getId() !== $tank->getStation()?->getId()) return $this->json(['message' => 'Pompe ou cuve invalide'], 422); $attendantId = (int) ($data['attendantId'] ?? 0); $attendant = $attendantId ? $em->getRepository(PumpAttendant::class)->find($attendantId) : null; if ($attendantId && (!$attendant || $attendant->getStation()?->getId() !== $pump->getStation()?->getId())) return $this->json(['message' => 'Pompiste invalide'], 422); $entity->setCode($code)->setPump($pump)->setTank($tank)->setCurrentIndex((string) max(0, (float) ($data['currentIndex'] ?? 0))); $assignments->change($em, $entity, $attendant, $access->currentUser()); }
+        elseif ($entity instanceof PumpAttendant) { $entity->setCode($code ?: null)->setFullName($name)->setContact(trim((string) ($data['contact'] ?? '')) ?: null); $selected = array_values(array_unique(array_map('intval', $data['nozzleIds'] ?? []))); foreach ($em->getRepository(FuelNozzle::class)->findAll() as $nozzle) { if ($nozzle->getPump()?->getStation()?->getId() === $entity->getStation()?->getId() && $nozzle->getAttendant()?->getId() === $entity->getId() && !in_array($nozzle->getId(), $selected, true)) $assignments->change($em, $nozzle, null, $access->currentUser()); } foreach ($selected as $nozzleId) { $nozzle = $em->getRepository(FuelNozzle::class)->find($nozzleId); if (!$nozzle || $nozzle->getPump()?->getStation()?->getId() !== $entity->getStation()?->getId()) return $this->json(['message' => 'Un pistolet sélectionné est invalide'], 422); $assignments->change($em, $nozzle, $entity, $access->currentUser()); } }
         $em->flush(); return $this->json(['id' => $id]);
     }
 
     #[Route('/{type}/{id}/deactivate', requirements: ['id' => '\\d+'], methods: ['PATCH'])]
-    public function deactivate(string $type, int $id, EntityManagerInterface $em, UserAccessService $access): JsonResponse
+    public function deactivate(string $type, int $id, EntityManagerInterface $em, UserAccessService $access, FuelAttendantAssignmentService $assignments): JsonResponse
     {
         if ($denied = $access->require([UserAccessService::ROLE_GERANT, UserAccessService::ROLE_QUALITY_MARSHALL])) return $denied;
         $entity = $this->find($type, $id, $em); if (!$entity) return $this->json(['message' => 'Élément introuvable'], 404);
         $station = $this->stationOf($entity); if ($station && !$access->canAccessStation($station)) return $access->denyStation();
+        if ($entity instanceof FuelNozzle) $assignments->change($em, $entity, null, $access->currentUser());
+        if ($entity instanceof PumpAttendant) foreach ($em->getRepository(FuelNozzle::class)->findAll() as $nozzle) if ($nozzle->getAttendant()?->getId() === $entity->getId()) $assignments->change($em, $nozzle, null, $access->currentUser());
         $entity->setIsActive(false); $em->flush(); return $this->json(['id' => $id, 'active' => false]);
+    }
+
+    #[Route('/{type}/{id}/activate', requirements: ['id' => '\\d+'], methods: ['PATCH'])]
+    public function activate(string $type, int $id, EntityManagerInterface $em, UserAccessService $access): JsonResponse
+    {
+        if ($denied = $access->require([UserAccessService::ROLE_GERANT, UserAccessService::ROLE_QUALITY_MARSHALL])) return $denied;
+        $entity = $this->find($type, $id, $em); if (!$entity) return $this->json(['message' => 'Élément introuvable'], 404);
+        $station = $this->stationOf($entity); if ($station && !$access->canAccessStation($station)) return $access->denyStation();
+        $entity->setIsActive(true); $em->flush(); return $this->json(['id' => $id, 'active' => true]);
     }
 
     private function find(string $type, int $id, EntityManagerInterface $em): object|null { $class = match ($type) { 'fuel' => FuelType::class, 'tank' => FuelTank::class, 'pump' => FuelPump::class, 'nozzle' => FuelNozzle::class, 'attendant' => PumpAttendant::class, default => null }; return $class ? $em->getRepository($class)->find($id) : null; }

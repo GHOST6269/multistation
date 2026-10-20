@@ -99,6 +99,9 @@
   top: calc(100% + 7px);
   left: 0;
   width: 100%;
+  max-height: min(300px, calc(100dvh - 16px));
+  box-sizing: border-box;
+  margin: 0;
   padding: 8px;
   border: 1px solid #d9e5f0;
   border-radius: 12px;
@@ -108,18 +111,12 @@
 }
 .menu.fixed-menu {
   position: fixed;
-  z-index: 51;
+  z-index: 10000;
+  inset: auto;
 }
 @media (max-width: 720px) {
-  /* In a scrolling mobile modal, an absolute menu follows its trigger exactly. */
-  .menu.fixed-menu {
-    position: absolute;
-    top: calc(100% + 7px) !important;
-    left: 0 !important;
-    width: 100% !important;
-  }
   .options {
-    max-height: min(230px, 42dvh);
+    max-height: min(230px, calc(100dvh - 80px));
   }
 }
 .search {
@@ -141,7 +138,7 @@
   font-size: 9px;
 }
 .options {
-  max-height: 230px;
+  max-height: min(230px, calc(100dvh - 80px));
   overflow: auto;
 }
 .option {

@@ -2,11 +2,7 @@
 
 namespace App\Controller;
 
-use App\Entity\Stations;
-use App\Entity\MouvementStock;
-use App\Entity\StationArticles;
-use App\Repository\ArticlesRepository;
-use App\Repository\StationArticlesRepository;
+use App\Entity\{CustomerPayment, Expense, FuelShiftReading, Stations, SupplierInvoice, SupplierPayment};
 use App\Repository\StationsRepository;
 use App\Repository\UserRepository;
 use App\Service\UserAccessService;
@@ -20,29 +16,124 @@ use Symfony\Component\Routing\Attribute\Route;
 final class ApiController extends AbstractController
 {
     #[Route('/dashboard', methods: ['GET'])]
-    public function dashboard(StationsRepository $stations, ArticlesRepository $articles, UserRepository $users, StationArticlesRepository $stock, UserAccessService $access): JsonResponse
+    public function dashboard(Request $request, StationsRepository $stations, UserRepository $users, EntityManagerInterface $em, UserAccessService $access): JsonResponse
     {
         if ($denied = $access->require([UserAccessService::ROLE_GERANT, UserAccessService::ROLE_QUALITY_MARSHALL, UserAccessService::ROLE_ASSISTANT])) return $denied;
         $allowedIds = $access->allowedStationIds();
-        $allStations = $access->isSuperAdmin() ? $stations->findAll() : array_filter($stations->findAll(), static fn (Stations $station): bool => in_array($station->getId(), $allowedIds, true));
-        $inventoryItems = $access->isSuperAdmin() ? $stock->findAll() : array_filter($stock->findAll(), static fn ($item): bool => in_array($item->getStation()?->getId(), $allowedIds, true));
-        $inventory = array_map($this->inventoryRow(...), $inventoryItems);
-        $lowStock = array_values(array_filter($inventory, static fn (array $row): bool => $row['alert']));
+        $allStations = $access->isSuperAdmin() ? $stations->findBy([], ['id' => 'DESC']) : array_values(array_filter($stations->findAll(), static fn (Stations $station): bool => in_array($station->getId(), $allowedIds, true)));
+        $stationId = (int) $request->query->get('station', 0);
+        $selectedStation = $stationId ? $stations->find($stationId) : ($allStations[0] ?? null);
+        if ($stationId && !$selectedStation) return $this->json(['message' => 'Station introuvable.'], 404);
+        if ($selectedStation && !$access->canAccessStation($selectedStation)) return $access->denyStation();
+
+        $today = new \DateTimeImmutable('today');
+        $defaultFrom = $today->modify('first day of this month')->format('Y-m-d');
+        $from = $this->dashboardDate((string) $request->query->get('from', $defaultFrom));
+        $to = $this->dashboardDate((string) $request->query->get('to', $today->format('Y-m-d')));
+        if (!$from || !$to || $from > $to) return $this->json(['message' => 'La période sélectionnée est invalide.'], 422);
+        $canViewSuppliers = $access->isSuperAdmin() || in_array(UserAccessService::ROLE_GERANT, $access->currentUser()?->getRoles() ?? [], true);
+        $finance = $selectedStation ? $this->stationFinance($selectedStation, $from, $to, $em, $access->canViewCustomers(), $canViewSuppliers) : null;
 
         return $this->json([
             'metrics' => [
                 'stations' => count($allStations),
-                'activeStations' => count(array_filter($allStations, static fn (Stations $s): bool => strtoupper($s->getStatus() ?? '') === 'ACTIVE')),
-                'articles' => $articles->count([]),
+                'activeStations' => count(array_filter($allStations, static fn (Stations $station): bool => strtoupper($station->getStatus() ?? '') === 'ACTIVE')),
                 'users' => $users->count(['isActive' => true]),
-                'lowStock' => count($lowStock),
             ],
+            'stationsForSelection' => array_map(static fn (Stations $station): array => ['id' => $station->getId(), 'name' => $station->getName(), 'status' => $station->getStatus()], $allStations),
+            'selectedStationId' => $selectedStation?->getId(),
+            'finance' => $finance,
             'stations' => array_map(static fn (Stations $station): array => [
-                'id' => $station->getId(), 'name' => $station->getName(), 'city' => $station->getCity(),
-                'status' => $station->getStatus(), 'articlesCount' => $station->getStationArticles()->count(), 'manager' => $station->getGerant(),
+                'id' => $station->getId(),
+                'name' => $station->getName(),
+                'city' => $station->getCity(),
+                'status' => $station->getStatus(),
+                'manager' => $station->getGerant(),
             ], array_slice($allStations, 0, 5)),
-            'lowStock' => array_slice($lowStock, 0, 5),
         ]);
+    }
+
+    private function stationFinance(Stations $station, string $from, string $to, EntityManagerInterface $em, bool $canViewCustomers, bool $canViewSuppliers): array
+    {
+        $readings = $em->getRepository(FuelShiftReading::class)->findBy(['station' => $station], ['workDate' => 'DESC', 'id' => 'DESC']);
+        $revenue = 0.0;
+        foreach ($readings as $reading) {
+            $date = $reading->getWorkDate()?->format('Y-m-d');
+            if ($date !== null && $date >= $from && $date <= $to) $revenue += (float) $reading->getTotalAmount();
+        }
+
+        $expenses = $em->getRepository(Expense::class)->findBy(['station' => $station], ['expenseDate' => 'DESC', 'id' => 'DESC']);
+        $expenseTotal = 0.0;
+        $expenseRows = [];
+        foreach ($expenses as $expense) {
+            $date = $expense->getExpenseDate()?->format('Y-m-d');
+            if ($date === null || $date < $from || $date > $to) continue;
+            $amount = (float) $expense->getAmount();
+            $expenseTotal += $amount;
+            if (count($expenseRows) < 6) $expenseRows[] = ['id' => $expense->getId(), 'date' => $date, 'category' => $expense->getCategory(), 'description' => $expense->getDescription(), 'amount' => $amount];
+        }
+
+        $receivable = null;
+        if ($canViewCustomers) {
+            $receivable = 0.0;
+            $billedByCustomer = [];
+            $paidByCustomer = [];
+            foreach ($readings as $reading) {
+                $customerId = $reading->getCustomer()?->getId();
+                $lines = array_values(array_filter($reading->getPayments(), 'is_array'));
+                $creditLines = array_values(array_filter($lines, static fn (array $line): bool => !empty($line['isCredit']) || strtoupper((string) ($line['type'] ?? '')) === 'CLIENT_VOUCHER'));
+                if ($creditLines) {
+                    foreach ($creditLines as $line) {
+                        $lineCustomerId = (int) ($line['customerId'] ?? $customerId ?? 0);
+                        if (!$lineCustomerId) continue;
+                        $amount = (float) ($line['amount'] ?? 0);
+                        if ($amount <= 0 && count($creditLines) === 1) $amount = (float) $reading->getTotalAmount();
+                        $billedByCustomer[$lineCustomerId] = ($billedByCustomer[$lineCustomerId] ?? 0.0) + $amount;
+                    }
+                    continue;
+                }
+                if (!$customerId) continue;
+                $billedByCustomer[$customerId] = ($billedByCustomer[$customerId] ?? 0.0) + (float) $reading->getTotalAmount();
+                $paidByCustomer[$customerId] = ($paidByCustomer[$customerId] ?? 0.0) + array_sum(array_map(static fn (array $line): float => (float) ($line['amount'] ?? 0), $lines));
+            }
+            foreach ($em->getRepository(CustomerPayment::class)->findBy(['station' => $station]) as $payment) {
+                $customerId = $payment->getCustomer()?->getId();
+                if ($customerId) $paidByCustomer[$customerId] = ($paidByCustomer[$customerId] ?? 0.0) + (float) $payment->getAmount();
+            }
+            foreach (array_unique(array_merge(array_keys($billedByCustomer), array_keys($paidByCustomer))) as $customerId) {
+                $receivable += max(0.0, ($billedByCustomer[$customerId] ?? 0.0) - ($paidByCustomer[$customerId] ?? 0.0));
+            }
+        }
+
+        $payable = null;
+        if ($canViewSuppliers) {
+            $paidByInvoice = [];
+            foreach ($em->getRepository(SupplierPayment::class)->findBy(['station' => $station, 'status' => 'EXECUTED']) as $payment) {
+                $invoiceId = $payment->getInvoice()?->getId();
+                if ($invoiceId) $paidByInvoice[$invoiceId] = ($paidByInvoice[$invoiceId] ?? 0.0) + (float) $payment->getAmount();
+            }
+            $payable = 0.0;
+            foreach ($em->getRepository(SupplierInvoice::class)->findBy(['station' => $station, 'isActive' => true]) as $invoice) {
+                $payable += max(0.0, (float) $invoice->getTotalAmount() - ($paidByInvoice[$invoice->getId()] ?? 0.0));
+            }
+        }
+
+        return [
+            'stationId' => $station->getId(), 'stationName' => $station->getName(),
+            'from' => $from, 'to' => $to,
+            'customerReceivable' => $receivable === null ? null : round($receivable, 2),
+            'supplierPayable' => $payable === null ? null : round($payable, 2),
+            'revenue' => round($revenue, 2), 'expenses' => round($expenseTotal, 2),
+            'expenseRows' => $expenseRows,
+        ];
+    }
+
+    private function dashboardDate(string $value): ?string
+    {
+        $date = \DateTimeImmutable::createFromFormat('!Y-m-d', $value);
+        $errors = \DateTimeImmutable::getLastErrors();
+        if (!$date || ($errors !== false && ($errors['warning_count'] > 0 || $errors['error_count'] > 0)) || $date->format('Y-m-d') !== $value) return null;
+        return $value;
     }
 
     #[Route('/stations', methods: ['GET'])]
@@ -91,54 +182,30 @@ final class ApiController extends AbstractController
         return $this->json($this->stationRow($station));
     }
 
-    #[Route('/inventory', methods: ['GET'])]
-    public function inventory(Request $request, StationArticlesRepository $repository, UserAccessService $access): JsonResponse
+    #[Route('/stations/{id}/activate', requirements: ['id' => '\\d+'], methods: ['PATCH'])]
+    public function activateStation(Stations $station, EntityManagerInterface $em, UserAccessService $access): JsonResponse
     {
-        if ($denied = $access->require([UserAccessService::ROLE_GERANT, UserAccessService::ROLE_QUALITY_MARSHALL])) return $denied;
-        $criteria = $request->query->has('station') ? ['station' => (int) $request->query->get('station')] : [];
-        if (isset($criteria['station']) && !$access->canAccessStation((int) $criteria['station'])) return $access->denyStation();
-        $items = $repository->findBy($criteria, ['id' => 'DESC']);
-        if (!$access->isSuperAdmin() && !$criteria) {
-            $allowedIds = $access->allowedStationIds();
-            $items = array_values(array_filter($items, static fn ($item): bool => in_array($item->getStation()?->getId(), $allowedIds, true)));
-        }
-        return $this->json(array_map($this->inventoryRow(...), $items));
-    }
-
-    #[Route('/inventory/{id}/adjust', requirements: ['id' => '\\d+'], methods: ['POST'])]
-    public function adjustInventory(StationArticles $item, Request $request, EntityManagerInterface $em, UserAccessService $access): JsonResponse
-    {
-        if ($denied = $access->require([UserAccessService::ROLE_GERANT, UserAccessService::ROLE_QUALITY_MARSHALL])) return $denied;
-        if (!$access->canAccessStation($item->getStation())) return $access->denyStation();
-        $data=$request->toArray();$type=(string)($data['type']??'');$quantity=(float)($data['quantity']??0);$reason=trim((string)($data['reason']??''));
-        if(!in_array($type,['ADD','REMOVE','SET'],true)||$quantity<0||$reason==='')return $this->json(['message'=>'Le type, la quantité et le motif sont obligatoires.'],422);
-        $basePricing=null;foreach($item->getStationArticleUnits() as $pricing)if($pricing->isActive()&&$pricing->getArticleUnit()?->isBaseUnit()){$basePricing=$pricing;break;}
-        if(!$basePricing)return $this->json(['message'=>'Aucune unité de base active.'],422);
-        $previous=(float)$item->getCurrentSockBase();$new=$type==='SET'?$quantity:($type==='REMOVE'?max(0,$previous-$quantity):$previous+$quantity);$delta=$new-$previous;
-        $item->setCurrentSockBase((string)$new);
-        $movement=(new MouvementStock())->setStationArticle($item)->setArticleUnit($basePricing->getArticleUnit())->setEnteredQuantity((string)$quantity)->setConversionFactor('1')->setBaseQuantity((string)$delta)->setPreviousStockBase((string)$previous)->setNewStockBase((string)$new)->setMouvementType($type)->setReason($reason)->setCreatedAt(new \DateTimeImmutable());
-        $em->persist($movement);$em->flush();return $this->json($this->inventoryRow($item));
-    }
-
-    #[Route('/inventory/stocktake', methods: ['POST'])]
-    public function stocktake(Request $request, StationArticlesRepository $repository, EntityManagerInterface $em, UserAccessService $access): JsonResponse
-    {
-        if ($denied = $access->require([UserAccessService::ROLE_GERANT, UserAccessService::ROLE_QUALITY_MARSHALL])) return $denied;
-        $data=$request->toArray();$stationId=(int)($data['stationId']??0);$reason=trim((string)($data['reason']??''));$reference=trim((string)($data['reference']??''));$lines=$data['lines']??[];
-        if (!$access->canAccessStation($stationId)) return $access->denyStation();
-        if(!$stationId||$reason===''||!preg_match('/^INV-\\d+-\\d{8}-\\d{6}$/',$reference)||!is_array($lines)||!$lines)return $this->json(['message'=>'La référence, la station, le motif et les lignes de comptage sont obligatoires.'],422);
-        $validated=[];
-        foreach($lines as $line){$item=$repository->find((int)($line['id']??0));$counts=$line['counts']??[];if(!$item||$item->getStation()?->getId()!==$stationId||!is_array($counts)||!$counts)return $this->json(['message'=>'Une ligne de comptage est invalide.'],422);$available=[];$base=null;foreach($item->getStationArticleUnits() as $pricing)if($pricing->isActive()&&$pricing->getArticleUnit()?->isActive()){$au=$pricing->getArticleUnit();$available[$au->getId()]=$au;if($au->isBaseUnit())$base=$au;}if(!$base)return $this->json(['message'=>'Une ligne ne possède aucune unité de base.'],422);$physical=0;$details=[];foreach($counts as $count){$unitId=(int)($count['articleUnitId']??0);$quantity=(float)($count['quantity']??-1);$au=$available[$unitId]??null;if(!$au||$quantity<0)return $this->json(['message'=>'Une unité ou quantité de comptage est invalide.'],422);$factor=(float)$au->getConverstionFactor();$physical+=$quantity*$factor;$details[]=['articleUnitId'=>$au->getId(),'unit'=>$au->getUnit()?->getName(),'symbol'=>$au->getUnit()?->getSymbol(),'quantity'=>$quantity,'conversionFactor'=>$factor,'baseQuantity'=>$quantity*$factor];}$validated[]=[$item,$base,$physical,$details];}
-        foreach($validated as [$item,$base,$physical,$details]){$previous=(float)$item->getCurrentSockBase();if(abs($physical-$previous)<.0000001)continue;$delta=$physical-$previous;$item->setCurrentSockBase((string)$physical);$movement=(new MouvementStock())->setStationArticle($item)->setArticleUnit($base)->setEnteredQuantity((string)$physical)->setConversionFactor('1')->setBaseQuantity((string)$delta)->setPreviousStockBase((string)$previous)->setNewStockBase((string)$physical)->setMouvementType('STOCKTAKE')->setReference($reference)->setDetails($details)->setReason($reason)->setCreatedAt(new \DateTimeImmutable());$em->persist($movement);}
-        $em->flush();$items=$repository->findBy(['station'=>$stationId],['id'=>'DESC']);return $this->json(array_map($this->inventoryRow(...),$items));
+        if ($denied = $access->require(UserAccessService::ROLE_SUPER_ADMIN)) return $denied;
+        $station->setStatus('ACTIVE')->setUpdatedAt(new \DateTime());
+        $em->flush();
+        return $this->json($this->stationRow($station));
     }
 
     private function stationRow(Stations $station): array
     {
-        return ['id' => $station->getId(), 'code' => $station->getCode(), 'name' => $station->getName(), 'address' => $station->getAddress(),
-            'city' => $station->getCity(), 'contact' => $station->getContact(), 'email' => $station->getEmail(), 'status' => $station->getStatus(),
-            'manager' => $station->getGerant(), 'usersCount' => $station->getStationUsers()->count(), 'articlesCount' => $station->getStationArticles()->count(),
-            'createdAt' => $station->getCreatAt()?->format(DATE_ATOM)];
+        return [
+            'id' => $station->getId(),
+            'code' => $station->getCode(),
+            'name' => $station->getName(),
+            'address' => $station->getAddress(),
+            'city' => $station->getCity(),
+            'contact' => $station->getContact(),
+            'email' => $station->getEmail(),
+            'status' => $station->getStatus(),
+            'manager' => $station->getGerant(),
+            'usersCount' => $station->getStationUsers()->count(),
+            'createdAt' => $station->getCreatAt()?->format(DATE_ATOM),
+        ];
     }
 
     private function applyStationData(Stations $station, array $data): Stations
@@ -149,14 +216,5 @@ final class ApiController extends AbstractController
             ->setAddress($nullable($data['address'] ?? null))->setContact($nullable($data['contact'] ?? null))
             ->setEmail($nullable($data['email'] ?? null))->setGerant($nullable($data['manager'] ?? null))
             ->setStatus((string) ($data['status'] ?? $station->getStatus() ?? 'ACTIVE'));
-    }
-
-    private function inventoryRow(\App\Entity\StationArticles $item): array
-    {
-        $current = (float) $item->getCurrentSockBase(); $minimum = (float) $item->getMinimumStockBase();
-        $baseUnit=null;$countUnits=[];foreach($item->getStationArticleUnits() as $pricing)if($pricing->isActive()&&$pricing->getArticleUnit()?->isActive()){$articleUnit=$pricing->getArticleUnit();$unit=$articleUnit->getUnit();$countUnits[]=['articleUnitId'=>$articleUnit->getId(),'name'=>$unit?->getName(),'symbol'=>$unit?->getSymbol(),'conversionFactor'=>(float)$articleUnit->getConverstionFactor(),'isBaseUnit'=>$articleUnit->isBaseUnit()];if($articleUnit->isBaseUnit())$baseUnit=$unit;}
-        return ['id' => $item->getId(), 'stationId' => $item->getStation()?->getId(), 'station' => $item->getStation()?->getName(),
-            'articleId' => $item->getArticle()?->getId(), 'article' => $item->getArticle()?->getName(), 'category' => $item->getArticle()?->getCategorie()?->getName() ?? 'Sans catégorie',
-            'currentStock' => $current, 'minimumStock' => $minimum, 'unit'=>$baseUnit?->getName(), 'symbol'=>$baseUnit?->getSymbol(), 'units'=>$countUnits, 'active' => $item->isActive(), 'alert' => $current <= $minimum];
     }
 }

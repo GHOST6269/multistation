@@ -5,7 +5,9 @@ import {
   forwardRef,
   HostListener,
   Input,
+  OnDestroy,
   Output,
+  ViewChild,
 } from '@angular/core';
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
 
@@ -23,7 +25,7 @@ export interface DropdownOption {
   styleUrl: './dropdown.scss',
   providers: [{ provide: NG_VALUE_ACCESSOR, useExisting: forwardRef(() => Dropdown), multi: true }],
 })
-export class Dropdown implements ControlValueAccessor {
+export class Dropdown implements ControlValueAccessor, OnDestroy {
   @Input() options: DropdownOption[] = [];
   @Input() placeholder = 'Sélectionner';
   @Input() searchable = false;
@@ -35,9 +37,17 @@ export class Dropdown implements ControlValueAccessor {
   value: string | number | null = null;
   search = '';
   menuStyle: Record<string, string> = {};
+  private menuElement?: HTMLElement;
   private onChange: (value: string | number | null) => void = () => {};
   private onTouched: () => void = () => {};
-  constructor(private readonly element: ElementRef<HTMLElement>) {}
+  private readonly onDocumentScroll = (): void => this.reposition();
+  constructor(private readonly element: ElementRef<HTMLElement>) {
+    document.addEventListener('scroll', this.onDocumentScroll, true);
+  }
+  ngOnDestroy(): void {
+    document.removeEventListener('scroll', this.onDocumentScroll, true);
+    this.hideMenu();
+  }
   get selected(): DropdownOption | undefined {
     return this.options.find((option) => option.value === this.value);
   }
@@ -49,16 +59,44 @@ export class Dropdown implements ControlValueAccessor {
         )
       : this.options;
   }
+  @ViewChild('menu') set menuRef(ref: ElementRef<HTMLElement> | undefined) {
+    this.menuElement = ref?.nativeElement;
+    if (this.open && this.menuElement) this.presentMenu();
+  }
   toggle(): void {
     if (!this.disabled) {
       this.open = !this.open;
       if (this.open) this.positionMenu();
-      else this.onTouched();
+      else {
+        this.hideMenu();
+        this.onTouched();
+      }
+    }
+  }
+  private presentMenu(): void {
+    this.positionMenu();
+    // The browser top layer lets the popup escape modal scroll containers,
+    // transformed panels, and stacking contexts.
+    if (this.menuElement && !this.menuElement.matches(':popover-open')) {
+      try {
+        this.menuElement.showPopover();
+      } catch {
+        // Keep the normal dropdown usable in browsers without the Popover API.
+      }
+    }
+  }
+  private hideMenu(): void {
+    if (this.menuElement?.matches(':popover-open')) {
+      try {
+        this.menuElement.hidePopover();
+      } catch {
+        // The element may already have been removed during view teardown.
+      }
     }
   }
   private positionMenu(): void {
     const box = this.element.nativeElement.getBoundingClientRect();
-    const maxHeight = 250;
+    const maxHeight = Math.min(300, window.innerHeight - 16);
     const viewportGutter = 8;
     const width = Math.min(box.width, window.innerWidth - viewportGutter * 2);
     const left = Math.min(Math.max(viewportGutter, box.left), window.innerWidth - width - viewportGutter);
@@ -71,7 +109,7 @@ export class Dropdown implements ControlValueAccessor {
     };
   }
   @HostListener('window:resize') @HostListener('window:scroll') reposition(): void {
-    if (this.open) this.positionMenu();
+    if (this.open) this.presentMenu();
   }
   select(option: DropdownOption): void {
     this.value = option.value;
@@ -79,6 +117,7 @@ export class Dropdown implements ControlValueAccessor {
     this.valueChange.emit(option.value);
     this.onTouched();
     this.open = false;
+    this.hideMenu();
     this.search = '';
   }
   writeValue(value: string | number | null): void {
@@ -96,6 +135,7 @@ export class Dropdown implements ControlValueAccessor {
   @HostListener('document:click', ['$event']) closeOutside(event: MouseEvent): void {
     if (!this.element.nativeElement.contains(event.target as Node)) {
       this.open = false;
+      this.hideMenu();
       this.search = '';
     }
   }

@@ -10,6 +10,8 @@ export class Stations implements OnInit {
   editingStation: StationModel | null = null;
   stationToDeactivate: StationModel | null = null;
   deactivating = false;
+  activatingStationId: number | null = null;
+  stationActionError = '';
   readonly form: FormGroup;
   constructor(private readonly service: Station, fb: FormBuilder, private readonly cdr: ChangeDetectorRef) {
     this.form = fb.group({
@@ -45,9 +47,19 @@ export class Stations implements OnInit {
   deactivate(): void {
     if (!this.stationToDeactivate) return;
     this.deactivating = true;
+    this.stationActionError = '';
     this.service.deactivate(this.stationToDeactivate.id).subscribe({
       next: station => { this.items = this.items.map(item => item.id === station.id ? station : item); this.stationToDeactivate = null; this.deactivating = false; this.cdr.detectChanges(); },
-      error: () => { this.deactivating = false; this.cdr.detectChanges(); },
+      error: error => { this.stationActionError = error.error?.message ?? 'La station n’a pas pu être désactivée.'; this.deactivating = false; this.cdr.detectChanges(); },
+    });
+  }
+  activate(station: StationModel): void {
+    if (this.activatingStationId !== null) return;
+    this.stationActionError = '';
+    this.activatingStationId = station.id;
+    this.service.activate(station.id).subscribe({
+      next: updated => { this.items = this.items.map(item => item.id === updated.id ? updated : item); this.activatingStationId = null; this.cdr.detectChanges(); },
+      error: error => { this.stationActionError = error.error?.message ?? 'La station n’a pas pu être réactivée.'; this.activatingStationId = null; this.cdr.detectChanges(); },
     });
   }
   initials(name: string): string { return name.split(' ').map(x => x[0]).join('').slice(0, 2).toUpperCase(); }

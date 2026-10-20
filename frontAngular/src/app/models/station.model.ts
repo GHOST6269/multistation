@@ -9,7 +9,6 @@ export interface Station {
   status: string;
   manager: string | null;
   usersCount: number;
-  articlesCount: number;
   createdAt: string;
 }
 

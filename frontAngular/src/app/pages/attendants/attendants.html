@@ -1,0 +1,44 @@
+<main class="attendant-page">
+  <header class="page-header">
+    <div><span class="eyebrow">PERSONNEL & ATTRIBUTIONS</span><h1>Pompistes</h1><p>Suivez les pistolets attribués à chaque pompiste et l’heure de leur retrait.</p></div>
+    <label class="station-picker">Station<select [(ngModel)]="stationId" (ngModelChange)="changeStation()"><option [ngValue]="0">Sélectionner une station</option>@for (station of stations; track station.id) { <option [ngValue]="station.id">{{ station.name }}</option> }</select></label>
+  </header>
+
+  @if (error) { <div class="notice error">{{ error }}</div> }
+  @if (success) { <div class="notice success">{{ success }}</div> }
+
+  <section class="assignment-card">
+    <div><span class="eyebrow">NOUVELLE ATTRIBUTION</span><h2>Attribuer un pistolet</h2><p>L’heure de début est enregistrée automatiquement à la validation.</p></div>
+    <div class="assignment-form">
+      <label>Pistolet<select [(ngModel)]="nozzleId"><option [ngValue]="0">Choisir un pistolet disponible</option>@for (nozzle of availableNozzles; track nozzle.id) { <option [ngValue]="nozzle.id">{{ nozzle.code }} · {{ nozzle.tank }}</option> }</select></label>
+      <label>Pompiste<select [(ngModel)]="attendantId"><option [ngValue]="0">Choisir un pompiste</option>@for (attendant of attendants; track attendant.id) { <option [ngValue]="attendant.id">{{ attendant.name }}</option> }</select></label>
+      <button type="button" [disabled]="saving || !nozzleId || !attendantId" (click)="assign()">{{ saving ? 'Enregistrement…' : 'Attribuer le pistolet' }}</button>
+    </div>
+  </section>
+
+  <section class="table-card">
+    <div class="section-heading"><div><span class="eyebrow">EN COURS</span><h2>Pistolets attribués</h2></div><span>{{ assignedNozzles.length }} attribution(s)</span></div>
+    <div class="table-scroll"><table><thead><tr><th>POMPISTE</th><th>PISTOLET</th><th>CUVE</th><th></th></tr></thead><tbody>
+      @for (nozzle of assignedNozzles; track nozzle.id) { <tr><td><strong>{{ nozzle.attendant }}</strong></td><td>{{ nozzle.code }}</td><td>{{ nozzle.tank }}</td><td><button class="remove-button" type="button" [disabled]="saving" (click)="remove(nozzle)">Retirer</button></td></tr> }
+      @if (!assignedNozzles.length) { <tr><td colspan="4" class="empty">Aucun pistolet attribué.</td></tr> }
+    </tbody></table></div>
+  </section>
+
+  <section class="table-card history-card">
+    <div class="section-heading"><div><span class="eyebrow">JOURNAL</span><h2>Historique des attributions</h2></div><span>{{ filteredHistory.length }} mouvement(s)</span></div>
+    <div class="history-filters">
+      <label>Du<input type="datetime-local" [(ngModel)]="historyFrom" (ngModelChange)="resetHistoryPage()" /></label>
+      <label>Au<input type="datetime-local" [(ngModel)]="historyTo" (ngModelChange)="resetHistoryPage()" /></label>
+      <label>Pompiste<select [(ngModel)]="historyAttendantId" (ngModelChange)="resetHistoryPage()"><option [ngValue]="0">Tous les pompistes</option>@for (attendant of historyAttendants; track attendant.id) { <option [ngValue]="attendant.id">{{ attendant.name }}</option> }</select></label>
+      <label>Pistolet<select [(ngModel)]="historyNozzle" (ngModelChange)="resetHistoryPage()"><option value="">Tous les pistolets</option>@for (nozzle of historyNozzles; track nozzle) { <option [value]="nozzle">{{ nozzle }}</option> }</select></label>
+      <button type="button" class="reset-filters" (click)="resetHistoryFilters()">Effacer les filtres</button>
+    </div>
+    <div class="table-scroll"><table><thead><tr><th>POMPISTE</th><th>PISTOLET</th><th>ATTRIBUÉ LE</th><th>RETIRÉ LE</th><th>SAISI PAR</th></tr></thead><tbody>
+      @for (item of pagedHistory; track item.id) { <tr><td>{{ item.attendant }}</td><td>{{ item.nozzle }}</td><td>{{ dateTime(item.assignedAt) }}</td><td>{{ dateTime(item.removedAt) }}</td><td>{{ item.removedBy || item.assignedBy || '—' }}</td></tr> }
+      @if (!filteredHistory.length) { <tr><td colspan="5" class="empty">Aucun mouvement ne correspond aux filtres.</td></tr> }
+    </tbody></table></div>
+    @if (filteredHistory.length) { <div class="history-pagination"><span>{{ (historyPage - 1) * historyPageSize + 1 }}–{{ historyPageEnd }} sur {{ filteredHistory.length }}</span><div><button type="button" [disabled]="historyPage <= 1" (click)="changeHistoryPage(historyPage - 1)">Précédent</button><strong>Page {{ historyPage }} / {{ historyTotalPages }}</strong><button type="button" [disabled]="historyPage >= historyTotalPages" (click)="changeHistoryPage(historyPage + 1)">Suivant</button></div></div> }
+    <p class="history-note">Les attributions antérieures à la création de cet historique n’ont pas d’horodatage enregistré.</p>
+  </section>
+  @if (loading) { <div class="loading">Chargement…</div> }
+</main>

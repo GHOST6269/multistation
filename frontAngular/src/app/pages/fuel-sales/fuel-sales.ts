@@ -14,6 +14,7 @@ export class FuelSales implements OnInit {
   stations: DropdownOption[] = [];
   stationId = 0;
   readings: any[] = [];
+  attendantSettlements: any[] = [];
   fromDate = '';
   toDate = '';
   attendantFilter = 0;
@@ -24,7 +25,6 @@ export class FuelSales implements OnInit {
   loading = true;
   modalOpen = false;
   paymentOpen = false;
-  settlementReadingsVisible = false;
   paymentHistoryOpen = false;
   attendantPaymentsOpen = false;
   attendantPaymentFilter = 0;
@@ -35,6 +35,7 @@ export class FuelSales implements OnInit {
   savingCustomer = false;
   selectedPaymentReading: any = null;
   paymentDate = new Date().toISOString().slice(0, 10);
+  settlementReadingDate = new Date().toISOString().slice(0, 10);
   error = '';
   nozzles: any[] = [];
   attendants: any[] = [];
@@ -45,7 +46,7 @@ export class FuelSales implements OnInit {
   form; customerForm; settlementForm;
   constructor(private articles: ArticleService, private fuel: FuelService, private customersApi: CustomerService, private fb: FormBuilder, private cdr: ChangeDetectorRef, public auth: AuthService, private readonly route: ActivatedRoute) {
     this.form = fb.group({ date: [new Date().toISOString().slice(0, 10), Validators.required], dueDate: [''], attendantId: [0, Validators.min(1)], customerId: [0], readings: fb.array([]) });
-    this.settlementForm = fb.group({ attendantId: [0], nozzleId: [0], customerId: [0], payments: fb.array([]) });
+    this.settlementForm = fb.group({ attendantId: [0], customerId: [0], payments: fb.array([]) });
     this.customerForm = fb.group({ code: [''], name: ['', Validators.required], contactPerson: [''], phone: [''] });
   }
   ngOnInit() {
@@ -65,7 +66,7 @@ export class FuelSales implements OnInit {
     });
     this.articles.options().subscribe(data => { this.stations = data.stations.map(s => ({ value: s.id, label: s.name })); this.stationId = data.stations[0]?.id ?? 0; this.load(); });
   }
-  load() { if (!this.stationId) return; this.loading = true; this.page = 1; this.fuel.workspace(this.stationId).subscribe({ next: data => { this.readings = data.readings ?? []; this.nozzles = data.nozzles ?? []; this.attendants = data.attendants ?? []; this.loading = false; this.cdr.detectChanges(); }, error: () => { this.readings = []; this.loading = false; } }); this.loadPaymentMethods(); this.customersApi.list(this.stationId).subscribe(data => { this.customers = [{ value: 0, label: 'Aucun client' }, ...(data.customers ?? []).filter((customer: any) => customer.active).map((customer: any) => ({ value: customer.id, label: customer.name, hint: customer.code ?? '' }))]; }); }
+  load() { if (!this.stationId) return; this.loading = true; this.page = 1; this.fuel.workspace(this.stationId).subscribe({ next: data => { this.readings = data.readings ?? []; this.attendantSettlements = data.attendantPayments ?? []; this.nozzles = data.nozzles ?? []; this.attendants = data.attendants ?? []; this.loading = false; this.cdr.detectChanges(); }, error: () => { this.readings = []; this.attendantSettlements = []; this.loading = false; } }); this.loadPaymentMethods(); this.customersApi.list(this.stationId).subscribe(data => { this.customers = [{ value: 0, label: 'Aucun client' }, ...(data.customers ?? []).filter((customer: any) => customer.active).map((customer: any) => ({ value: customer.id, label: customer.name, hint: customer.code ?? '' }))]; }); }
   private loadPaymentMethods() { this.fuel.paymentMethods(this.stationId, false, 'all').subscribe(data => { this.paymentMethods = (data.methods ?? []).filter((method: any) => method.active).map((method: any) => ({ value: method.id, label: method.name, hint: method.code, isCredit: Boolean(method.isCredit) || String(method.code ?? '').toUpperCase() === 'CLIENT_VOUCHER' })); if (!this.paymentMethods.length) { this.payments.clear(); this.addPayment(); return; } const preferred = this.paymentMethods.find((method) => (method.hint ?? '').toUpperCase() === 'CASH') ?? this.paymentMethods[0]; if (this.payments.length) { const current = this.payments.at(0)?.get('paymentMethodId')?.value; if (current === undefined || !this.paymentMethods.some((method) => Number(method.value) === Number(current))) { this.payments.at(0)?.patchValue({ paymentMethodId: Number(preferred.value) }); } } else { this.payments.clear(); this.addPayment(); } }); }
   get attendantOptions(): DropdownOption[] {
     return [{ value: 0, label: 'Tous les pompistes' }, ...this.attendants.map(attendant => ({ value: attendant.id, label: attendant.name }))];
@@ -123,7 +124,9 @@ export class FuelSales implements OnInit {
   }
   get totalVolume() { return this.filtered.reduce((sum, row) => sum + Number(row.quantitySold || 0), 0); }
   get totalAmount() { return this.readings.filter((row) => this.matchesSalesFilters(row)).reduce((sum, row) => sum + Number(row.totalAmount || 0), 0); }
-  get totalGap() { return this.filtered.reduce((sum, row) => sum + Math.max(0, this.paymentGap(row)), 0); }
+  get totalGap() {
+    return this.filtered.reduce((sum, row) => sum + this.attendantGap(row), 0);
+  }
   get totalPages() { return Math.max(1, Math.ceil(this.filtered.length / this.pageSize)); }
   get pages() { return Array.from({ length: this.totalPages }, (_, index) => index + 1); }
   get rows() { const page = Math.min(this.page, this.totalPages); return this.filtered.slice((page - 1) * this.pageSize, page * this.pageSize); }
@@ -138,45 +141,20 @@ export class FuelSales implements OnInit {
   }
   openAttendantPayments() { this.attendantPaymentFilter = 0; this.attendantPaymentFrom = ''; this.attendantPaymentTo = ''; this.attendantPaymentsOpen = true; }
   get attendantPaymentRows(): any[] {
-    const sourceRows: any[] = [];
-    for (const reading of this.readings) {
-      if (this.attendantPaymentFilter && Number(reading.attendantId ?? 0) !== Number(this.attendantPaymentFilter)) continue;
-      const lines: { label?: string; type?: string; methodId?: number; amount: number; date?: string; customerAccountPayment?: boolean }[] = reading.payments?.length ? reading.payments : [{ label: 'Aucun versement', amount: 0 }];
-      for (const payment of lines) {
-        const date = payment.date || reading.date || '';
-        if ((this.attendantPaymentFrom && date < this.attendantPaymentFrom) || (this.attendantPaymentTo && date > this.attendantPaymentTo)) continue;
-        const isCustomerDebtRepayment = payment.customerAccountPayment === true || String(payment.label ?? '').startsWith('Règlement client ·');
-        if (isCustomerDebtRepayment) continue;
-        sourceRows.push({ id: `${reading.id}-${sourceRows.length}`, readingId: Number(reading.id), date, attendantId: Number(reading.attendantId ?? 0), responsible: reading.responsible, method: payment.label || payment.type || 'Aucun versement', methodKey: payment.methodId ?? payment.type ?? payment.label, amount: Number(payment.amount || 0), gap: this.attendantGap(reading), customerAccountPayment: this.isCustomerAccountPayment(payment), hasPayment: Boolean(reading.payments?.length) });
-      }
-    }
-    const grouped = new Map<string, any>();
-    const rows: any[] = [];
-    for (const row of sourceRows) {
-      // Keep customer credit entries separate; group only cash like payments
-      // made by the same attendant on the same date.
-      if (row.customerAccountPayment || !row.hasPayment) { rows.push(row); continue; }
-      const key = `${row.date}|${row.attendantId}|${row.methodKey}`;
-      let aggregate = grouped.get(key);
-      if (!aggregate) {
-        aggregate = { ...row, id: key, amount: 0, readingGaps: new Map<number, number>() };
-        grouped.set(key, aggregate);
-        rows.push(aggregate);
-      }
-      aggregate.amount += row.amount;
-      aggregate.readingGaps.set(row.readingId, row.gap);
-    }
-    for (const row of rows) if (row.readingGaps) row.gap = [...row.readingGaps.values()].reduce((sum: number, gap: number) => sum + gap, 0);
-    return rows.sort((a, b) => String(b.date).localeCompare(String(a.date)));
+    return this.attendantSettlements
+      .filter((payment: any) => (!this.attendantPaymentFilter || Number(payment.attendantId) === Number(this.attendantPaymentFilter)) && (!this.attendantPaymentFrom || payment.date >= this.attendantPaymentFrom) && (!this.attendantPaymentTo || payment.date <= this.attendantPaymentTo))
+      .map((payment: any) => ({ ...payment, method: payment.method || payment.type || '—', amount: Number(payment.amount || 0) }))
+      .sort((a: any, b: any) => String(b.date).localeCompare(String(a.date)) || Number(b.id) - Number(a.id));
   }
-  get attendantPaymentGapTotal(): number { const gaps = new Map<number, number>(); for (const row of this.attendantPaymentRows) { if (row.readingGaps) for (const [id, gap] of row.readingGaps as Map<number, number>) gaps.set(id, gap); else gaps.set(Number(row.readingId), row.gap); } return [...gaps.values()].reduce((sum, gap) => sum + gap, 0); }
-  get attendantPaymentAmountTotal(): number { return this.attendantPaymentRows.filter(row => !row.customerAccountPayment).reduce((sum, row) => sum + Number(row.amount || 0), 0); }
+  get attendantPaymentGapTotal(): number { return this.readings.reduce((sum, reading) => sum + this.attendantGap(reading), 0); }
+  get attendantPaymentAmountTotal(): number { return this.attendantPaymentRows.reduce((sum, row) => sum + Number(row.amount || 0), 0); }
   get settlementAttendantOptions(): DropdownOption[] { return this.readingAttendantOptions; }
-  get settlementReadings(): any[] { const attendantId = Number(this.settlementForm.value.attendantId || 0); const customerId = Number(this.settlementForm.value.customerId || 0); return this.readings.filter(row => attendantId && Number(row.attendantId ?? 0) === attendantId && (!customerId || !row.customerId || Number(row.customerId) === customerId) && (this.canCollect(row) || this.hasClientVoucher(row))); }
-  get collectibleSettlementReadings(): any[] { return this.settlementReadings.filter(row => this.canCollect(row)); }
-  get settlementTotalDue(): number { return this.collectibleSettlementReadings.reduce((sum, row) => sum + this.amountRemaining(row), 0); }
-  settlementAttendantChanged() { this.selectedPaymentReading = null; this.settlementReadingsVisible = false; this.payments.clear(); if (this.settlementForm.value.attendantId) this.addPayment(); }
-  openSettlementModal() { this.error = ''; this.settlementReadingsVisible = false; this.selectedPaymentReading = null; this.settlementForm.reset({ attendantId: 0, nozzleId: 0, customerId: 0 }); this.payments.clear(); this.paymentDate = new Date().toISOString().slice(0, 10); this.paymentOpen = true; }
+  get settlementReadings(): any[] { const attendantId = Number(this.settlementForm.value.attendantId || 0); const customerId = Number(this.settlementForm.value.customerId || 0); return this.readings.filter(row => attendantId && String(row.date ?? '') === this.settlementReadingDate && Number(row.attendantId ?? 0) === attendantId && (!customerId || !row.customerId || Number(row.customerId) === customerId) && this.attendantGap(row) > 0.01); }
+  get collectibleSettlementReadings(): any[] { return this.settlementReadings; }
+  get settlementReadingCount(): number { return this.settlementReadings.length; }
+  get settlementTotalDue(): number { return this.collectibleSettlementReadings.reduce((sum, row) => sum + this.attendantGap(row), 0); }
+  settlementAttendantChanged() { this.selectedPaymentReading = null; this.payments.clear(); if (this.settlementForm.value.attendantId) this.addPayment(); }
+  openSettlementModal() { this.error = ''; this.selectedPaymentReading = null; this.settlementForm.reset({ attendantId: 0, customerId: 0 }); this.payments.clear(); this.paymentDate = new Date().toISOString().slice(0, 10); this.settlementReadingDate = this.paymentDate; this.paymentOpen = true; }
   get filterNozzleOptions(): DropdownOption[] { return this.nozzles.filter(nozzle => !this.attendantFilter || Number(nozzle.attendantId) === Number(this.attendantFilter)).map(nozzle => ({ value: nozzle.id, label: `${nozzle.code} · ${nozzle.fuel ?? ''}`, hint: nozzle.tank ?? '' })); }
   get assignedNozzles(): any[] { return this.nozzles.filter(nozzle => Number(nozzle.attendantId) === Number(this.form.value.attendantId)); }
   get readingRows(): FormArray { return this.form.get('readings') as FormArray; }
@@ -211,7 +189,7 @@ export class FuelSales implements OnInit {
     this.cdr.detectChanges();
   }
   get paid() { return this.payments.controls.reduce((sum, payment) => sum + Number(payment.value.amount || 0), 0); }
-  get cashPaid() { return this.payments.controls.reduce((sum, payment, index) => sum + (this.usesClientVoucher(index) ? 0 : Number(payment.value.amount || 0)), 0); }
+  get settlementPaid() { return this.paid; }
   addPayment() {
     const initialAmount = 0;
     const defaultMethod = this.paymentMethods.find((method) => (method.hint ?? '').toUpperCase() === 'CASH')?.value ?? this.paymentMethods[0]?.value ?? 0;
@@ -246,13 +224,31 @@ export class FuelSales implements OnInit {
     for (let i = 0; i < this.readingRows.length; i++) { const row = this.readingRows.at(i).value; const start = Number(row.startIndex); const end = Number(row.endIndex); const rc = Number(row.returnToTank); if (end < start) return 'Un index final ne peut pas être inférieur à son index de départ.'; if (rc > end - start) return 'Un retour cuve dépasse la sortie du pistolet.'; }
     return '';
   }
-  amountPaid(reading: any): number { return (reading.payments ?? []).reduce((sum: number, payment: any) => sum + Number(payment.amount ?? 0), 0); }
+  amountPaid(reading: any): number { return (reading.payments ?? []).filter((payment: any) => !payment.attendantSettlement).reduce((sum: number, payment: any) => sum + Number(payment.amount ?? 0), 0); }
   hasClientVoucher(reading: any): boolean { return (reading.payments ?? []).some((payment: any) => payment.isCredit === true || String(payment.type ?? '').toUpperCase() === 'CLIENT_VOUCHER'); }
   isCustomerAccountPayment(payment: any): boolean { return payment.customerAccountPayment === true || payment.isCredit === true || String(payment.label ?? '').startsWith('Règlement client ·') || String(payment.type ?? '').toUpperCase() === 'CLIENT_VOUCHER'; }
   customerPaid(reading: any): number { return (reading.payments ?? []).filter((payment: any) => this.isCustomerAccountPayment(payment)).reduce((sum: number, payment: any) => sum + Number(payment.amount ?? 0), 0); }
   customerCreditAmount(reading: any): number { return (reading.payments ?? []).filter((payment: any) => payment.isCredit === true || String(payment.type ?? '').toUpperCase() === 'CLIENT_VOUCHER').reduce((sum: number, payment: any) => sum + Number(payment.amount ?? 0), 0); }
-  attendantPaid(reading: any): number { return (reading.payments ?? []).filter((payment: any) => !this.isCustomerAccountPayment(payment)).reduce((sum: number, payment: any) => sum + Number(payment.amount ?? 0), 0); }
-  attendantGap(reading: any): number { return Math.max(0, Number(reading.totalAmount ?? 0) - this.attendantPaid(reading)); }
+  private originalCustomerCreditAmount(reading: any): number { return (reading.payments ?? []).filter((payment: any) => !payment.attendantSettlement && (payment.isCredit === true || String(payment.type ?? '').toUpperCase() === 'CLIENT_VOUCHER')).reduce((sum: number, payment: any) => sum + Number(payment.amount ?? 0), 0); }
+  attendantPaid(reading: any): number { return this.settlementAllocations(reading.attendantId, reading.date).get(Number(reading.id)) ?? 0; }
+  attendantGap(reading: any): number { return Math.max(0, Number(reading.totalAmount ?? 0) - this.originalCustomerCreditAmount(reading) - this.attendantPaid(reading)); }
+  private settlementAllocations(attendantId: number, readingDate: string): Map<number, number> {
+    const dayReadings = this.readings.filter((row) => Number(row.attendantId ?? 0) === Number(attendantId) && String(row.date ?? '') === String(readingDate ?? '')).slice().sort((a, b) => Number(a.id) - Number(b.id));
+    const due = new Map<number, number>(dayReadings.map((row) => [Number(row.id), Math.max(0, Number(row.totalAmount ?? 0) - this.originalCustomerCreditAmount(row))]));
+    const allocated = new Map<number, number>();
+    const payments = this.attendantSettlements.filter((payment) => Number(payment.attendantId) === Number(attendantId) && String(payment.readingDate ?? '') === String(readingDate ?? '')).slice().sort((a, b) => Number(a.id) - Number(b.id));
+    for (const payment of payments) {
+      let left = Number(payment.amount ?? 0);
+      const eligible = dayReadings.filter((row) => !payment.isCredit || !row.customerId || Number(row.customerId) === Number(payment.customerId));
+      for (const row of eligible) {
+        if (left <= .001) break;
+        const id = Number(row.id); const remaining = due.get(id) ?? 0; const part = Math.min(left, remaining);
+        if (part <= 0) continue;
+        due.set(id, remaining - part); allocated.set(id, (allocated.get(id) ?? 0) + part); left -= part;
+      }
+    }
+    return allocated;
+  }
   amountRemaining(reading: any): number { return Math.max(0, Number(reading.totalAmount ?? 0) - this.amountPaid(reading)); }
   canCollect(reading: any): boolean { return !this.creditMode && reading.paymentStatus !== 'CUSTOMER_CREDIT' && this.amountRemaining(reading) > 0.01; }
   paymentState(reading: any): string { if (reading.paymentStatus === 'CUSTOMER_CREDIT') return 'Compte client'; const remaining = this.amountRemaining(reading); return remaining <= 0.01 ? 'Versé' : (this.amountPaid(reading) > 0 ? 'Partiel' : 'À verser'); }
@@ -269,13 +265,13 @@ export class FuelSales implements OnInit {
   get priorPayments(): any[] { return this.selectedPaymentReading?.payments ?? []; }
   paymentGap(reading: any): number { return Math.max(0, Number(reading?.totalAmount ?? 0) - this.amountPaid(reading)); }
   get paymentEntryAmount(): number { return this.paid; }
-  get paymentEntryGap(): number { return this.settlementTotalDue - this.paymentEntryAmount; }
+  get paymentEntryGap(): number { return this.settlementTotalDue - this.settlementPaid; }
   savePaymentEntry() {
     if (this.saving || this.payments.invalid || this.needsVoucherCustomer || !this.settlementForm.value.attendantId) { this.settlementForm.markAllAsTouched(); return; }
-    if (this.paymentEntryAmount <= 0 || this.cashPaid > this.settlementTotalDue + .01) { this.error = 'Les paiements encaissés dépassent le total restant dû.'; return; }
+    if (this.settlementPaid <= 0 || this.settlementPaid > this.settlementTotalDue + .01) { this.error = 'Les paiements dépassent le total restant dû.'; return; }
     this.saving = true;
     this.error = '';
-    this.fuel.addAttendantSettlement({ stationId: this.stationId, attendantId: this.settlementForm.value.attendantId, customerId: this.settlementForm.value.customerId, date: this.paymentDate, payments: this.payments.getRawValue() }).subscribe({
+    this.fuel.addAttendantSettlement({ stationId: this.stationId, attendantId: this.settlementForm.value.attendantId, customerId: this.settlementForm.value.customerId, date: this.paymentDate, readingDate: this.settlementReadingDate, payments: this.payments.getRawValue() }).subscribe({
       next: () => {
         this.saving = false;
         this.paymentOpen = false;

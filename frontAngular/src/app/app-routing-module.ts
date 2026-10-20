@@ -1,9 +1,7 @@
 import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
 import { Dashboard } from './pages/dashboard/dashboard';
-import { Inventory } from './pages/inventory/inventory';
 import { Stations } from './pages/stations/stations';
-import { Articles } from './pages/articles/articles';
 import { Fuel } from './pages/fuel/fuel';
 import { FuelConfig } from './pages/fuel-config/fuel-config';
 import { Suppliers } from './pages/suppliers/suppliers';
@@ -16,6 +14,7 @@ import { Create } from './pages/user/create/create';
 import { Profile } from './pages/profile/profile';
 import { Customers } from './pages/customers/customers';
 import { Expenses } from './pages/expenses/expenses';
+import { Attendants } from './pages/attendants/attendants';
 import { AuthGuard } from './services/auth.guard';
 import { RoleGuard } from './services/role.guard';
 
@@ -23,12 +22,11 @@ const routes: Routes = [
   { path: 'connexion', component: Login, title: 'Connexion · StationFlow' },
   { path: '', component: Dashboard, title: 'Vue d’ensemble · StationFlow', canActivate: [AuthGuard] },
   { path: 'stations', component: Stations, title: 'Stations · StationFlow', canActivate: [AuthGuard, RoleGuard], data: { roles: ['ROLE_SUPER_ADMIN'] } },
-  { path: 'inventaire', component: Inventory, title: 'Inventaire · StationFlow', canActivate: [AuthGuard, RoleGuard], data: { roles: ['ROLE_GERANT', 'ROLE_QUALITY_MARSHALL'] } },
-  { path: 'articles', component: Articles, title: 'Articles · StationFlow', canActivate: [AuthGuard, RoleGuard], data: { roles: ['ROLE_GERANT', 'ROLE_QUALITY_MARSHALL'] } },
   { path: 'carburants/ventes', component: FuelSales, title: 'Ventes & relevés · StationFlow', canActivate: [AuthGuard, RoleGuard], data: { roles: ['ROLE_GERANT', 'ROLE_ASSISTANT'] } },
   { path: 'carburants/versements', component: FuelSales, title: 'Versements carburant · StationFlow', canActivate: [AuthGuard, RoleGuard], data: { roles: ['ROLE_GERANT', 'ROLE_ASSISTANT'], settlementView: true } },
   { path: 'carburants/livraisons', component: FuelDeliveries, title: 'Livraisons carburant · StationFlow', canActivate: [AuthGuard, RoleGuard], data: { roles: ['ROLE_GERANT', 'ROLE_QUALITY_MARSHALL', 'ROLE_ASSISTANT'] } },
   { path: 'carburants/encaissements', component: FuelPayments, title: 'Encaissements carburant · StationFlow', canActivate: [AuthGuard, RoleGuard], data: { roles: ['ROLE_GERANT', 'ROLE_ASSISTANT'] } },
+  { path: 'pompistes', component: Attendants, title: 'Pompistes · StationFlow', canActivate: [AuthGuard, RoleGuard], data: { roles: ['ROLE_GERANT', 'ROLE_ASSISTANT'] } },
   { path: 'carburants', component: Fuel, title: 'Carburants & Pompes · StationFlow', canActivate: [AuthGuard, RoleGuard], data: { roles: ['ROLE_GERANT', 'ROLE_ASSISTANT'] } },
   { path: 'stock-carburant', component: FuelStock, title: 'Stock carburant · StationFlow', canActivate: [AuthGuard, RoleGuard], data: { roles: ['ROLE_GERANT', 'ROLE_QUALITY_MARSHALL', 'ROLE_ASSISTANT'] } },
   {

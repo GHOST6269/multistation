@@ -7,11 +7,19 @@ import { formatMoney } from '../../shared/money-format';
 
 @Component({ selector: 'app-fuel-payments', standalone: false, templateUrl: './fuel-payments.html', styleUrl: './fuel-payments.scss' })
 export class FuelPayments implements OnInit {
-  stations: DropdownOption[] = []; stationId = 0; payments: any[] = []; fromDate = ''; toDate = ''; page = 1; readonly pageSize = 10; loading = true;
+  stations: DropdownOption[] = []; stationId = 0; payments: any[] = []; fromDate = ''; toDate = ''; attendantFilter = 0; page = 1; readonly pageSize = 10; loading = true;
   constructor(private articles: ArticleService, private fuel: FuelService, private cdr: ChangeDetectorRef, public auth: AuthService) {}
   ngOnInit() { this.articles.options().subscribe(data => { this.stations = data.stations.map(s => ({ value: s.id, label: s.name })); this.stationId = data.stations[0]?.id ?? 0; this.load(); }); }
   load() { if (!this.stationId) return; this.loading = true; this.page = 1; this.fuel.paymentHistory(this.stationId).subscribe({ next: data => { this.payments = data.payments ?? []; this.loading = false; this.cdr.detectChanges(); }, error: () => { this.payments = []; this.loading = false; } }); }
-  get filtered() { return this.payments.filter(row => (!this.fromDate || row.date >= this.fromDate) && (!this.toDate || row.date <= this.toDate)); }
+  get attendantOptions(): DropdownOption[] {
+    const attendants = new Map<number, DropdownOption>();
+    for (const row of this.payments) {
+      const id = Number(row.attendantId ?? 0);
+      if (id && !attendants.has(id)) attendants.set(id, { value: id, label: row.responsible || `Pompiste ${id}` });
+    }
+    return [{ value: 0, label: 'Tous les pompistes' }, ...[...attendants.values()].sort((a, b) => a.label.localeCompare(b.label))];
+  }
+  get filtered() { return this.payments.filter(row => (!this.fromDate || row.date >= this.fromDate) && (!this.toDate || row.date <= this.toDate) && (!this.attendantFilter || Number(row.attendantId ?? 0) === Number(this.attendantFilter))); }
   get totalAmount() { return this.filtered.reduce((sum, row) => sum + Number(row.amount || 0), 0); }
   get methods() { return new Set(this.filtered.map(row => row.method)).size; }
   get totalPages() { return Math.max(1, Math.ceil(this.filtered.length / this.pageSize)); } get pages() { return Array.from({ length: this.totalPages }, (_, index) => index + 1); } get rows() { const page = Math.min(this.page, this.totalPages); return this.filtered.slice((page - 1) * this.pageSize, page * this.pageSize); } resetPage() { this.page = 1; }

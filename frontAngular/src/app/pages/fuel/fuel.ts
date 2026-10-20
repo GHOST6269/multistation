@@ -339,7 +339,7 @@ export class Fuel implements OnInit {
     const sourceRows: any[] = [];
     for (const reading of this.data?.readings ?? []) {
       if (this.attendantPaymentFilter && Number(reading.attendantId ?? 0) !== Number(this.attendantPaymentFilter)) continue;
-      const lines: { label?: string; type?: string; methodId?: number; amount: number; date?: string; isCredit?: boolean; customerAccountPayment?: boolean }[] = reading.payments?.length ? reading.payments : [{ label: 'Aucun versement', amount: 0 }];
+      const lines: { label?: string; type?: string; methodId?: number; amount: number; date?: string; isCredit?: boolean; customerAccountPayment?: boolean; attendantSettlement?: boolean }[] = (reading.payments ?? []).filter((payment: any) => payment.attendantSettlement === true);
       for (const payment of lines) {
         const date = payment.date || reading.date || '';
         if ((this.attendantPaymentFrom && date < this.attendantPaymentFrom) || (this.attendantPaymentTo && date > this.attendantPaymentTo)) continue;
@@ -350,7 +350,7 @@ export class Fuel implements OnInit {
     const rows: any[] = [];
     const grouped = new Map<string, any>();
     for (const row of sourceRows) {
-      if (row.isCredit || !row.hasPayment) { rows.push(row); continue; }
+      if (!row.hasPayment) { rows.push(row); continue; }
       const key = `${row.date}|${row.attendantId}|${row.methodKey}`;
       let aggregate = grouped.get(key);
       if (!aggregate) { aggregate = { ...row, id: key, amount: 0 }; grouped.set(key, aggregate); rows.push(aggregate); }

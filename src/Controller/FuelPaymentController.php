@@ -4,6 +4,7 @@ namespace App\Controller;
 
 use App\Entity\FuelNozzle;
 use App\Entity\FuelPaymentMethod;
+use App\Entity\FuelAttendantPayment;
 use App\Entity\FuelShiftReading;
 use App\Entity\Customer;
 use App\Entity\PumpAttendant;
@@ -220,7 +221,7 @@ final class FuelPaymentController extends AbstractController
             $customer = $selectedCustomer;
         }
         $existing = $reading->getPayments();
-        $alreadyPaid = array_sum(array_map(static fn (array $line): float => (float) ($line['amount'] ?? 0), $existing));
+        $alreadyPaid = array_sum(array_map(static fn (array $line): float => !empty($line['attendantSettlement']) ? 0.0 : (float) ($line['amount'] ?? 0), $existing));
         $remaining = round((float) $reading->getTotalAmount() - $alreadyPaid, 2);
         $newLines = []; $newAmount = 0.0;
         $paidBy = trim(($access->currentUser()?->getFirstName() ?? '').' '.($access->currentUser()?->getLastName() ?? '')) ?: null;
@@ -255,15 +256,21 @@ final class FuelPaymentController extends AbstractController
         $customer = !empty($data['customerId']) ? $em->getRepository(Customer::class)->find((int) $data['customerId']) : null;
         if (!empty($data['customerId']) && (!$customer || !$customer->isActive() || $customer->getStation()?->getId() !== $station->getId())) return $this->json(['message' => 'Client invalide'], 422);
         $date = new \DateTimeImmutable($data['date'] ?? 'today');
-        $readings = $em->getRepository(FuelShiftReading::class)->findBy(['station' => $station, 'attendant' => $attendant], ['workDate' => 'ASC', 'id' => 'ASC']);
-        $due = [];
+        $readingDate = new \DateTimeImmutable($data['readingDate'] ?? $data['date'] ?? 'today');
+        $readings = array_values(array_filter(
+            $em->getRepository(FuelShiftReading::class)->findBy(['station' => $station, 'attendant' => $attendant], ['workDate' => 'ASC', 'id' => 'ASC']),
+            static fn (FuelShiftReading $reading): bool => $reading->getWorkDate()?->format('Y-m-d') === $readingDate->format('Y-m-d'),
+        ));
+        $grossDue = 0.0;
         foreach ($readings as $reading) {
-            $credit = count(array_filter($reading->getPayments(), static fn (array $line): bool => !empty($line['isCredit']) || ($line['type'] ?? '') === 'CLIENT_VOUCHER')) > 0;
-            $remaining = round((float) $reading->getTotalAmount() - array_sum(array_map(static fn (array $line): float => (float) ($line['amount'] ?? 0), $reading->getPayments())), 2);
-            // Customer-account sales belong to the customer ledger; never use the
-            // attendant's payment to settle them, even if a customer was selected.
-            if (!$credit && $remaining > .01) $due[] = ['reading' => $reading, 'remaining' => $remaining];
+            $payments = $reading->getPayments();
+            $customerCredit = array_sum(array_map(static fn (array $line): float => (!empty($line['isCredit']) || ($line['type'] ?? '') === 'CLIENT_VOUCHER') && empty($line['customerAccountPayment']) && empty($line['attendantSettlement']) ? (float) ($line['amount'] ?? 0) : 0.0, $payments));
+            $remaining = round(max(0, (float) $reading->getTotalAmount() - $customerCredit), 2);
+            $grossDue += $remaining;
         }
+        $priorSettlements = $em->getRepository(FuelAttendantPayment::class)->findBy(['station' => $station, 'attendant' => $attendant, 'readingDate' => $readingDate]);
+        $alreadySettled = array_sum(array_map(static fn (FuelAttendantPayment $payment): float => (float) $payment->getAmount(), $priorSettlements));
+        $available = max(0, round($grossDue - $alreadySettled, 2));
         $lines = $data['payments'] ?? [];
         if (!is_array($lines) || !$lines) return $this->json(['message' => 'Ajoutez au moins un mode de paiement'], 422);
         $total = 0.0; $validLines = [];
@@ -279,46 +286,24 @@ final class FuelPaymentController extends AbstractController
             }
             $validLines[] = [$method, $amount, trim((string) ($line['reference'] ?? '')) ?: null, $lineCustomer]; $total += $amount;
         }
-        $available = array_sum(array_column($due, 'remaining'));
-        $cashTotal = array_sum(array_map(static fn (array $line): float => $line[0]->isCredit() ? 0.0 : $line[1], $validLines));
-        if ($cashTotal > $available + .01) return $this->json(['message' => sprintf('Les paiements encaissés dépassent le total restant dû de %.2f Ar', $available)], 422);
-        $paidBy = trim(($access->currentUser()?->getFirstName() ?? '').' '.($access->currentUser()?->getLastName() ?? '')) ?: null;
+        if ($total > $available + .01) return $this->json(['message' => sprintf('Les paiements dépassent le total restant dû de %.2f Ar', $available)], 422);
+        $responsible = trim($attendant->getFullName());
+        $enteredBy = $access->currentUser();
         foreach ($validLines as [$method, $amount, $reference, $lineCustomer]) {
-            $left = $amount;
-            foreach ($due as &$item) {
-                if ($left <= .001) break;
-                $part = min($left, $item['remaining']);
-                if ($part <= 0) continue;
-                $reading = $item['reading']; $payments = $reading->getPayments();
-                $isVoucher = $method->isCredit();
-                if ($isVoucher && $reading->getCustomer() && $reading->getCustomer()?->getId() !== $lineCustomer?->getId()) continue;
-                $payments[] = ['type' => $method->getCode(), 'methodId' => $method->getId(), 'label' => $method->getName(), 'supplierDeduction' => $method->isSupplierDeduction(), 'isCredit' => $method->isCredit(), 'amount' => round($part, 2), 'reference' => $reference, 'performedBy' => $paidBy, 'date' => $date->format('Y-m-d')];
-                $item['remaining'] = round($item['remaining'] - $part, 2); $left = round($left - $part, 2);
-                $paid = array_sum(array_map(static fn (array $line): float => (float) ($line['amount'] ?? 0), $payments));
-                if ($isVoucher) {
-                    $payments[array_key_last($payments)]['customerId'] = $lineCustomer?->getId();
-                    $payments[array_key_last($payments)]['customerName'] = $lineCustomer?->getName();
-                    if (!$reading->getCustomer()) $reading->setCustomer($lineCustomer);
-                }
-                $reading->setPayments($payments)->setStatus($paid >= (float) $reading->getTotalAmount() - .01 ? 'CLOSED' : 'PARTIAL');
-            }
-            unset($item);
-            if ($left > .01 && $method->isCredit() && $readings) {
-                // Any amount beyond the attendant's outstanding sales is still a
-                // customer credit purchase, so retain it as customer debt.
-                $target = $due[0]['reading'] ?? $readings[0];
-                foreach ($due as $candidate) {
-                    if (!$candidate['reading']->getCustomer() || $candidate['reading']->getCustomer()?->getId() === $lineCustomer?->getId()) {
-                        $target = $candidate['reading'];
-                        break;
-                    }
-                }
-                $payments = $target->getPayments();
-                $payments[] = ['type' => $method->getCode(), 'methodId' => $method->getId(), 'label' => $method->getName(), 'supplierDeduction' => $method->isSupplierDeduction(), 'isCredit' => true, 'amount' => round($left, 2), 'customerId' => $lineCustomer?->getId(), 'customerName' => $lineCustomer?->getName(), 'reference' => $reference, 'performedBy' => $paidBy, 'date' => $date->format('Y-m-d')];
-                if (!$target->getCustomer()) $target->setCustomer($lineCustomer);
-                $paid = array_sum(array_map(static fn (array $entry): float => (float) ($entry['amount'] ?? 0), $payments));
-                $target->setPayments($payments)->setStatus($paid >= (float) $target->getTotalAmount() - .01 ? 'CLOSED' : 'PARTIAL');
-            }
+            $payment = (new FuelAttendantPayment())
+                ->setStation($station)
+                ->setAttendant($attendant)
+                ->setPaymentMethod($method)
+                ->setPaymentMethodName($method->getName())
+                ->setCustomer($lineCustomer)
+                ->setReference($reference)
+                ->setPaymentDate($date)
+                ->setReadingDate($readingDate)
+                ->setResponsible($responsible)
+                ->setEnteredBy($enteredBy)
+                ->setAmount((string) $amount)
+                ->setCreatedAt(new \DateTimeImmutable());
+            $em->persist($payment);
         }
         $em->flush();
         return $this->json(['paid' => round($total, 2), 'remaining' => max(0, round($available - $total, 2))]);
@@ -330,34 +315,22 @@ final class FuelPaymentController extends AbstractController
         if ($denied = $access->require([UserAccessService::ROLE_GERANT, UserAccessService::ROLE_ASSISTANT])) return $denied;
         $stationId = (int) $request->query->get('station');
         if (!$access->canAccessStation($stationId)) return $access->denyStation();
-        $readings = $em->getRepository(FuelShiftReading::class)->findBy(['station' => $stationId], ['workDate' => 'DESC', 'id' => 'DESC'], 100);
-        $rows = []; $grouped = [];
-        foreach ($readings as $reading) foreach ($reading->getPayments() as $index => $payment) {
-            if (!empty($payment['customerAccountPayment']) || str_starts_with((string) ($payment['label'] ?? ''), 'Règlement client ·')) continue;
-            $date = $payment['date'] ?? $reading->getWorkDate()?->format('Y-m-d');
-            $method = $payment['label'] ?? $payment['type'] ?? '—';
-            $isCredit = !empty($payment['isCredit']) || strtoupper((string) ($payment['type'] ?? '')) === 'CLIENT_VOUCHER';
-            $row = ['id' => $reading->getId().'-'.$index, 'date' => $date, 'readingDate' => $reading->getWorkDate()?->format('Y-m-d'), 'responsible' => $reading->getAttendant()?->getFullName() ?? 'Non affecté', 'attendantId' => $reading->getAttendant()?->getId(), 'performedBy' => $payment['performedBy'] ?? null, 'nozzle' => $reading->getNozzle()?->getCode(), 'invoiceNumber' => $reading->getInvoiceNumber(), 'method' => $method, 'methodId' => $payment['methodId'] ?? null, 'type' => $payment['type'] ?? null, 'isCredit' => $isCredit, 'reference' => $payment['reference'] ?? null, 'amount' => (float) ($payment['amount'] ?? 0)];
-            if ($isCredit) { $rows[] = $row; continue; }
-            $methodKey = $row['methodId'] ?? $row['type'] ?? $method;
-            $key = implode('|', [(string) $date, (string) $row['attendantId'], (string) $methodKey]);
-            if (!isset($grouped[$key])) {
-                $grouped[$key] = $row;
-                $grouped[$key]['id'] = 'group-'.$key;
-                $grouped[$key]['nozzles'] = [];
-                $grouped[$key]['references'] = [];
-                $rows[] = &$grouped[$key];
-            }
-            $grouped[$key]['amount'] += $row['amount'];
-            if ($row['nozzle']) $grouped[$key]['nozzles'][$row['nozzle']] = $row['nozzle'];
-            if ($row['reference']) $grouped[$key]['references'][$row['reference']] = $row['reference'];
-        }
-        foreach ($rows as &$row) {
-            if (isset($row['nozzles'])) $row['nozzle'] = implode(', ', array_values($row['nozzles']));
-            if (isset($row['references'])) $row['reference'] = implode(' / ', array_values($row['references']));
-            unset($row['nozzles'], $row['references']);
-        }
-        unset($row);
+        $payments = $em->getRepository(FuelAttendantPayment::class)->findBy(['station' => $stationId], ['paymentDate' => 'DESC', 'id' => 'DESC'], 500);
+        $rows = array_map(static fn (FuelAttendantPayment $payment): array => [
+            'id' => $payment->getId(),
+            'date' => $payment->getPaymentDate()?->format('Y-m-d'),
+            'readingDate' => $payment->getReadingDate()?->format('Y-m-d'),
+            'responsible' => $payment->getResponsible(),
+            'attendantId' => $payment->getAttendant()?->getId(),
+            'performedBy' => trim(($payment->getEnteredBy()?->getFirstName() ?? '').' '.($payment->getEnteredBy()?->getLastName() ?? '')) ?: null,
+            'method' => $payment->getPaymentMethodName(),
+            'methodId' => $payment->getPaymentMethod()?->getId(),
+            'type' => $payment->getPaymentMethod()?->getCode(),
+            'isCredit' => $payment->getPaymentMethod()?->isCredit() ?? false,
+            'customerId' => $payment->getCustomer()?->getId(),
+            'reference' => $payment->getReference(),
+            'amount' => (float) $payment->getAmount(),
+        ], $payments);
         return $this->json(['payments' => $rows]);
     }
 
