@@ -28,6 +28,9 @@ export class Suppliers implements OnInit {
   invoiceToDate = '';
   paymentFromDate = '';
   paymentToDate = '';
+  deductionFromDate = '';
+  deductionToDate = '';
+  deductionMethodFilter = '';
   invoicePage = 1;
   paymentPage = 1;
   readonly pageSize = 10;
@@ -90,6 +93,23 @@ export class Suppliers implements OnInit {
       (!this.paymentToDate || payment.date <= this.paymentToDate),
     );
   }
+  get filteredDeductions() {
+    return this.deductions.filter(deduction =>
+      (!this.deductionFromDate || (deduction.date ?? '') >= this.deductionFromDate) &&
+      (!this.deductionToDate || (deduction.date ?? '') <= this.deductionToDate) &&
+      (!this.deductionMethodFilter || deduction.method === this.deductionMethodFilter),
+    );
+  }
+  get deductionPaymentTypes() {
+    const methods = new Map<string, string>();
+    for (const deduction of this.deductions) methods.set(deduction.method, deduction.methodLabel);
+    return [...methods].map(([code, name]) => ({ code, name })).sort((a, b) => a.name.localeCompare(b.name));
+  }
+  get deductionExpectedTotal() { return this.filteredDeductions.reduce((sum, item) => sum + Number(item.amount ?? 0), 0); }
+  get deductionReceivedTotal() { return this.filteredDeductions.reduce((sum, item) => sum + Number(item.received ?? 0), 0); }
+  get deductionRemainingTotal() { return this.filteredDeductions.reduce((sum, item) => sum + Number(item.remaining ?? 0), 0); }
+  get deductionSurplusTotal() { return this.filteredDeductions.reduce((sum, item) => sum + Math.max(0, Number(item.received ?? 0) - Number(item.amount ?? 0)), 0); }
+  get pendingDeductionCount() { return this.filteredDeductions.filter(item => Number(item.remaining ?? 0) > .01).length; }
   get invoiceTotalPages() { return Math.max(1, Math.ceil(this.filteredInvoices.length / this.pageSize)); }
   get paymentTotalPages() { return Math.max(1, Math.ceil(this.filteredPayments.length / this.pageSize)); }
   get invoicePages() { return Array.from({ length: this.invoiceTotalPages }, (_, index) => index + 1); }
@@ -152,14 +172,17 @@ export class Suppliers implements OnInit {
   openDeduction(deduction: any) {
     this.selectedDeduction = deduction;
     this.deductionError = '';
-    this.deductionForm.reset({ supplierId: 0, amount: deduction.remaining, date: new Date().toISOString().slice(0, 10), settlementInvoiceNumber: '', reference: '' });
+    this.deductionForm.reset({ supplierId: 0, amount: Math.max(Number(deduction.remaining ?? 0), .01), date: new Date().toISOString().slice(0, 10), settlementInvoiceNumber: '', reference: '' });
     this.modal = 'deduction';
   }
   saveDeduction() {
     if (this.deductionForm.invalid || !this.selectedDeduction) return;
     this.service.applyDeduction({
-      readingId: this.selectedDeduction.readingId,
-      paymentIndex: this.selectedDeduction.paymentIndex,
+      ...(this.selectedDeduction.customerPaymentId
+        ? { customerPaymentId: this.selectedDeduction.customerPaymentId }
+        : this.selectedDeduction.attendantPaymentId
+          ? { attendantPaymentId: this.selectedDeduction.attendantPaymentId }
+          : { readingId: this.selectedDeduction.readingId, paymentIndex: this.selectedDeduction.paymentIndex }),
       ...this.deductionForm.getRawValue(),
       supplierId: Number(this.deductionForm.value.supplierId),
       amount: Number(this.deductionForm.value.amount),

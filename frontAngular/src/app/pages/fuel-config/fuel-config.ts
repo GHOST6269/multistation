@@ -46,8 +46,7 @@ export class FuelConfig implements OnInit {
       unitPrice: [0],
       contact: [''],
       allowedRoles: fb.nonNullable.control<string[]>([]),
-      supplierDeduction: [false],
-      isCredit: [false],
+      journalType: ['BANK'],
     });
   }
   ngOnInit() {
@@ -76,6 +75,7 @@ export class FuelConfig implements OnInit {
     const active = this.paymentStatusFilter === 'ACTIVE';
     return this.items.filter((item: any) => Boolean(item.active) === active);
   }
+  journalTypeLabel(type: string): string { return ({ CREDIT: 'Crédit · compte client', SUPPLIER: 'Prélèvement fournisseur', CASH: 'Espèces · caisse', BANK: 'Banque' } as Record<string, string>)[type] ?? 'Banque'; }
   get paymentStatusOptions(): DropdownOption[] { return [{ value: 'ACTIVE', label: 'Actifs' }, { value: 'INACTIVE', label: 'Désactivés' }, { value: 'ALL', label: 'Tous' }]; }
   get totalPages() { return Math.max(1, Math.ceil(this.filteredItems.length / this.pageSize)); }
   get pages() { return Array.from({ length: this.totalPages }, (_, index) => index + 1); }
@@ -172,8 +172,7 @@ export class FuelConfig implements OnInit {
       unitPrice: x.unitPrice ?? 0,
       contact: x.contact ?? '',
       allowedRoles: x.allowedRoles ?? [],
-      supplierDeduction: x.supplierDeduction ?? false,
-      isCredit: Boolean(x.isCredit) || String(x.code ?? '').toUpperCase() === 'CLIENT_VOUCHER',
+      journalType: x.journalType ?? (x.isCredit || String(x.code ?? '').toUpperCase() === 'CLIENT_VOUCHER' ? 'CREDIT' : x.supplierDeduction ? 'SUPPLIER' : (String(x.code ?? '').toUpperCase() === 'CASH' ? 'CASH' : 'BANK')),
     });
   }
   changeTab(tab: string) {
@@ -186,7 +185,7 @@ export class FuelConfig implements OnInit {
   openCreate() {
     if (this.saving) return;
     this.editing = null;
-    this.form.reset({ code: '', name: '', fuelTypeId: 0, capacity: 0, minimumStock: 0, pumpId: 0, tankId: 0, attendantId: 0, nozzleIds: [], currentIndex: 0, unitPrice: 0, contact: '', allowedRoles: ['ROLE_GERANT'], supplierDeduction: false, isCredit: false });
+    this.form.reset({ code: '', name: '', fuelTypeId: 0, capacity: 0, minimumStock: 0, pumpId: 0, tankId: 0, attendantId: 0, nozzleIds: [], currentIndex: 0, unitPrice: 0, contact: '', allowedRoles: ['ROLE_GERANT'], journalType: 'BANK' });
     this.formOpen = true;
   }
   closeForm() {

@@ -2,7 +2,7 @@
 
 namespace App\Controller;
 
-use App\Entity\{Customer, CustomerPayment, FuelShiftReading, Stations};
+use App\Entity\{Customer, CustomerPayment, FuelAttendantPayment, FuelPaymentMethod, FuelShiftReading, Stations};
 use App\Service\CustomerAccountService;
 use App\Service\UserAccessService;
 use Doctrine\ORM\EntityManagerInterface;
@@ -45,6 +45,16 @@ final class CustomerController extends AbstractController
             $paidByCustomer[$customerId] = ($paidByCustomer[$customerId] ?? 0.0) + $paidOnReading;
         }
 
+        // A client voucher entered when settling an attendant is also a credit
+        // purchase for that customer. It is stored separately from the reading.
+        $attendantPayments = $em->getRepository(FuelAttendantPayment::class)->findBy(['station' => $station]);
+        foreach ($attendantPayments as $attendantPayment) {
+            $customer = $attendantPayment->getCustomer();
+            if (!$customer || !($attendantPayment->getPaymentMethod()?->isCredit() ?? false)) continue;
+            $customerId = $customer->getId();
+            $billedByCustomer[$customerId] = ($billedByCustomer[$customerId] ?? 0.0) + (float) $attendantPayment->getAmount();
+        }
+
         $payments = $em->getRepository(CustomerPayment::class)->findBy(['station' => $station], ['paymentDate' => 'DESC', 'id' => 'DESC']);
         foreach ($payments as $payment) {
             $customer = $payment->getCustomer();
@@ -82,12 +92,22 @@ final class CustomerController extends AbstractController
             return $this->json(['message' => 'Client ou station invalide'], 422);
         }
 
+        $methodCode = strtoupper(trim((string) ($data['method'] ?? '')));
+        $method = $em->getRepository(FuelPaymentMethod::class)->findOneBy(['station' => $station, 'code' => $methodCode, 'isActive' => true]);
+        if (!$method || in_array($method->getCode(), ['FMS', 'CLIENT_VOUCHER'], true)) {
+            return $this->json(['message' => 'Mode de paiement invalide'], 422);
+        }
+
         $amount = (float) ($data['amount'] ?? 0);
         if ($amount <= 0) return $this->json(['message' => 'Le montant du paiement doit être supérieur à zéro'], 422);
 
         $billed = 0.0;
         $sales = $em->getRepository(FuelShiftReading::class)->findBy(['station' => $station, 'customer' => $customer], ['workDate' => 'DESC', 'id' => 'DESC']);
         foreach ($sales as $reading) $billed += $this->billedAmount($reading);
+        $attendantPayments = $em->getRepository(FuelAttendantPayment::class)->findBy(['station' => $station, 'customer' => $customer]);
+        foreach ($attendantPayments as $attendantPayment) {
+            if ($attendantPayment->getPaymentMethod()?->isCredit() ?? false) $billed += (float) $attendantPayment->getAmount();
+        }
 
         $paidBefore = 0.0;
         $payments = $em->getRepository(CustomerPayment::class)->findBy(['station' => $station, 'customer' => $customer], ['paymentDate' => 'DESC', 'id' => 'DESC']);
@@ -107,7 +127,7 @@ final class CustomerController extends AbstractController
             ->setAmount((string) $amount)
             ->setPreviousBalance((string) $snapshot['previousBalance'])
             ->setRemainingBalance((string) $snapshot['remainingBalance'])
-            ->setPaymentMethod((string) ($data['method'] ?? 'CASH'))
+            ->setPaymentMethod($method->getCode())
             ->setReference(trim((string) ($data['reference'] ?? '')) ?: null)
             ->setNote(trim((string) ($data['note'] ?? '')) ?: null)
             ->setCreatedAt(new \DateTimeImmutable());
@@ -115,6 +135,17 @@ final class CustomerController extends AbstractController
         $em->persist($payment);
         $em->flush();
         return $this->json(['id' => $payment->getId()], 201);
+    }
+
+    #[Route('/payment-methods', methods: ['GET'])]
+    public function paymentMethods(Request $request, EntityManagerInterface $em, UserAccessService $access): JsonResponse
+    {
+        if ($denied = $access->requireCustomerAccess()) return $denied;
+        $station = $em->getRepository(Stations::class)->find((int) $request->query->get('station'));
+        if (!$station || !$access->canAccessStation($station)) return $access->denyStation();
+        $methods = $em->getRepository(FuelPaymentMethod::class)->findBy(['station' => $station, 'isActive' => true], ['name' => 'ASC']);
+        $methods = array_values(array_filter($methods, static fn (FuelPaymentMethod $method): bool => !in_array($method->getCode(), ['FMS', 'CLIENT_VOUCHER'], true)));
+        return $this->json(['methods' => array_map(static fn (FuelPaymentMethod $method): array => ['code' => $method->getCode(), 'name' => $method->getName()], $methods)]);
     }
 
     #[Route('/purchase-history', methods: ['GET'])]
@@ -143,6 +174,20 @@ final class CustomerController extends AbstractController
                 'attendant' => $reading->getAttendant()?->getFullName(),
             ];
         }
+        $attendantPayments = $em->getRepository(FuelAttendantPayment::class)->findBy(['station' => $station]);
+        foreach ($attendantPayments as $payment) {
+            if (!$payment->getCustomer() || !($payment->getPaymentMethod()?->isCredit() ?? false)) continue;
+            $rows[] = [
+                'id' => 'attendant-'.$payment->getId(),
+                'date' => $payment->getReadingDate()?->format('Y-m-d') ?? $payment->getPaymentDate()?->format('Y-m-d'),
+                'customerId' => $payment->getCustomer()->getId(),
+                'customer' => $payment->getCustomer()->getName(),
+                'amount' => (float) $payment->getAmount(),
+                'reference' => $payment->getReference(),
+                'attendant' => $payment->getAttendant()?->getFullName() ?? $payment->getResponsible(),
+            ];
+        }
+        usort($rows, static fn (array $a, array $b): int => ($b['date'] ?? '') <=> ($a['date'] ?? ''));
         return $this->json(['purchases' => $rows]);
     }
 
@@ -245,6 +290,14 @@ final class CustomerController extends AbstractController
         if ($denied = $access->requireCustomerAccess()) return $denied;
         if (!$access->canAccessStation($customer->getStation())) return $access->denyStation();
         $customer->setIsActive(false); $em->flush(); return $this->json($this->row($customer));
+    }
+
+    #[Route('/{id}/activate', requirements: ['id' => '\\d+'], methods: ['PATCH'])]
+    public function activate(Customer $customer, EntityManagerInterface $em, UserAccessService $access): JsonResponse
+    {
+        if ($denied = $access->requireCustomerAccess()) return $denied;
+        if (!$access->canAccessStation($customer->getStation())) return $access->denyStation();
+        $customer->setIsActive(true); $em->flush(); return $this->json($this->row($customer));
     }
 
     private function nullable(mixed $value): ?string { $value = trim((string) $value); return $value ?: null; }

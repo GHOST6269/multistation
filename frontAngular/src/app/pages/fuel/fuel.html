@@ -623,7 +623,7 @@
       <div class="small-fields">
         <label>Libellé *<input formControlName="name" placeholder="Ex. Mobile Money" /></label
         ><label>Code<input formControlName="code" placeholder="Ex. MOBILE_MONEY" /></label>
-        <label class="supplier-deduction-choice"><input type="checkbox" formControlName="supplierDeduction" /> Enregistrer les paiements de ce mode dans les prélèvements fournisseur</label>
+        <label>Journal associé<select formControlName="journalType"><option value="CREDIT">Crédit · compte client</option><option value="SUPPLIER">Prélèvement fournisseur</option><option value="CASH">Espèces · caisse</option><option value="BANK">Banque</option></select></label>
         @if (error) {
           <div class="api-error wide">{{ error }}</div>
         }

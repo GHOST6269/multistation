@@ -103,7 +103,7 @@ export class Fuel implements OnInit {
       unitPrice: [0],
       contact: [''],
     });
-    this.paymentMethodForm = fb.group({ code: [''], name: ['', Validators.required], supplierDeduction: [false] });
+    this.paymentMethodForm = fb.group({ code: [''], name: ['', Validators.required], journalType: ['BANK'] });
   }
   ngOnInit() {
     this.route.queryParams.subscribe((params) => {

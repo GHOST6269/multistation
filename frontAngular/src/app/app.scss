@@ -5,9 +5,9 @@
 .app-shell {
   min-height: 100vh;
   background:
-    radial-gradient(circle at 100% 0, rgba(208, 231, 248, .52), transparent 32rem),
-    #f4f8fc;
-  color: #1d3656;
+    radial-gradient(ellipse at 95% 0, rgba(213, 234, 243, .48), transparent 34rem),
+    linear-gradient(180deg, #f7f9fb 0%, #f2f5f8 100%);
+  color: #183650;
 }
 .sidebar {
   position: fixed;
@@ -400,3 +400,28 @@ main {
 @media (max-width: 480px) {
   .top-avatar { display: none; }
 }
+
+/* Refined navigation rail */
+.sidebar{width:280px;padding:22px 13px 16px;background:radial-gradient(ellipse at 0 0,rgba(72,143,206,.2),transparent 42%),linear-gradient(165deg,#102f50 0%,#0c2743 54%,#081e35 100%);box-shadow:10px 0 34px rgba(7,27,48,.18)}
+.brand{min-height:62px;padding:0 9px 20px;border-bottom-color:rgba(187,217,243,.16)}
+.brand-mark{width:44px;height:44px;border:1px solid rgba(216,238,255,.28);border-radius:14px;background:linear-gradient(145deg,#65ace0,#2674b6);box-shadow:0 8px 20px rgba(18,102,169,.3)}
+.brand strong{font-size:13px;letter-spacing:.65px}.brand small{color:#92abc4;font-size:10px;letter-spacing:.15px}
+.sidebar nav{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:0 3px 12px 0;scrollbar-width:thin;scrollbar-color:rgba(155,193,226,.26) transparent}
+.sidebar nav::-webkit-scrollbar{width:5px}.sidebar nav::-webkit-scrollbar-thumb{border-radius:9px;background:rgba(155,193,226,.26)}
+.nav-label{margin:21px 0 8px;padding:0 12px;color:#7798b7;font-size:9px;letter-spacing:1.55px}
+.sidebar nav :is(a,.nav-parent){min-height:43px;margin:3px 0;border-radius:11px;color:#c1d1e0;font-size:12px;letter-spacing:.05px}
+.sidebar nav .nav-parent{border:1px solid transparent}
+.sidebar nav :is(a,.nav-parent):hover{transform:translateX(1px);border-color:rgba(142,194,236,.13);background:rgba(103,163,214,.12);color:#fff}
+.sidebar nav :is(a,.nav-parent).active{border-color:rgba(139,198,243,.22);background:linear-gradient(105deg,rgba(57,127,196,.9),rgba(54,112,169,.66));box-shadow:0 7px 16px rgba(3,20,37,.22);color:#fff}
+.nav-icon{width:29px;height:29px;border:1px solid rgba(168,208,242,.08);border-radius:9px;background:rgba(145,197,245,.1);color:#aedaff;font-size:14px}
+.nav-parent.active .nav-icon,.sidebar nav>a.active .nav-icon{border-color:rgba(255,255,255,.18);background:rgba(255,255,255,.16);color:#fff}
+.nav-submenu{gap:3px;margin:2px 2px 8px 15px;padding:6px 5px 6px 12px;border-color:rgba(130,184,231,.1);border-left-color:rgba(115,178,229,.42);background:rgba(3,20,37,.2)}
+.nav-submenu a{min-height:32px;padding:0 8px;color:#abc2d7;font-size:11px}
+.nav-submenu a::before{content:'';width:5px;height:5px;margin-right:9px;border-radius:50%;background:#628db3}
+.nav-submenu a.active{background:rgba(68,143,211,.2);color:#fff}.nav-submenu a.active::before{background:#8cc8f5;box-shadow:0 0 0 3px rgba(140,200,245,.12)}
+.sub-chevron{font-size:12px;color:#9ebad3}
+.sidebar-footer{padding-top:10px;background:linear-gradient(0deg,#081e35 72%,transparent)}
+.profile{padding:13px 7px 2px;border-top-color:rgba(166,201,232,.13)}.profile .avatar{border:1px solid rgba(255,255,255,.2);background:linear-gradient(145deg,#d7efff,#8ec4ed);color:#17456e}
+.profile strong{font-size:11px}.profile small{margin-top:3px;color:#91a9c1;font-size:10px}
+main{margin-left:280px}
+@media(max-width:850px){main{margin-left:0}}

@@ -18,6 +18,7 @@ import { Attendants } from './pages/attendants/attendants';
 import { AuthGuard } from './services/auth.guard';
 import { RoleGuard } from './services/role.guard';
 import { Tamana } from './pages/tamana/tamana';
+import { Journal } from './pages/journal/journal';
 
 const routes: Routes = [
   { path: 'connexion', component: Login, title: 'Connexion · StationFlow' },
@@ -48,6 +49,10 @@ const routes: Routes = [
   { path: 'clients/historique', component: Customers, title: 'Historique clients · StationFlow', canActivate: [AuthGuard, RoleGuard], data: { customerAccess: true, view: 'payments' } },
   { path: 'cartes/tamana', component: Tamana, title: 'Cartes TAMANA+ · StationFlow', canActivate: [AuthGuard, RoleGuard], data: { roles: ['ROLE_GERANT', 'ROLE_ASSISTANT'] } },
   { path: 'depenses', component: Expenses, title: 'Dépenses · StationFlow', canActivate: [AuthGuard, RoleGuard], data: { roles: ['ROLE_GERANT', 'ROLE_ASSISTANT'] } },
+  { path: 'journaux/caisse', component: Journal, title: 'Journal de caisse · StationFlow', canActivate: [AuthGuard, RoleGuard], data: { roles: ['ROLE_GERANT', 'ROLE_ASSISTANT'], journalType: 'CASH' } },
+  { path: 'journaux/banque', component: Journal, title: 'Journal de banque · StationFlow', canActivate: [AuthGuard, RoleGuard], data: { roles: ['ROLE_GERANT', 'ROLE_ASSISTANT'], journalType: 'BANK' } },
+  { path: 'journaux/credit', component: Journal, title: 'Journal de crédit · StationFlow', canActivate: [AuthGuard, RoleGuard], data: { roles: ['ROLE_GERANT', 'ROLE_ASSISTANT'], journalType: 'CREDIT' } },
+  { path: 'journaux/prelevements-fournisseurs', component: Journal, title: 'Journal des prélèvements fournisseur · StationFlow', canActivate: [AuthGuard, RoleGuard], data: { roles: ['ROLE_GERANT', 'ROLE_ASSISTANT'], journalType: 'SUPPLIER' } },
   { path: 'utilisateurs', component: Create, title: 'Utilisateurs · StationFlow', canActivate: [AuthGuard, RoleGuard], data: { roles: ['ROLE_SUPER_ADMIN', 'ROLE_GERANT'] } },
   { path: 'profil', component: Profile, title: 'Mon profil · StationFlow', canActivate: [AuthGuard] },
   { path: 'equipe', redirectTo: 'utilisateurs' },

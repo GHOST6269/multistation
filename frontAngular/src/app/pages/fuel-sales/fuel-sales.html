@@ -26,8 +26,8 @@
       ><label>Au<input type="date" [(ngModel)]="toDate" (ngModelChange)="resetPage()" /></label>
     </div>
     <label>Pompiste<app-dropdown [(ngModel)]="attendantFilter" (ngModelChange)="resetPage()" [options]="attendantOptions" /></label>
-    @if (settlementView) { <label>Pistolet attribué<app-dropdown [(ngModel)]="nozzleFilter" (ngModelChange)="resetPage()" [options]="filterNozzleOptions" placeholder="Tous les pistolets" /></label> }
-    <label>Versement<app-dropdown [(ngModel)]="paymentFilter" (ngModelChange)="resetPage()" [options]="paymentFilterOptions" /></label>
+    <label>Pistolet<app-dropdown [(ngModel)]="nozzleFilter" (ngModelChange)="resetPage()" [options]="filterNozzleOptions" placeholder="Tous les pistolets" /></label>
+    @if (hasActiveFilters) { <button type="button" class="clear-operation-filters" (click)="clearFilters()">Effacer les filtres</button> }
   </section>
   <section class="operation-kpis">
     <article>
@@ -179,7 +179,7 @@
               <button type="button" class="cancel" [disabled]="saving || payments.length === 1" (click)="removePayment(index)">Retirer</button>
             </div>
           }
-          <label class="payment-gap-field" [class.unbalanced]="Math.abs(paymentEntryGap) > 0.01">Reste à verser après ce versement<div class="money-input"><input [value]="money(paymentEntryGap)" readonly /><span>Ar</span></div></label>
+          <label class="payment-gap-field" [class.unbalanced]="paymentEntryGap > 0.01" [class.surplus]="paymentEntryGap < -0.01">{{ paymentEntryGap < -0.01 ? 'Surplus du versement' : 'Reste à verser après ce versement' }}<div class="money-input"><input [value]="money(Math.abs(paymentEntryGap))" readonly /><span>Ar</span></div></label>
           <button type="button" (click)="addPayment()">＋ Ajouter un mode de paiement</button>
           <small>Versement saisi : {{ money(paymentEntryAmount) }} Ar</small>
         </div>
@@ -187,7 +187,7 @@
         } @else { <p class="settlement-later-note">Sélectionnez un pompiste pour afficher le total de ses versements en attente.</p> }
         @if (error) { <p class="operation-form-error" role="alert">{{ error }}</p> }
       </div>
-      <footer><button type="button" class="cancel" [disabled]="saving" (click)="paymentOpen = false">Annuler</button>@if (settlementReadings.length) { <button class="settlement-submit" [disabled]="saving || payments.invalid || needsVoucherCustomer || paymentEntryAmount <= 0 || settlementPaid > settlementTotalDue + 0.01">{{ saving ? 'Enregistrement…' : 'Confirmer le versement' }}</button> }</footer>
+      <footer><button type="button" class="cancel" [disabled]="saving" (click)="paymentOpen = false">Annuler</button>@if (settlementReadings.length) { <button class="settlement-submit" [disabled]="saving || payments.invalid || needsVoucherCustomer || paymentEntryAmount <= 0">{{ saving ? 'Enregistrement…' : 'Confirmer le versement' }}</button> }</footer>
     </form>
   </div>
 }

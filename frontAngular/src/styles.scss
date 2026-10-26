@@ -183,7 +183,6 @@ select:disabled {
   .article-form > footer { padding: 10px 20px !important; }
   .article-form input, .article-form app-dropdown { font-size: 9px; }
 }
-.unit-equivalents{display:flex;flex-wrap:wrap;gap:3px;margin-top:4px}.unit-equivalents span{padding:2px 5px;border-radius:8px;background:#edf5fc;color:#5f88ae;font-size:6px;white-space:nowrap}.system-stock{display:grid;gap:4px}.system-stock>strong{font-size:9px}.system-stock>small{display:flex;flex-wrap:wrap;gap:3px;color:#7890a6;font-size:6px;line-height:1.5}
 
 /* Readability floor: operational screens are viewed all day on standard displays. */
 .app-shell :is(label, small, th, td, input, select, textarea) {
@@ -818,4 +817,152 @@ button:focus-visible, a:focus-visible {
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
+
+/* Application-wide polish */
+:root {
+  --sf-ink: #183650;
+  --sf-muted: #72859a;
+  --sf-line: #e4ebf1;
+  --sf-surface: #ffffff;
+  --sf-page: #f3f6f9;
+  --sf-blue: #347eae;
+  --sf-teal: #249982;
+  --sf-shadow: 0 12px 34px rgba(26, 57, 83, .055);
+  --sf-shadow-hover: 0 16px 38px rgba(26, 57, 83, .09);
+}
+html { scroll-behavior: smooth; background: var(--sf-page); }
+body { color: var(--sf-ink); background: var(--sf-page); -webkit-font-smoothing: antialiased; }
+::selection { color: #123a56; background: #d7edf6; }
+:focus-visible { outline: 3px solid rgba(52, 126, 174, .27); outline-offset: 2px; }
+::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar-thumb { border: 2px solid transparent; border-radius: 9px; background: #c8d5df; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: #aebfcd; background-clip: padding-box; }
+.app-shell { background: radial-gradient(ellipse at 95% 0, rgba(213, 234, 243, .48), transparent 34rem), linear-gradient(180deg, #f7f9fb 0%, #f2f5f8 100%); }
+.app-shell main { min-width: 0; }
+.app-shell .page-content { max-width: 1760px; margin-inline: auto; }
+:is(.operation-heading, .page-heading, .heading, .settings-heading) h1 { color: #193b57; letter-spacing: -.045em; }
+:is(.operation-heading, .page-heading, .heading, .settings-heading) p { color: #5684a4; letter-spacing: .13em; }
+:is(.operation-heading, .page-heading, .heading, .settings-heading) span { color: var(--sf-muted); }
+:is(.operation-table, .table-card, .panel, .customer-panel, .invoice-panel, .settings-workspace, .supplier-summary, .dashboard-grid > section) {
+  border: 1px solid rgba(218, 228, 236, .9) !important;
+  border-radius: 16px !important;
+  background: var(--sf-surface);
+  box-shadow: var(--sf-shadow);
+}
+:is(.operation-table, .table-card, .panel, .customer-panel, .invoice-panel, .settings-workspace, .dashboard-grid > section) > header {
+  border-bottom-color: var(--sf-line) !important;
+}
+:is(.operation-kpis, .metrics, .supplier-summary, .dashboard-kpis) article {
+  border-color: var(--sf-line);
+  border-radius: 14px;
+  box-shadow: 0 6px 20px rgba(26, 57, 83, .045);
+}
+.app-shell table thead th { color: #74889b; background: #f7f9fb; font-size: 10px; letter-spacing: .075em; }
+.app-shell table tbody td { color: #40586c; }
+.app-shell table tbody tr:hover { background: #f6fafc; }
+.app-shell :is(input:not([type=checkbox]):not([type=radio]), textarea, select) { border-radius: 9px; }
+.app-shell :is(button, a, input, select, textarea) { transition-duration: .18s; }
+.app-shell button:not(:disabled):active { transform: translateY(0) scale(.985); }
+.app-shell :is(.operation-controls, .toolbar, .settings-toolbar) { border-color: var(--sf-line); }
+.app-shell :is(.operation-primary, .primary-button, .settings-add) { background-image: linear-gradient(135deg, #3988b8, #286d9d); box-shadow: 0 7px 17px rgba(45, 119, 166, .2); }
+.app-shell :is(.operation-primary, .primary-button, .settings-add):hover { filter: saturate(1.08) brightness(1.03); box-shadow: 0 10px 22px rgba(45, 119, 166, .26); }
+@media (max-width: 700px) {
+  .app-shell .page-content { padding-top: 20px !important; }
+  :is(.operation-table, .table-card, .panel, .customer-panel, .invoice-panel, .settings-workspace) { border-radius: 12px !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
+.unit-equivalents{display:flex;flex-wrap:wrap;gap:3px;margin-top:4px}.unit-equivalents span{padding:2px 5px;border-radius:8px;background:#edf5fc;color:#5f88ae;font-size:6px;white-space:nowrap}.system-stock{display:grid;gap:4px}.system-stock>strong{font-size:9px}.system-stock>small{display:flex;flex-wrap:wrap;gap:3px;color:#7890a6;font-size:6px;line-height:1.5}
+
+/* Responsive layout safeguards shared by every application page. */
+.app-shell, .app-shell * { box-sizing: border-box; }
+.app-shell main, .app-shell .page-content, .app-shell router-outlet + * { min-width: 0; }
+.app-shell :is(.panel, .invoice-panel, .table-card, .table-scroll, .table-wrap, .operation-table, .inventory-table, .customer-panel, .settings-workspace) {
+  min-width: 0;
+  max-width: 100%;
+  overscroll-behavior-inline: contain;
+}
+.app-shell :is(.panel, .invoice-panel, .table-card, .table-scroll, .table-wrap, .operation-table, .inventory-table, .customer-panel, .settings-workspace) table {
+  max-width: 100%;
+}
+.app-shell :is(.toolbar, .filters, .fields, .form-grid, .profile-fields, .config-grid, .settings-grid) > * { min-width: 0; }
+.app-shell :is(input, select, textarea, app-dropdown) { max-width: 100%; }
+.app-shell :is(button, a) { -webkit-tap-highlight-color: transparent; }
+
+@media (max-width: 1024px) {
+  .app-shell .page-content { padding-inline: clamp(14px, 2.5vw, 26px); }
+  .app-shell :is(.station-grid, .supplier-cards, .dashboard-grid, .lists) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .app-shell :is(.forms, .settings-layout, .profile-card) { min-width: 0; }
+  .app-shell :is(.invoice-panel, .panel, .customer-panel, .table-card, .settings-workspace, .inventory-table) { overflow-x: auto; }
+}
+
+@media (max-width: 720px) {
+  .app-shell { min-height: 100dvh; }
+  .app-shell .sidebar { height: 100dvh; padding-top: max(16px, env(safe-area-inset-top)); padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+  .app-shell .topbar { position: sticky; top: 0; }
+  .app-shell .station-switcher { min-width: 0; }
+  .app-shell .station-switcher > div { min-width: 0; }
+  .app-shell .station-switcher strong { max-width: 44vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .app-shell .page-content { width: 100%; padding-inline: max(12px, env(safe-area-inset-left)) !important; padding-right: max(12px, env(safe-area-inset-right)) !important; }
+  .app-shell :is(.supplier-summary, .dashboard-kpis, .summary-grid, .metrics, .stock-metrics, .operation-kpis) { min-width: 0; }
+  .app-shell :is(.station-grid, .supplier-cards, .dashboard-grid, .lists, .forms, .profile-card, .settings-layout) { grid-template-columns: minmax(0, 1fr) !important; }
+  .app-shell :is(.panel, .invoice-panel, .customer-panel, .table-card, .settings-workspace, .inventory-table) { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .app-shell :is(.panel, .invoice-panel, .customer-panel, .table-card, .settings-workspace, .inventory-table) table { width: max-content; min-width: 100%; }
+  .app-shell :is(.panel, .invoice-panel, .customer-panel, .table-card, .settings-workspace, .inventory-table) th,
+  .app-shell :is(.panel, .invoice-panel, .customer-panel, .table-card, .settings-workspace, .inventory-table) td { white-space: nowrap; }
+  .app-shell :is(.panel, .invoice-panel, .customer-panel, .table-card, .settings-workspace, .inventory-table) td :is(small, p) { white-space: normal; }
+  .app-shell :is(.heading, .page-heading, .supplier-heading, .config-heading, .operation-heading, .invoice-panel > header) { min-width: 0; }
+  .app-shell :is(.heading, .page-heading, .supplier-heading, .config-heading, .operation-heading) > button,
+  .app-shell :is(.heading, .page-heading, .supplier-heading, .config-heading, .operation-heading) .heading-actions { width: 100%; }
+  .app-shell :is(.heading-actions, .page-heading .actions) { display: flex; flex-wrap: wrap; gap: 8px; }
+  .app-shell :is(.heading-actions, .page-heading .actions) > button { flex: 1 1 auto; min-height: 42px; }
+  .app-shell :is(.fields, .form-grid, .profile-fields, .config-grid, .settings-grid, .filters) { grid-template-columns: minmax(0, 1fr) !important; }
+  .app-shell :is(.fields, .form-grid, .profile-fields, .config-grid, .settings-grid) > .wide { grid-column: auto !important; }
+  .app-shell :is(.fields input, .fields select, .fields textarea, .profile-fields input, .profile-fields select) { min-height: 42px; font-size: 16px; }
+  .app-shell :is(.modal, .modal-backdrop, .config-modal, .stock-modal, .supplier-modal, .deduction-modal, .quick-modal) { padding: 0 !important; align-items: stretch; }
+  .app-shell :is(.modal form, .modal-backdrop form, .config-modal form, .stock-modal form, .supplier-modal form, .quick-modal form) {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 100dvh !important;
+    min-height: 100dvh;
+    overflow-y: auto;
+    border-radius: 0 !important;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .app-shell .supplier-create-modal { padding: 0 !important; }
+  .app-shell .supplier-create-modal > form { width: 100%; min-height: 100dvh; border-radius: 0; }
+  .app-shell :is(.modal footer, .modal-backdrop form > footer, .supplier-modal footer, .quick-modal footer) { position: sticky; bottom: 0; }
+  .app-shell .notification-panel { max-height: calc(100dvh - 74px); overflow-y: auto; }
+  .app-shell :is(.table-pagination, .pagination) { gap: 8px; flex-wrap: wrap; }
+  .app-shell :is(.table-pagination, .pagination) button { min-width: 36px; min-height: 36px; }
+}
+
+@media (max-width: 480px) {
+  .app-shell .topbar { gap: 8px; }
+  .app-shell .station-switcher strong { max-width: 39vw; }
+  .app-shell .top-actions { flex: 0 0 auto; }
+  .app-shell .menu-button { flex: 0 0 36px; }
+  .app-shell :is(.metrics, .stock-metrics, .operation-kpis, .supplier-summary, .dashboard-kpis) { grid-template-columns: minmax(0, 1fr) !important; }
+  .app-shell :is(.filters, .history-date-filters, .deduction-filters) { grid-template-columns: minmax(0, 1fr) !important; }
+  .app-shell .date-range { grid-template-columns: minmax(0, 1fr) !important; }
+  .app-shell :is(.panel > header, .invoice-panel > header, .customer-panel > header) { align-items: flex-start; flex-wrap: wrap; gap: 9px; }
+  .app-shell .invoice-search { order: 3; width: 100%; margin: 0; }
+  .app-shell :is(.modal header, .modal-backdrop form > header, .supplier-modal form > header) { gap: 12px; }
+  .app-shell :is(.modal footer, .modal-backdrop form > footer, .supplier-modal footer, .quick-modal footer) { flex-wrap: wrap; }
+  .app-shell :is(.modal footer button, .modal-backdrop form > footer button, .supplier-modal footer button, .quick-modal footer button) { min-height: 42px; }
+  .app-shell .table-pagination { justify-content: center; }
+}
+
+@media (max-width: 360px) {
+  .app-shell .topbar { padding-inline: 8px !important; }
+  .app-shell .page-content { padding-inline: 9px !important; }
+  .app-shell .station-switcher { gap: 5px; }
+  .app-shell .station-switcher small { font-size: 7px; }
+  .app-shell .station-switcher strong { max-width: 34vw; font-size: 9px; }
+  .app-shell .top-actions { gap: 4px; }
+  .app-shell .top-actions .notification-button, .app-shell .top-logout { width: 32px; height: 32px; }
+  .app-shell .menu-button { width: 32px; height: 32px; }
+  .app-shell :is(.supplier-create-header, .supplier-create-fields, .supplier-create-footer) { padding-inline: 14px !important; }
 }

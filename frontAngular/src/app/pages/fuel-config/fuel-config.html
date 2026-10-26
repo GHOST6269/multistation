@@ -54,7 +54,7 @@
               @else if (tab === 'pump') { {{ x.nozzleCount || 0 }} pistolet{{ x.nozzleCount === 1 ? '' : 's' }} associé{{ x.nozzleCount === 1 ? '' : 's' }} }
               @else if (tab === 'nozzle') { Pompe {{ x.pump || 'non liée' }} · Cuve {{ x.tank || 'non liée' }} · Pompiste {{ x.attendant || 'non affecté' }} · Index {{ x.currentIndex | number:'1.0-3' }} }
               @else if (tab === 'attendant') { Contact : {{ x.contact || 'Non renseigné' }} · Pistolets : {{ x.nozzles?.join(', ') || 'Aucun' }} }
-              @else if (tab === 'payment') { {{ x.isCredit ? 'Paiement à crédit · compte client' : (x.supplierDeduction ? 'Prélèvement fournisseur' : 'Paiement classique') }} }
+              @else if (tab === 'payment') { {{ journalTypeLabel(x.journalType || (x.isCredit ? 'CREDIT' : x.supplierDeduction ? 'SUPPLIER' : 'BANK')) }} }
               @else { Accessible : {{ roleLabels(x.allowedRoles || []) || 'aucun rôle' }} }
             </p>
             <span class="item-status" [class.off]="!x.active"><i></i>{{ x.active ? 'Actif' : 'Inactif' }}</span>
@@ -82,8 +82,7 @@
           <label>Contact<input formControlName="contact" placeholder="Téléphone ou e-mail" /></label>
         }
         @if (tab === 'payment') {
-          <label class="payment-deduction-toggle"><input type="checkbox" formControlName="isCredit" /><span>Ce mode crée une vente à crédit et ajoute le montant au compte du client.</span></label>
-          <label class="payment-deduction-toggle"><input type="checkbox" formControlName="supplierDeduction" /><span>Enregistrer les paiements de ce mode dans les prélèvements fournisseur.</span></label>
+          <label class="wide">Journal associé<select formControlName="journalType"><option value="CREDIT">Crédit · bons clients / compte client</option><option value="SUPPLIER">Prélèvement fournisseur</option><option value="CASH">Espèces · caisse</option><option value="BANK">Banque</option></select><small>Les opérations utilisant ce mode seront classées dans le journal correspondant.</small></label>
         }
         @if (tab === 'payment') {
           <div class="wide payment-role-group">

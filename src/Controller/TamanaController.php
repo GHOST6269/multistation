@@ -53,7 +53,7 @@ final class TamanaController extends AbstractController
         $card = $em->getRepository(TamanaCard::class)->find((int) ($data['cardId'] ?? 0));
         $type = strtoupper((string) ($data['type'] ?? '')); $amount = round((float) ($data['amount'] ?? 0), 2);
         if (!$card || $card->getStation()?->getId() !== $station->getId() || $card->getStatus() !== 'ACTIVE') return $this->json(['message' => 'Carte TAMANA+ invalide ou inactive.'], 422);
-        if (!in_array($type, ['TOP_UP', 'PURCHASE'], true) || $amount <= 0) return $this->json(['message' => 'Type de mouvement ou montant invalide.'], 422);
+        if ($type !== 'TOP_UP' || $amount <= 0) return $this->json(['message' => 'Seules les recharges TAMANA+ sont autorisées.'], 422);
         $existing = $em->getRepository(TamanaTransaction::class)->findBy(['station' => $station, 'card' => $card]);
         $balance = array_sum(array_map(static fn(TamanaTransaction $t) => ($t->getType() === 'TOP_UP' ? 1 : -1) * (float) $t->getAmount(), $existing));
         if ($type === 'PURCHASE' && $amount > $balance + .001) return $this->json(['message' => 'Solde TAMANA+ insuffisant.'], 422);

@@ -12,9 +12,9 @@
     </div>
 
     <nav aria-label="Navigation principale">
-      <p class="nav-label">NAVIGATION</p>
-      @for (item of navigation; track item.route) {
+      @for (item of navigation; track item.route; let itemIndex = $index) {
         @if (visible(item)) {
+          @if (navSectionStart(itemIndex)) { <p class="nav-label">{{ item.section }}</p> }
           @if (item.children) {
           <button class="nav-parent" type="button" [class.active]="isMenuOpen(item)" (click)="toggleMenu(item)">
             <span class="nav-icon" [innerHTML]="item.icon"></span>

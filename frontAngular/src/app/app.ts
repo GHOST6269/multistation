@@ -18,6 +18,7 @@ interface NavItem {
   label: string;
   route: string;
   icon: string;
+  section?: string;
   badge?: string;
   roles?: UserRole[];
   visible?: boolean;
@@ -33,7 +34,7 @@ interface NavItem {
 export class App implements OnInit {
   // Desktop keeps the sidebar visible through CSS; on mobile it must start closed after a refresh.
   menuOpen = false;
-  expandedMenu = '/carburants';
+  expandedMenu = '';
   loginPage = false;
   user: AppUser | null = null;
   notificationsOpen = false;
@@ -43,12 +44,13 @@ export class App implements OnInit {
   readonly notificationPageSize = 5;
   private notificationTimer?: ReturnType<typeof setInterval>;
   readonly navigation: NavItem[] = [
-    { label: 'Vue d’ensemble', route: '/', icon: '⌂', roles: ['ROLE_GERANT', 'ROLE_QUALITY_MARSHALL', 'ROLE_ASSISTANT'] },
-    { label: 'Stations', route: '/stations', icon: '◇', roles: ['ROLE_SUPER_ADMIN'] },
+    { label: 'Vue d’ensemble', route: '/', icon: '⌂', section: 'ACCUEIL', roles: ['ROLE_GERANT', 'ROLE_QUALITY_MARSHALL', 'ROLE_ASSISTANT'] },
+    { label: 'Stations', route: '/stations', icon: '◇', section: 'ACCUEIL', roles: ['ROLE_SUPER_ADMIN'] },
     {
       label: 'Opérations',
       route: '/carburants',
       icon: '⛽',
+      section: 'EXPLOITATION',
       roles: ['ROLE_GERANT', 'ROLE_ASSISTANT', 'ROLE_QUALITY_MARSHALL'],
       children: [
         { label: 'Ventes & relevés', route: '/carburants/ventes', roles: ['ROLE_GERANT', 'ROLE_ASSISTANT'] },
@@ -59,9 +61,9 @@ export class App implements OnInit {
         { label: 'État des cuves', route: '/stock-carburant' },
       ],
     },
-    { label: 'Paramètres', route: '/carburants/configuration', icon: '⚙', roles: ['ROLE_GERANT', 'ROLE_QUALITY_MARSHALL'] },
+    { label: 'Paramètres', route: '/carburants/configuration', icon: '⚙', section: 'GESTION', roles: ['ROLE_GERANT', 'ROLE_QUALITY_MARSHALL'] },
     {
-      label: 'Fournisseurs', route: '/fournisseurs', icon: '▱', roles: ['ROLE_GERANT'],
+      label: 'Fournisseurs', route: '/fournisseurs', icon: '▱', section: 'GESTION', roles: ['ROLE_GERANT'],
       children: [
         { label: 'Factures fournisseur', route: '/fournisseurs/factures' },
         { label: 'Historique des paiements', route: '/fournisseurs/historique' },
@@ -69,16 +71,25 @@ export class App implements OnInit {
       ],
     },
     {
-      label: 'Clients', route: '/clients', icon: '♧', roles: ['ROLE_GERANT'],
+      label: 'Clients', route: '/clients', icon: '♧', section: 'GESTION', roles: ['ROLE_GERANT'],
       children: [
         { label: 'Compte client', route: '/clients/credit' },
         { label: 'Historique achat', route: '/clients/achats' },
         { label: 'Historique des paiements', route: '/clients/historique' },
       ],
     },
-    { label: 'Cartes TAMANA+', route: '/cartes/tamana', icon: '▣', roles: ['ROLE_GERANT', 'ROLE_ASSISTANT'] },
-    { label: 'Dépenses', route: '/depenses', icon: '◒', roles: ['ROLE_GERANT', 'ROLE_ASSISTANT'] },
-    { label: 'Utilisateurs', route: '/utilisateurs', icon: '♙', roles: ['ROLE_SUPER_ADMIN', 'ROLE_GERANT'] },
+    { label: 'Cartes TAMANA+', route: '/cartes/tamana', icon: '▣', section: 'GESTION', roles: ['ROLE_GERANT', 'ROLE_ASSISTANT'] },
+    { label: 'Dépenses', route: '/depenses', icon: '◒', section: 'GESTION', roles: ['ROLE_GERANT', 'ROLE_ASSISTANT'] },
+    {
+      label: 'Journaux', route: '/journaux', icon: '▤', section: 'GESTION', roles: ['ROLE_GERANT', 'ROLE_ASSISTANT'],
+      children: [
+        { label: 'Journal de caisse', route: '/journaux/caisse' },
+        { label: 'Journal de banque', route: '/journaux/banque' },
+        { label: 'Journal de crédit', route: '/journaux/credit' },
+        { label: 'Prélèvements fournisseurs', route: '/journaux/prelevements-fournisseurs' },
+      ],
+    },
+    { label: 'Utilisateurs', route: '/utilisateurs', icon: '♙', section: 'ADMINISTRATION', roles: ['ROLE_SUPER_ADMIN', 'ROLE_GERANT'] },
   ];
 
   constructor(public readonly auth: AuthService, private readonly router: Router, private readonly articles: ArticleService, private readonly fuel: FuelService, private readonly suppliers: SupplierService) {}
@@ -89,8 +100,11 @@ export class App implements OnInit {
     this.auth.user$.subscribe((user) => { this.user = user; this.notifications = []; if (user) this.loadNotifications(); });
     this.notificationTimer = setInterval(() => this.loadNotifications(), 5 * 60 * 1000);
     this.router.events.pipe(filter((event) => event instanceof NavigationEnd)).subscribe((event) => {
-      this.loginPage = (event as NavigationEnd).urlAfterRedirects.startsWith('/connexion');
+      const url = (event as NavigationEnd).urlAfterRedirects;
+      this.loginPage = url.startsWith('/connexion');
+      this.expandedMenu = this.menuForUrl(url);
     });
+    this.expandedMenu = this.menuForUrl(this.router.url);
   }
 
   loadNotifications(): void {
@@ -136,8 +150,20 @@ export class App implements OnInit {
     return !item.roles || this.auth.hasAnyRole(item.roles);
   }
 
+  navSectionStart(index: number): boolean {
+    const section = this.navigation[index]?.section;
+    for (let previous = index - 1; previous >= 0; previous--) {
+      if (this.visible(this.navigation[previous])) return this.navigation[previous].section !== section;
+    }
+    return true;
+  }
+
+  private menuForUrl(url: string): string {
+    return this.navigation.find(item => item.children?.some(child => url === child.route || url.startsWith(`${child.route}/`)))?.route ?? '';
+  }
+
   isMenuOpen(item: NavItem): boolean {
-    return this.expandedMenu === item.route;
+    return this.expandedMenu === item.route || this.router.url === item.route;
   }
 
   toggleMenu(item: NavItem): void {

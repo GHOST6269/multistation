@@ -7,8 +7,10 @@ export class CustomerService {
   list(station: number) { return this.api.get<{ customers: any[] }>('customers', { station }); }
   paymentHistory(station: number, filters: { from?: string; to?: string; customer?: string } = {}) { return this.api.get<{ payments: any[] }>('customers/payment-history', { station, from: filters.from ?? '', to: filters.to ?? '', customer: filters.customer ?? '' }); }
   purchaseHistory(station: number) { return this.api.get<{ purchases: any[] }>('customers/purchase-history', { station }); }
+  paymentMethods(station: number) { return this.api.get<{ methods: { code: string; name: string }[] }>('customers/payment-methods', { station }); }
   create(data: any) { return this.api.post<any>('customers', data); }
   update(id: number, data: any) { return this.api.put<any>(`customers/${id}`, data); }
   deactivate(id: number) { return this.api.patch<any>(`customers/${id}/deactivate`, {}); }
+  activate(id: number) { return this.api.patch<any>(`customers/${id}/activate`, {}); }
   pay(data: any) { return this.api.post<any>('customers/payments', data); }
 }

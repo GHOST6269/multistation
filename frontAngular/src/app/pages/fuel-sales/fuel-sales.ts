@@ -19,7 +19,6 @@ export class FuelSales implements OnInit {
   toDate = '';
   attendantFilter = 0;
   nozzleFilter = 0;
-  paymentFilter: 'ALL' | 'DUE' | 'PARTIAL' | 'PAID' | 'CREDIT' = 'ALL';
   page = 1;
   readonly pageSize = 10;
   loading = true;
@@ -61,7 +60,6 @@ export class FuelSales implements OnInit {
       else dueDateControl?.clearValidators();
       dueDateControl?.updateValueAndValidity();
       this.settlementView = data['settlementView'] === true;
-      if (this.settlementView) this.paymentFilter = 'ALL';
       this.loadPaymentMethods();
     });
     this.articles.options().subscribe(data => { this.stations = data.stations.map(s => ({ value: s.id, label: s.name })); this.stationId = data.stations[0]?.id ?? 0; this.load(); });
@@ -71,26 +69,10 @@ export class FuelSales implements OnInit {
   get attendantOptions(): DropdownOption[] {
     return [{ value: 0, label: 'Tous les pompistes' }, ...this.attendants.map(attendant => ({ value: attendant.id, label: attendant.name }))];
   }
-  get paymentFilterOptions(): DropdownOption[] {
-    return this.creditMode
-      ? [{ value: 'ALL', label: 'Tous les versements' }, { value: 'CREDIT', label: 'Compte client' }]
-      : [
-          { value: 'ALL', label: 'Tous les versements' },
-          { value: 'DUE', label: 'Reste à verser' },
-          { value: 'PARTIAL', label: 'Versement partiel' },
-          { value: 'PAID', label: 'Soldés' },
-        ];
-  }
   get filtered() {
     const filteredRows = this.readings.filter((row) => {
       if (!this.matchesSalesFilters(row)) return false;
-      const due = this.canCollect(row);
-      const matchesPayment = this.paymentFilter === 'ALL' ||
-        (this.paymentFilter === 'DUE' && due) ||
-        (this.paymentFilter === 'PARTIAL' && due && this.amountPaid(row) > 0) ||
-        (this.paymentFilter === 'PAID' && !due && row.paymentStatus !== 'CUSTOMER_CREDIT') ||
-        (this.paymentFilter === 'CREDIT' && row.paymentStatus === 'CUSTOMER_CREDIT');
-      return matchesPayment;
+      return true;
     });
 
     const runningTotals = new Map<number, number>();
@@ -131,6 +113,8 @@ export class FuelSales implements OnInit {
   get pages() { return Array.from({ length: this.totalPages }, (_, index) => index + 1); }
   get rows() { const page = Math.min(this.page, this.totalPages); return this.filtered.slice((page - 1) * this.pageSize, page * this.pageSize); }
   resetPage() { this.page = 1; }
+  get hasActiveFilters(): boolean { return Boolean(this.fromDate || this.toDate || this.attendantFilter || this.nozzleFilter); }
+  clearFilters() { this.fromDate = ''; this.toDate = ''; this.attendantFilter = 0; this.nozzleFilter = 0; this.resetPage(); }
   get nozzleOptions(): DropdownOption[] { return this.nozzles.map(nozzle => ({ value: nozzle.id, label: `${nozzle.code} · ${nozzle.fuel ?? ''}`, hint: nozzle.tank ?? '' })); }
   get readingAttendantOptions(): DropdownOption[] { return this.attendants.map((attendant) => ({ value: attendant.id, label: attendant.name, hint: attendant.code ?? '' })); }
   get attendantPaymentOptions(): DropdownOption[] {
@@ -268,7 +252,7 @@ export class FuelSales implements OnInit {
   get paymentEntryGap(): number { return this.settlementTotalDue - this.settlementPaid; }
   savePaymentEntry() {
     if (this.saving || this.payments.invalid || this.needsVoucherCustomer || !this.settlementForm.value.attendantId) { this.settlementForm.markAllAsTouched(); return; }
-    if (this.settlementPaid <= 0 || this.settlementPaid > this.settlementTotalDue + .01) { this.error = 'Les paiements dépassent le total restant dû.'; return; }
+    if (this.settlementPaid <= 0) { this.error = 'Le montant du versement doit être supérieur à zéro.'; return; }
     this.saving = true;
     this.error = '';
     this.fuel.addAttendantSettlement({ stationId: this.stationId, attendantId: this.settlementForm.value.attendantId, customerId: this.settlementForm.value.customerId, date: this.paymentDate, readingDate: this.settlementReadingDate, payments: this.payments.getRawValue() }).subscribe({

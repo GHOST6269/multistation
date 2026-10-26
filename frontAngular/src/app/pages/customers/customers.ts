@@ -8,7 +8,7 @@ import { formatMoney } from '../../shared/money-format';
 
 @Component({ selector: 'app-customers', standalone: false, templateUrl: './customers.html', styleUrl: './customers.scss' })
 export class Customers implements OnInit {
-  stations: DropdownOption[] = []; stationId = 0; customers: any[] = []; payments: any[] = []; purchases: any[] = []; loading = false; saving = false; error = '';
+  stations: DropdownOption[] = []; stationId = 0; customers: any[] = []; payments: any[] = []; purchases: any[] = []; paymentMethods: { code: string; name: string }[] = []; loading = false; saving = false; error = ''; paymentError = '';
   editing: any = null; modalOpen = false; paymentModal = false; selectedCustomer: any = null; view: 'credit' | 'payments' | 'purchases' = 'credit';
   paymentSearch = '';
   paymentFromDate = '';
@@ -62,6 +62,7 @@ export class Customers implements OnInit {
   load() {
     if (!this.stationId) return;
     this.loading = true;
+    this.customersApi.paymentMethods(this.stationId).subscribe({ next: data => { this.paymentMethods = data.methods ?? []; if (!this.paymentMethods.some(method => method.code === this.paymentForm.value.method)) this.paymentForm.patchValue({ method: this.paymentMethods[0]?.code ?? '' }); this.cdr.detectChanges(); }, error: () => { this.paymentMethods = []; this.cdr.detectChanges(); } });
     this.customersApi.list(this.stationId).subscribe({
       next: (data) => {
         this.customers = data.customers ?? [];
@@ -92,17 +93,20 @@ export class Customers implements OnInit {
   open(customer?: any) { this.error = ''; this.editing = customer ?? null; this.form.reset(customer ?? { code: '', name: '', contactPerson: '', phone: '', email: '', address: '' }); this.modalOpen = true; }
   save() { if (this.form.invalid || this.saving) { this.form.markAllAsTouched(); return; } this.saving = true; const request = this.editing ? this.customersApi.update(this.editing.id, this.form.value) : this.customersApi.create({ ...this.form.value, stationId: this.stationId }); request.subscribe({ next: () => { this.saving = false; this.modalOpen = false; this.load(); }, error: e => { this.error = e.error?.message ?? 'Enregistrement impossible.'; this.saving = false; } }); }
   deactivate(customer: any) { if (!confirm(`Désactiver ${customer.name} ?`)) return; this.customersApi.deactivate(customer.id).subscribe({ next: () => this.load(), error: e => this.error = e.error?.message ?? 'Action impossible.' }); }
-  openPayment(customer: any) { this.selectedCustomer = customer; this.paymentForm.reset({ amount: Math.max(0, Number(customer.balance || 0)), date: new Date().toISOString().slice(0, 10), method: 'CASH', reference: '', note: '' }); this.paymentModal = true; }
+  activate(customer: any) { this.customersApi.activate(customer.id).subscribe({ next: () => this.load(), error: e => this.error = e.error?.message ?? 'Action impossible.' }); }
+  openPayment(customer: any) { this.selectedCustomer = customer; this.paymentError = ''; const defaultMethod = this.paymentMethods.find(method => method.code === 'CASH')?.code ?? this.paymentMethods[0]?.code ?? ''; this.paymentForm.reset({ amount: Math.max(0, Number(customer.balance || 0)), date: new Date().toISOString().slice(0, 10), method: defaultMethod, reference: '', note: '' }); this.paymentModal = true; }
   savePayment() {
     const amount = Number(this.paymentForm.value.amount ?? 0);
     if (!this.selectedCustomer || this.paymentForm.invalid || amount <= 0 || amount > Number(this.selectedCustomer.balance ?? 0) + .01) {
+      this.paymentError = amount > Number(this.selectedCustomer?.balance ?? 0) + .01 ? 'Le montant dépasse le solde restant du client.' : 'Vérifiez les champs du paiement avant de continuer.';
       this.paymentForm.markAllAsTouched();
       return;
     }
+    this.paymentError = '';
     this.saving = true;
     this.customersApi.pay({ stationId: this.stationId, customerId: this.selectedCustomer.id, ...this.paymentForm.value, amount }).subscribe({
       next: () => { this.saving = false; this.paymentModal = false; this.load(); },
-      error: e => { this.error = e.error?.message ?? 'Le paiement du client n’a pas pu être enregistré.'; this.saving = false; },
+      error: e => { this.paymentError = e.error?.message ?? 'Le paiement du client n’a pas pu être enregistré.'; this.saving = false; },
     });
   }
   money(value: number) { return formatMoney(value, 2); }

@@ -1,0 +1,25 @@
+<section class="operation-page journal-page">
+  <header class="operation-heading"><div><p>JOURNAUX COMPTABLES</p><h1>{{ title }}</h1><span>{{ description }}</span></div></header>
+  <section class="operation-controls journal-controls">
+    <label>STATION<app-dropdown [(ngModel)]="stationId" (ngModelChange)="load()" [options]="stations" [searchable]="true" [disabled]="auth.stationLocked()" /></label>
+    <div class="date-range"><label>Du<input type="date" [(ngModel)]="from" (ngModelChange)="load()" /></label><label>Au<input type="date" [(ngModel)]="to" (ngModelChange)="load()" /></label></div>
+    @if (from || to) { <button type="button" class="clear-journal-filter" (click)="clearDates()">Effacer les dates</button> }
+  </section>
+  <section class="operation-kpis journal-kpis">
+    @if (type === 'SUPPLIER') {
+    <article class="journal-single-total"><small>VERSEMENTS PAR PRÉLÈVEMENT</small><strong>{{ money(incoming) }} <em>Ar</em></strong><span>{{ rows.length }} mouvement(s)</span></article>
+    } @else {
+    <article><small>{{ type === 'CREDIT' ? 'CRÉDITS ACCORDÉS' : 'ENTRÉES' }}</small><strong>{{ money(incoming) }} <em>Ar</em></strong></article>
+    <article><small>{{ type === 'CREDIT' ? 'RÈGLEMENTS CLIENTS' : 'SORTIES' }}</small><strong>{{ money(outgoing) }} <em>Ar</em></strong></article>
+    <article><small>{{ type === 'CREDIT' ? 'SOLDE CRÉDIT' : 'SOLDE NET' }}</small><strong [class.warning-value]="balance < 0">{{ money(balance) }} <em>Ar</em></strong></article>
+    }
+  </section>
+  <section class="operation-table">
+    <header><div><h2>{{ title }}</h2><p>{{ rows.length }} mouvement(s) sur la période</p></div></header>
+    @if (error) { <p class="operation-form-error" role="alert">{{ error }}</p> }
+    <div class="table-scroll"><table><thead><tr><th>DATE</th><th>MOUVEMENT</th><th>DÉTAIL</th><th>RÉFÉRENCE</th><th>MONTANT</th></tr></thead><tbody>
+      @for (row of rows; track $index) { <tr><td>{{ row.date | date:'dd/MM/yyyy' }}</td><td><strong>{{ row.label }}</strong></td><td>{{ row.detail }}</td><td>{{ row.reference || '—' }}</td><td class="journal-amount">{{ money(row.amount) }} Ar</td></tr> }
+      @empty { <tr><td colspan="5" class="empty">{{ loading ? 'Chargement du journal…' : 'Aucun mouvement pour cette période.' }}</td></tr> }
+    </tbody></table></div>
+  </section>
+</section>

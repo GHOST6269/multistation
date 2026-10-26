@@ -26,6 +26,7 @@ import { Customers } from './pages/customers/customers';
 import { Expenses } from './pages/expenses/expenses';
 import { Attendants } from './pages/attendants/attendants';
 import { Tamana } from './pages/tamana/tamana';
+import { Journal } from './pages/journal/journal';
 import { AuthInterceptor } from './services/auth.interceptor';
 
 @NgModule({
@@ -52,6 +53,7 @@ import { AuthInterceptor } from './services/auth.interceptor';
     Expenses,
     Attendants,
     Tamana,
+    Journal,
   ],
   imports: [BrowserModule, HttpClientModule, FormsModule, ReactiveFormsModule, AppRoutingModule],
   providers: [

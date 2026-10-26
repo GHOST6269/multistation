@@ -29,6 +29,9 @@ class FuelPaymentMethod
     #[ORM\Column(options: ['default' => false])]
     private bool $isCredit = false;
 
+    #[ORM\Column(length: 20, options: ['default' => 'BANK'])]
+    private string $journalType = 'BANK';
+
     #[ORM\Column]
     private array $allowedRoles = ['ROLE_GERANT'];
 
@@ -48,6 +51,8 @@ class FuelPaymentMethod
     public function setSupplierDeduction(bool $enabled): static { $this->supplierDeduction = $enabled; return $this; }
     public function isCredit(): bool { return $this->isCredit; }
     public function setIsCredit(bool $credit): static { $this->isCredit = $credit; return $this; }
+    public function getJournalType(): string { return $this->journalType; }
+    public function setJournalType(string $type): static { $this->journalType = $type; return $this; }
     public function getAllowedRoles(): array { return $this->allowedRoles; }
     public function setAllowedRoles(array $roles): static { $this->allowedRoles = array_values($roles); return $this; }
     public function getCreatedAt(): ?\DateTimeImmutable { return $this->createdAt; }

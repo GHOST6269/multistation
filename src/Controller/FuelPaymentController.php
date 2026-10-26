@@ -70,13 +70,15 @@ final class FuelPaymentController extends AbstractController
         $code = strtoupper(trim((string) ($data['code'] ?? '')));
         $code = preg_replace('/[^A-Z0-9_]+/', '_', $code ?: $name) ?: 'MODE';
         if ($em->getRepository(FuelPaymentMethod::class)->findOneBy(['station' => $station, 'code' => $code])) return $this->json(['message' => 'Ce code existe déjà'], 422);
+        $journalType = $this->journalType($data, $code);
         $item = (new FuelPaymentMethod())
             ->setStation($station)
             ->setCode($code)
             ->setName($name)
             ->setAllowedRoles($this->allowedRoles($data))
-            ->setSupplierDeduction((bool) ($data['supplierDeduction'] ?? false))
-            ->setIsCredit((bool) ($data['isCredit'] ?? false))
+            ->setJournalType($journalType)
+            ->setSupplierDeduction($journalType === 'SUPPLIER')
+            ->setIsCredit($journalType === 'CREDIT')
             ->setCreatedAt(new \DateTimeImmutable());
         $em->persist($item); $em->flush();
         return $this->json($this->methodRow($item), 201);
@@ -89,7 +91,8 @@ final class FuelPaymentController extends AbstractController
         if (!$access->canAccessStation($method->getStation())) return $access->denyStation();
         $data = $request->toArray(); $name = trim((string) ($data['name'] ?? ''));
         if ($name === '') return $this->json(['message' => 'Libellé obligatoire'], 422);
-        $method->setName($name)->setAllowedRoles($this->allowedRoles($data))->setSupplierDeduction((bool) ($data['supplierDeduction'] ?? false))->setIsCredit((bool) ($data['isCredit'] ?? false));
+        $journalType = $this->journalType($data, $method->getCode());
+        $method->setName($name)->setAllowedRoles($this->allowedRoles($data))->setJournalType($journalType)->setSupplierDeduction($journalType === 'SUPPLIER')->setIsCredit($journalType === 'CREDIT');
         $em->flush(); return $this->json($this->methodRow($method));
     }
 
@@ -172,7 +175,7 @@ final class FuelPaymentController extends AbstractController
                 $amount = max(0, (float) ($line['amount'] ?? 0));
                 if (!$method || !$method->isActive() || !$this->canUseMethod($method, $access) || $method->getStation()?->getId() !== $station->getId()) return $this->json(['message' => 'Mode de paiement non autorisé'], 422);
                 if ($customer !== null && !$method->isCredit()) return $this->json(['message' => 'En mode crédit, seul un paiement à crédit est autorisé.'], 422);
-                $paymentEntry = ['type' => $method->getCode(), 'methodId' => $method->getId(), 'label' => $method->getName(), 'supplierDeduction' => $method->isSupplierDeduction(), 'isCredit' => $method->isCredit(), 'amount' => $amount, 'reference' => trim((string) ($line['reference'] ?? '')) ?: null, 'performedBy' => trim(($access->currentUser()?->getFirstName() ?? '').' '.($access->currentUser()?->getLastName() ?? '')) ?: null];
+                $paymentEntry = ['type' => $method->getCode(), 'methodId' => $method->getId(), 'label' => $method->getName(), 'journalType' => $method->getJournalType(), 'supplierDeduction' => $method->isSupplierDeduction(), 'isCredit' => $method->isCredit(), 'amount' => $amount, 'reference' => trim((string) ($line['reference'] ?? '')) ?: null, 'performedBy' => trim(($access->currentUser()?->getFirstName() ?? '').' '.($access->currentUser()?->getLastName() ?? '')) ?: null];
                 if ($amount <= 0) {
                     if ($customer !== null && $method->isCredit()) $payment[] = $paymentEntry;
                     continue;
@@ -234,7 +237,7 @@ final class FuelPaymentController extends AbstractController
             if ($method->isCredit() && !$customer) return $this->json(['message' => 'Le client est obligatoire pour un paiement à crédit.'], 422);
             if ($amount <= 0) return $this->json(['message' => 'Le montant de chaque versement doit être positif'], 422);
             $newAmount += $amount;
-            $newLines[] = ['type' => $method->getCode(), 'methodId' => $method->getId(), 'label' => $method->getName(), 'supplierDeduction' => $method->isSupplierDeduction(), 'isCredit' => $method->isCredit(), 'customerId' => $method->isCredit() ? $customer?->getId() : null, 'customerName' => $method->isCredit() ? $customer?->getName() : null, 'amount' => $amount, 'reference' => trim((string) ($line['reference'] ?? '')) ?: null, 'performedBy' => $paidBy, 'date' => $date->format('Y-m-d')];
+            $newLines[] = ['type' => $method->getCode(), 'methodId' => $method->getId(), 'label' => $method->getName(), 'journalType' => $method->getJournalType(), 'supplierDeduction' => $method->isSupplierDeduction(), 'isCredit' => $method->isCredit(), 'customerId' => $method->isCredit() ? $customer?->getId() : null, 'customerName' => $method->isCredit() ? $customer?->getName() : null, 'amount' => $amount, 'reference' => trim((string) ($line['reference'] ?? '')) ?: null, 'performedBy' => $paidBy, 'date' => $date->format('Y-m-d')];
         }
         if ($newAmount > $remaining + .01) return $this->json(['message' => sprintf('Le versement dépasse le reste dû de %.2f Ar', $remaining)], 422);
         $allPayments = array_merge($existing, $newLines);
@@ -286,7 +289,6 @@ final class FuelPaymentController extends AbstractController
             }
             $validLines[] = [$method, $amount, trim((string) ($line['reference'] ?? '')) ?: null, $lineCustomer]; $total += $amount;
         }
-        if ($total > $available + .01) return $this->json(['message' => sprintf('Les paiements dépassent le total restant dû de %.2f Ar', $available)], 422);
         $responsible = trim($attendant->getFullName());
         $enteredBy = $access->currentUser();
         foreach ($validLines as [$method, $amount, $reference, $lineCustomer]) {
@@ -306,7 +308,7 @@ final class FuelPaymentController extends AbstractController
             $em->persist($payment);
         }
         $em->flush();
-        return $this->json(['paid' => round($total, 2), 'remaining' => max(0, round($available - $total, 2))]);
+        return $this->json(['paid' => round($total, 2), 'remaining' => max(0, round($available - $total, 2)), 'surplus' => max(0, round($total - $available, 2))]);
     }
 
     #[Route('/payment-history', methods: ['GET'])]
@@ -336,7 +338,16 @@ final class FuelPaymentController extends AbstractController
 
     private function methodRow(FuelPaymentMethod $method): array
     {
-        return ['id' => $method->getId(), 'code' => $method->getCode(), 'name' => $method->getName(), 'active' => $method->isActive(), 'supplierDeduction' => $method->isSupplierDeduction(), 'isCredit' => $method->isCredit(), 'allowedRoles' => $method->getAllowedRoles()];
+        return ['id' => $method->getId(), 'code' => $method->getCode(), 'name' => $method->getName(), 'active' => $method->isActive(), 'journalType' => $method->getJournalType(), 'supplierDeduction' => $method->isSupplierDeduction(), 'isCredit' => $method->isCredit(), 'allowedRoles' => $method->getAllowedRoles()];
+    }
+
+    private function journalType(array $data, string $code = ''): string
+    {
+        $type = strtoupper(trim((string) ($data['journalType'] ?? '')));
+        if (in_array($type, ['CASH', 'BANK', 'CREDIT', 'SUPPLIER'], true)) return $type;
+        if (!empty($data['isCredit'])) return 'CREDIT';
+        if (!empty($data['supplierDeduction'])) return 'SUPPLIER';
+        return in_array($code, ['CASH', 'ESPECES', 'ESPECE'], true) ? 'CASH' : 'BANK';
     }
 
     private function allowedRoles(array $data): array

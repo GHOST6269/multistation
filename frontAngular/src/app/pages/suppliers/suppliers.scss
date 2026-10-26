@@ -371,6 +371,38 @@
   background: #397fc4;
   color: #fff;
 }
+.deduction-modal { padding:18px; background:rgba(8,27,47,.68); backdrop-filter:blur(5px); }
+.deduction-modal .deduction-receipt-form { width:min(680px,96vw); overflow:hidden; border:1px solid #dce8f1; border-radius:18px; box-shadow:0 28px 90px rgba(6,27,48,.32); animation:receipt-modal-in .18s ease-out; }
+@keyframes receipt-modal-in { from { opacity:0; transform:translateY(8px) scale(.99); } to { opacity:1; transform:translateY(0) scale(1); } }
+.deduction-modal .deduction-receipt-form > header { align-items:flex-start; gap:18px; padding:22px 24px 18px; border-bottom:1px solid #e6eef5; background:linear-gradient(135deg,#f8fbff,#edf6fd); }
+.deduction-modal .deduction-receipt-form > header h2 { margin:4px 0 5px; color:#1d3553; font-size:20px; font-weight:850; letter-spacing:-.025em; }
+.deduction-modal .deduction-receipt-form > header span { color:#71869a; font-size:11px; }
+.deduction-modal .receipt-eyebrow { margin:0; color:#397fc4; font-size:9px; font-weight:900; letter-spacing:.13em; }
+.deduction-modal .receipt-close { display:grid; flex:0 0 36px; width:36px; height:36px; place-items:center; border:1px solid #dce8f1; border-radius:10px; background:#fff; color:#61788d; font-size:22px; cursor:pointer; }
+.deduction-modal .receipt-close:hover { border-color:#bad4e8; background:#f3f9fe; color:#28699f; }
+.receipt-summary { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:9px; padding:17px 24px 0; }
+.receipt-summary > div { display:grid; gap:6px; align-content:center; min-height:71px; padding:11px 13px; border:1px solid #dce9f4; border-radius:10px; background:#f7fbff; }
+.receipt-summary small { color:#778da1; font-size:8px; font-weight:900; letter-spacing:.07em; }
+.receipt-summary strong { color:#285c87; font-size:14px; }
+.receipt-summary .receipt-green { color:#32805e; }
+.receipt-summary .receipt-orange { color:#bd634a; }
+.deduction-modal .fields { gap:15px 14px; padding:18px 24px 21px; }
+.deduction-modal .fields label { gap:7px; color:#526b81; font-size:10px; font-weight:800; }
+.deduction-modal .fields input { width:100%; height:42px; padding:9px 11px; border:1px solid #dce6ef; border-radius:9px; outline:none; background:#fff; color:#243b50; font:inherit; font-size:12px; font-weight:500; transition:border-color .15s,box-shadow .15s; }
+.deduction-modal .fields input:focus { border-color:#69a5d7; box-shadow:0 0 0 3px rgba(74,147,204,.13); }
+.deduction-modal .fields label small { color:#8497a8; font-size:9px; font-weight:500; }
+.deduction-modal .fields .receipt-amount-input { height:46px; border-color:#c7dff0; color:#1d5d91; font-size:17px; font-weight:850; }
+.deduction-modal .invoice-reference { min-height:58px; padding:9px 12px; border-color:#dce9f4; border-radius:9px; background:#f5f9fc; }
+.deduction-modal .invoice-reference span,.deduction-modal .invoice-reference small { font-size:9px; }
+.deduction-modal .invoice-reference strong { font-size:11px; }
+.deduction-modal .deduction-error { padding:10px 12px; border:1px solid #f0c9bd; border-radius:9px; background:#fff4f0; }
+.deduction-modal .deduction-receipt-form > footer { gap:9px; padding:15px 24px; border-top:1px solid #e6eef5; background:#f8fafc; }
+.deduction-modal .deduction-receipt-form > footer button { min-height:41px; padding:0 16px; border:1px solid transparent; border-radius:9px; font-size:10px; font-weight:850; cursor:pointer; transition:transform .15s,box-shadow .15s,background .15s,border-color .15s; }
+.deduction-modal .deduction-receipt-form > footer .receipt-cancel { border-color:#d9e3eb; background:#fff; color:#617487; }
+.deduction-modal .deduction-receipt-form > footer .receipt-cancel:hover { border-color:#bdcad5; background:#f8fafc; }
+.deduction-modal .deduction-receipt-form > footer .receipt-submit { border-color:#3477b7; background:linear-gradient(135deg,#4e98d8,#3274b2); box-shadow:0 4px 10px #3274b233; color:#fff; }
+.deduction-modal .deduction-receipt-form > footer .receipt-submit:hover:not(:disabled) { transform:translateY(-1px); box-shadow:0 6px 14px #3274b244; }
+.deduction-modal .deduction-receipt-form > footer button:disabled { opacity:.55; cursor:not-allowed; box-shadow:none; }
 .invoice-panel .pay-button {
   min-width: 44px;
   padding: 4px 7px;
@@ -387,13 +419,42 @@
   font-size: 7px;
 }
 .payment-history table {
-  min-width: 780px;
+  min-width: 960px;
 }
 .payment-history .payment-method {
   white-space: nowrap;
   background: #eef5fb;
   color: #397fc4;
 }
+.payment-history td.deduction-actions { min-width:220px; white-space:normal; }
+.deduction-actions button { display:inline-flex; align-items:center; justify-content:center; min-height:34px; margin:3px 6px 3px 0; padding:0 11px; border:1px solid transparent; border-radius:8px; font-size:9px; font-weight:800; white-space:nowrap; cursor:pointer; transition:transform .16s,box-shadow .16s,background .16s,border-color .16s,color .16s; }
+.deduction-actions .deduction-print-button { border-color:#d7e5f1; background:#f5f9fc; color:#526f89; }
+.deduction-actions .deduction-print-button:hover { border-color:#b9d3e8; background:#eaf3fb; color:#28699f; }
+.deduction-actions .deduction-receive-button { border-color:#3477b7; background:linear-gradient(135deg,#4e98d8,#3274b2); box-shadow:0 3px 8px #3274b226; color:#fff; }
+.deduction-actions .deduction-receive-button:hover { transform:translateY(-1px); box-shadow:0 5px 12px #3274b23b; }
+.deduction-actions button:focus-visible { outline:3px solid #85bce766; outline-offset:2px; }
+.deduction-summary { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; padding:12px 15px 3px; }
+.deduction-summary article { display:grid; gap:5px; min-height:83px; align-content:center; padding:12px 14px; border:1px solid #dce9f4; border-radius:11px; background:linear-gradient(135deg,#f7fbff,#edf6fd); }
+.deduction-summary article small { color:#738ba0; font-size:8px; font-weight:900; letter-spacing:.08em; }
+.deduction-summary article strong { color:#285c87; font-size:17px; letter-spacing:-.02em; }
+.deduction-summary article span { color:#8397a8; font-size:9px; }
+.deduction-summary article.received { border-color:#d3eadc; background:linear-gradient(135deg,#f7fcf9,#eaf7ef); }
+.deduction-summary article.received strong { color:#32805e; }
+.deduction-summary article.remaining { border-color:#f0ddd5; background:linear-gradient(135deg,#fffaf7,#fff1eb); }
+.deduction-summary article.remaining strong { color:#bd634a; }
+.deduction-summary article.surplus { border-color:#d9d8f0; background:linear-gradient(135deg,#faf9ff,#f0effb); }
+.deduction-summary article.surplus strong { color:#6556a5; }
+.deduction-filters { display:flex; flex-wrap:wrap; align-items:end; gap:10px; padding:13px 15px; }
+.deduction-filters label { display:grid; min-width:145px; gap:5px; color:#60768a; font-size:9px; font-weight:800; }
+.deduction-filters label:nth-child(3) { min-width:190px; }
+.deduction-filters input,.deduction-filters select { min-height:35px; padding:7px 9px; border:1px solid #dce6ef; border-radius:8px; outline:none; background:#fff; color:#304b63; font:inherit; font-size:10px; }
+.deduction-filters input:focus,.deduction-filters select:focus { border-color:#69a5d7; box-shadow:0 0 0 3px #4a93cc22; }
+.deduction-filters button { min-height:35px; padding:0 12px; border:1px solid #d7e5f1; border-radius:8px; background:#f5f9fc; color:#526f89; font-size:9px; font-weight:800; cursor:pointer; transition:background .15s,border-color .15s,color .15s; }
+.deduction-filters button:hover { border-color:#b9d3e8; background:#eaf3fb; color:#28699f; }
+.payment-history .expected-amount { color:#385d7c; font-weight:750; white-space:nowrap; }
+.payment-history .received-amount { color:#32805e; font-weight:800; white-space:nowrap; }
+.payment-history .received-amount small { display:block; margin-top:3px; color:#6556a5; font-size:8px; font-weight:800; }
+.payment-history .remaining-amount { color:#bd634a; font-weight:800; white-space:nowrap; }
 .fields label small {
   color: #7f91a1;
   font-size: 7px;
@@ -410,6 +471,10 @@
     align-items: center;
     gap: 8px;
   }
+  .deduction-summary { grid-template-columns:1fr 1fr; }
+  .deduction-filters { align-items:stretch; flex-direction:column; }
+  .deduction-filters label,.deduction-filters label:nth-child(3) { min-width:0; }
+  .deduction-filters button { align-self:flex-start; }
   .invoice-panel > header p {
     display: none;
   }
@@ -430,6 +495,14 @@
     order: 3;
     width: 100%;
   }
+  .deduction-modal { padding:10px; }
+  .deduction-modal .deduction-receipt-form > header { padding:18px 18px 15px; }
+  .receipt-summary { grid-template-columns:1fr; padding:14px 18px 0; }
+  .receipt-summary > div { min-height:58px; }
+  .deduction-modal .fields { grid-template-columns:1fr; gap:12px; padding:16px 18px 18px; }
+  .deduction-modal .receipt-supplier,.deduction-modal .fields .wide { grid-column:1; }
+  .deduction-modal .deduction-receipt-form > footer { padding:13px 18px; }
+  .deduction-modal .deduction-receipt-form > footer button { flex:1; padding:0 10px; }
 }
 .deduction-status { display:inline-flex;padding:5px 8px;border-radius:999px;background:#fff4df;color:#a97511;font-size:9px;font-weight:800;white-space:nowrap; }
 .deduction-status.applied { background:#e8f7f0;color:#32805e; }
@@ -440,6 +513,80 @@
 .print-parties small { color:#64748b;font-size:9px;font-weight:800;letter-spacing:.08em; }
 .print-parties strong { color:#172b43;font-size:13px; }
 .print-parties span { color:#43566a;font-size:10px; }
+.supplier-heading .new-supplier-button {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:9px;
+  min-height:44px;
+  padding:0 18px;
+  border:1px solid #3177b5;
+  border-radius:12px;
+  background:linear-gradient(135deg,#438dcc,#2f72ad);
+  box-shadow:0 7px 16px rgba(48,113,171,.2),inset 0 1px rgba(255,255,255,.2);
+  color:#fff;
+  font-size:12px;
+  font-weight:750;
+  cursor:pointer;
+  transition:transform .16s ease,box-shadow .16s ease,filter .16s ease;
+}
+.supplier-heading .new-supplier-button span {
+  display:grid;
+  width:22px;
+  height:22px;
+  place-items:center;
+  border:1px solid rgba(255,255,255,.3);
+  border-radius:7px;
+  color:#fff;
+  font-size:17px;
+  line-height:1;
+}
+.supplier-heading .new-supplier-button:hover { transform:translateY(-1px);box-shadow:0 10px 20px rgba(48,113,171,.26);filter:brightness(1.04); }
+.supplier-heading .new-supplier-button:active { transform:translateY(0); }
+.supplier-heading .new-supplier-button:focus-visible,.supplier-create-modal button:focus-visible { outline:3px solid rgba(73,151,211,.35);outline-offset:3px; }
+.supplier-create-modal { padding:20px;background:rgba(11,30,49,.66);backdrop-filter:blur(5px);animation:supplier-overlay-in .16s ease-out; }
+.supplier-create-modal > form { width:min(660px,96vw);overflow:hidden;border:1px solid #dce8f1;border-radius:20px;box-shadow:0 28px 90px rgba(6,27,48,.3);animation:supplier-modal-in .2s ease-out; }
+.supplier-create-header { align-items:flex-start;gap:20px;padding:25px 28px 22px!important;border-bottom:1px solid #e4edf4;background:linear-gradient(135deg,#f8fbff,#edf6fd); }
+.supplier-create-title { display:flex;align-items:center;gap:15px; }
+.supplier-create-icon { display:grid;flex:0 0 48px;width:48px;height:48px;place-items:center;border:1px solid #d6e8f5;border-radius:15px;background:#fff;color:#397fc4;font-size:22px;box-shadow:0 5px 14px rgba(36,98,147,.08); }
+.supplier-create-header .supplier-create-eyebrow { margin:0 0 5px;color:#397fc4;font-size:9px;font-weight:900;letter-spacing:.14em; }
+.supplier-create-header h2 { color:#193550;font-size:21px;font-weight:850;letter-spacing:-.025em; }
+.supplier-create-header .supplier-create-title div > span { display:block;margin-top:5px;color:#71869a;font-size:11px; }
+.supplier-create-modal .supplier-create-close { display:grid;flex:0 0 36px;width:36px;height:36px;place-items:center;border:1px solid #dce8f1;border-radius:10px;background:#fff;color:#61788d;font-size:22px;cursor:pointer; }
+.supplier-create-modal .supplier-create-close:hover { border-color:#bad4e8;background:#f3f9fe;color:#28699f; }
+.supplier-create-fields { padding:20px 28px 23px; }
+.supplier-fields-heading { margin:0 0 15px;color:#29435b;font-size:12px;font-weight:800; }
+.supplier-create-modal .fields { gap:17px 15px;padding:0; }
+.supplier-create-modal .fields label { position:relative;gap:7px;color:#526b81;font-size:10px;font-weight:800; }
+.supplier-create-modal .fields input { width:100%;height:43px;padding:0 12px;border:1px solid #d9e5ee;border-radius:10px;background:#fbfdff;color:#193550;font-size:11px;transition:border-color .15s ease,box-shadow .15s ease,background .15s ease; }
+.supplier-create-modal .fields input::placeholder { color:#a4b2bf;font-weight:450; }
+.supplier-create-modal .fields input:focus { border-color:#65a2d0;background:#fff;box-shadow:0 0 0 3px rgba(70,143,198,.13);outline:none; }
+.supplier-create-modal .fields label > span { position:absolute;top:0;right:0;color:#94a5b3;font-size:8px;font-weight:650; }
+.supplier-create-modal .fields label > .required-label { color:#c16d54; }
+.supplier-create-footer { justify-content:flex-end;align-items:center;gap:10px;padding:16px 28px!important;border-top:1px solid #e9eff4;background:#f8fafc!important; }
+.supplier-create-modal .supplier-create-footer button { min-height:40px;padding:0 16px;border:1px solid transparent;border-radius:10px;font-size:10px;font-weight:800;cursor:pointer;transition:background .15s ease,transform .15s ease,box-shadow .15s ease; }
+.supplier-create-modal .supplier-cancel-button { border-color:#dce6ed!important;background:#fff;color:#597084; }
+.supplier-create-modal .supplier-cancel-button:hover { background:#f0f5f8; }
+.supplier-create-modal .supplier-submit-button { display:inline-flex;align-items:center;gap:12px;background:linear-gradient(135deg,#438dcc,#2f72ad);box-shadow:0 5px 12px rgba(48,113,171,.19);color:#fff; }
+.supplier-create-modal .supplier-submit-button:hover:not(:disabled) { transform:translateY(-1px);box-shadow:0 8px 16px rgba(48,113,171,.25); }
+.supplier-create-modal .supplier-submit-button span { font-size:15px; }
+.supplier-create-modal .supplier-submit-button:disabled { box-shadow:none;cursor:not-allowed;opacity:.55; }
+@keyframes supplier-overlay-in { from { opacity:0; } to { opacity:1; } }
+@keyframes supplier-modal-in { from { opacity:0;transform:translateY(8px) scale(.99); } to { opacity:1;transform:translateY(0) scale(1); } }
+@media (max-width: 620px) {
+  .supplier-heading { align-items:flex-start;gap:14px;flex-direction:column; }
+  .supplier-create-modal { padding:10px; }
+  .supplier-create-header { padding:19px 18px 17px!important; }
+  .supplier-create-title { gap:11px; }
+  .supplier-create-icon { flex-basis:40px;width:40px;height:40px;border-radius:12px; }
+  .supplier-create-header h2 { font-size:18px; }
+  .supplier-create-header .supplier-create-title div > span { max-width:260px;line-height:1.5; }
+  .supplier-create-fields { padding:17px 18px 19px; }
+  .supplier-create-modal .fields { grid-template-columns:1fr;gap:14px; }
+  .supplier-create-modal .fields label > span { right:0; }
+  .supplier-create-footer { padding:13px 18px!important; }
+  .supplier-create-modal .supplier-create-footer button { flex:1;padding:0 10px; }
+}
 @media print {
   @page { size:A4 portrait; margin:16mm; }
   body * { visibility:hidden!important; }

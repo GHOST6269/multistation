@@ -7,7 +7,7 @@
 @if (error) { <p class="error">{{ error }}</p> }
 @if (view === 'credit') {
 <section class="customer-panel"><header><div><h2>Compte clients</h2><p>Chaque client possède son solde calculé à partir des achats et des paiements enregistrés.</p></div><span>{{ customers.length }} client(s)</span></header><table><thead><tr><th>CLIENT</th><th>CODE</th><th>FACTURÉ</th><th>PAYÉ</th><th>SOLDE</th><th>STATUT</th><th></th></tr></thead><tbody>
-  @for (customer of customers; track customer.id) { <tr><td><strong>{{ customer.name }}</strong><small>{{ customer.contactPerson || customer.phone || 'Aucun contact' }}</small></td><td>{{ customer.code || '—' }}</td><td>{{ money(customer.billed) }} Ar</td><td class="paid">{{ money(customer.paid) }} Ar</td><td class="balance">{{ money(customer.balance) }} Ar</td><td><span [class.inactive]="!customer.active">{{ customer.active ? 'Actif' : 'Inactif' }}</span></td><td><button class="edit-button" (click)="open(customer)">Modifier</button><button class="pay-button" (click)="openPayment(customer)">Paiement</button>@if (customer.active) { <button class="deactivate-button" (click)="deactivate(customer)">Désactiver</button> }</td></tr> }
+  @for (customer of customers; track customer.id) { <tr><td><strong>{{ customer.name }}</strong><small>{{ customer.contactPerson || customer.phone || 'Aucun contact' }}</small></td><td>{{ customer.code || '—' }}</td><td>{{ money(customer.billed) }} Ar</td><td class="paid">{{ money(customer.paid) }} Ar</td><td class="balance">{{ money(customer.balance) }} Ar</td><td><span [class.inactive]="!customer.active">{{ customer.active ? 'Actif' : 'Inactif' }}</span></td><td><button class="edit-button" (click)="open(customer)">Modifier</button>@if (customer.active) { <button class="pay-button" (click)="openPayment(customer)">Paiement</button><button class="deactivate-button" (click)="deactivate(customer)">Désactiver</button> } @else { <button class="activate-button" (click)="activate(customer)">Réactiver</button> }</td></tr> }
   @if (!loading && !customers.length) { <tr><td colspan="7" class="empty">Aucun client pour cette station.</td></tr> }
 </tbody></table></section>
 }
@@ -33,10 +33,10 @@
 }
 @if (modalOpen) {
   <div class="customer-modal" (click)="!saving && (modalOpen=false)">
-    <form [formGroup]="form" (ngSubmit)="save()" (click)="$event.stopPropagation()">
+    <form class="create-modal" [formGroup]="form" (ngSubmit)="save()" (click)="$event.stopPropagation()">
       <header>
-        <h2>{{ editing ? 'Modifier le client' : 'Nouveau client' }}</h2>
-        <button type="button" (click)="modalOpen=false">×</button>
+        <div><p class="modal-eyebrow">FICHE CLIENT</p><h2>{{ editing ? 'Modifier le client' : 'Nouveau client' }}</h2><span>Renseignez les coordonnées utiles pour le suivi du compte.</span></div>
+        <button class="modal-close" type="button" aria-label="Fermer" (click)="modalOpen=false">×</button>
       </header>
       <div class="fields">
         <label>Nom *<input formControlName="name" /></label>
@@ -55,24 +55,27 @@
 }
 @if (paymentModal) {
   <div class="customer-modal" (click)="!saving && (paymentModal=false)">
-    <form [formGroup]="paymentForm" (ngSubmit)="savePayment()" (click)="$event.stopPropagation()">
+    <form class="payment-modal" [formGroup]="paymentForm" (ngSubmit)="savePayment()" (click)="$event.stopPropagation()">
       <header>
         <div>
-          <h2>Paiement client</h2>
-          <p>{{ selectedCustomer?.name }} · Reste : {{ money(selectedCustomer?.balance ?? 0) }} Ar</p>
+          <p class="modal-eyebrow">ENCAISSEMENT</p><h2>Paiement client</h2>
+          <span class="payment-customer">{{ selectedCustomer?.name }}</span>
         </div>
-        <button type="button" (click)="paymentModal=false">×</button>
+        <button class="modal-close" type="button" aria-label="Fermer" (click)="paymentModal=false">×</button>
       </header>
+      <div class="payment-balance"><span>Solde restant du client</span><strong>{{ money(selectedCustomer?.balance ?? 0) }} <small>Ar</small></strong></div>
+      @if (paymentError) { <p class="payment-alert" role="alert"><span aria-hidden="true">!</span>{{ paymentError }}</p> }
+      @if (!paymentMethods.length) { <p class="payment-alert" role="alert"><span aria-hidden="true">!</span>Aucun mode de paiement disponible. Vérifiez les paramètres de la station.</p> }
       <div class="fields">
-        <label>Montant à recevoir<input appMoney type="text" formControlName="amount" /><small>Le montant ne peut pas dépasser le solde restant.</small></label>
+        <label class="payment-amount">Montant à recevoir<input appMoney type="text" formControlName="amount" /><small>Le montant ne peut pas dépasser le solde restant.</small></label>
         <label>Date<input type="date" formControlName="date" /></label>
-        <label>Mode<select formControlName="method"><option value="CASH">Espèces</option><option value="CHEQUE">Chèque</option><option value="BANK_TRANSFER">Virement</option></select></label>
+        <label>Mode<select formControlName="method"><option value="" disabled>Choisir un mode</option>@for (method of paymentMethods; track method.code) { <option [value]="method.code">{{ method.name }}</option> }</select></label>
         <label>Référence<input formControlName="reference" /></label>
         <label class="wide">Note<input formControlName="note" /></label>
       </div>
       <footer>
-        <button type="button" (click)="paymentModal=false">Annuler</button>
-        <button [disabled]="saving || paymentForm.invalid || paymentExceedsBalance">{{ saving ? 'Enregistrement…' : 'Enregistrer le paiement' }}</button>
+        <button class="modal-cancel" type="button" (click)="paymentModal=false">Annuler</button>
+        <button class="modal-submit" [disabled]="saving || paymentForm.invalid || paymentExceedsBalance || !paymentMethods.length">{{ saving ? 'Enregistrement…' : 'Enregistrer le paiement' }}</button>
       </footer>
     </form>
   </div>
