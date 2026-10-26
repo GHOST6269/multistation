@@ -17,6 +17,7 @@ import { Expenses } from './pages/expenses/expenses';
 import { Attendants } from './pages/attendants/attendants';
 import { AuthGuard } from './services/auth.guard';
 import { RoleGuard } from './services/role.guard';
+import { Tamana } from './pages/tamana/tamana';
 
 const routes: Routes = [
   { path: 'connexion', component: Login, title: 'Connexion · StationFlow' },
@@ -45,6 +46,7 @@ const routes: Routes = [
   { path: 'clients/achats', component: Customers, title: 'Historique des achats clients · StationFlow', canActivate: [AuthGuard, RoleGuard], data: { customerAccess: true, view: 'purchases' } },
   { path: 'clients/releve', component: FuelSales, title: 'Relevé client · StationFlow', canActivate: [AuthGuard, RoleGuard], data: { customerAccess: true, creditMode: true } },
   { path: 'clients/historique', component: Customers, title: 'Historique clients · StationFlow', canActivate: [AuthGuard, RoleGuard], data: { customerAccess: true, view: 'payments' } },
+  { path: 'cartes/tamana', component: Tamana, title: 'Cartes TAMANA+ · StationFlow', canActivate: [AuthGuard, RoleGuard], data: { roles: ['ROLE_GERANT', 'ROLE_ASSISTANT'] } },
   { path: 'depenses', component: Expenses, title: 'Dépenses · StationFlow', canActivate: [AuthGuard, RoleGuard], data: { roles: ['ROLE_GERANT', 'ROLE_ASSISTANT'] } },
   { path: 'utilisateurs', component: Create, title: 'Utilisateurs · StationFlow', canActivate: [AuthGuard, RoleGuard], data: { roles: ['ROLE_SUPER_ADMIN', 'ROLE_GERANT'] } },
   { path: 'profil', component: Profile, title: 'Mon profil · StationFlow', canActivate: [AuthGuard] },

@@ -76,6 +76,7 @@ export class App implements OnInit {
         { label: 'Historique des paiements', route: '/clients/historique' },
       ],
     },
+    { label: 'Cartes TAMANA+', route: '/cartes/tamana', icon: '▣', roles: ['ROLE_GERANT', 'ROLE_ASSISTANT'] },
     { label: 'Dépenses', route: '/depenses', icon: '◒', roles: ['ROLE_GERANT', 'ROLE_ASSISTANT'] },
     { label: 'Utilisateurs', route: '/utilisateurs', icon: '♙', roles: ['ROLE_SUPER_ADMIN', 'ROLE_GERANT'] },
   ];

@@ -95,6 +95,8 @@
 }
 .menu {
   position: absolute;
+  display: flex;
+  flex-direction: column;
   z-index: 1001;
   top: calc(100% + 7px);
   left: 0;
@@ -114,12 +116,8 @@
   z-index: 10000;
   inset: auto;
 }
-@media (max-width: 720px) {
-  .options {
-    max-height: min(230px, calc(100dvh - 80px));
-  }
-}
 .search {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   gap: 7px;
@@ -138,7 +136,8 @@
   font-size: 9px;
 }
 .options {
-  max-height: min(230px, calc(100dvh - 80px));
+  flex: 0 1 auto;
+  min-height: 0;
   overflow: auto;
 }
 .option {

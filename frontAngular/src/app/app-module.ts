@@ -25,6 +25,7 @@ import { Profile } from './pages/profile/profile';
 import { Customers } from './pages/customers/customers';
 import { Expenses } from './pages/expenses/expenses';
 import { Attendants } from './pages/attendants/attendants';
+import { Tamana } from './pages/tamana/tamana';
 import { AuthInterceptor } from './services/auth.interceptor';
 
 @NgModule({
@@ -50,6 +51,7 @@ import { AuthInterceptor } from './services/auth.interceptor';
     Customers,
     Expenses,
     Attendants,
+    Tamana,
   ],
   imports: [BrowserModule, HttpClientModule, FormsModule, ReactiveFormsModule, AppRoutingModule],
   providers: [

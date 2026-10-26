@@ -96,16 +96,20 @@ export class Dropdown implements ControlValueAccessor, OnDestroy {
   }
   private positionMenu(): void {
     const box = this.element.nativeElement.getBoundingClientRect();
-    const maxHeight = Math.min(300, window.innerHeight - 16);
     const viewportGutter = 8;
+    const desiredHeight = Math.min(300, window.innerHeight - viewportGutter * 2);
     const width = Math.min(box.width, window.innerWidth - viewportGutter * 2);
     const left = Math.min(Math.max(viewportGutter, box.left), window.innerWidth - width - viewportGutter);
-    const spaceBelow = window.innerHeight - box.bottom;
-    const openAbove = spaceBelow < maxHeight && box.top > spaceBelow;
+    const spaceBelow = Math.max(0, window.innerHeight - box.bottom - viewportGutter);
+    const spaceAbove = Math.max(0, box.top - viewportGutter);
+    const openAbove = spaceBelow < Math.min(desiredHeight, 180) && spaceAbove > spaceBelow;
+    const availableHeight = openAbove ? spaceAbove : spaceBelow;
+    const menuHeight = Math.min(desiredHeight, availableHeight);
     this.menuStyle = {
       left: `${left}px`,
       width: `${width}px`,
-      top: openAbove ? `${Math.max(8, box.top - maxHeight - 7)}px` : `${box.bottom + 7}px`,
+      top: openAbove ? `${Math.max(viewportGutter, box.top - menuHeight - 7)}px` : `${box.bottom + 7}px`,
+      maxHeight: `${menuHeight}px`,
     };
   }
   @HostListener('window:resize') @HostListener('window:scroll') reposition(): void {

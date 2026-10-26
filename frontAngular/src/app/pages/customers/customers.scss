@@ -43,6 +43,7 @@
 .pay-button { background:#e8f2fc; color:#397fc4; }
 .deactivate-button { margin-left:5px; background:#fff0ec; color:#c66750; }
 .pay-button { margin-left:5px; }
+.customer-panel .pay-button { padding:6px 10px; border:1px solid #3477b7 !important; background:#397fc4 !important; color:#fff !important; font-size:11px !important; font-weight:700; white-space:nowrap; }
 .empty { text-align:center; padding:40px !important; color:#8999a8; }
 .error { margin:0 0 10px; color:#c66750; font-size:8px; }
 .customer-modal { position:fixed; z-index:60; inset:0; display:grid; place-items:center; background:#0a1d3299; }
