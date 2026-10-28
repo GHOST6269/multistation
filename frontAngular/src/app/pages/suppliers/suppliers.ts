@@ -26,6 +26,7 @@ export class Suppliers implements OnInit {
   invoiceQuery = '';
   invoiceFromDate = '';
   invoiceToDate = '';
+  invoiceTypeFilter: 'ALL' | 'EXPENSE' | 'FUEL' = 'ALL';
   paymentFromDate = '';
   paymentToDate = '';
   deductionFromDate = '';
@@ -84,7 +85,8 @@ export class Suppliers implements OnInit {
     return (this.data?.invoices ?? []).filter((invoice: any) =>
       (!query || `${invoice.number} ${invoice.supplier} ${invoice.status}`.toLocaleLowerCase().includes(query)) &&
       (!this.invoiceFromDate || invoice.date >= this.invoiceFromDate) &&
-      (!this.invoiceToDate || invoice.date <= this.invoiceToDate),
+      (!this.invoiceToDate || invoice.date <= this.invoiceToDate) &&
+      (this.invoiceTypeFilter === 'ALL' || (invoice.type ?? 'FUEL') === this.invoiceTypeFilter),
     );
   }
   get filteredPayments() {

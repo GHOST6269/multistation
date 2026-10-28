@@ -23,6 +23,9 @@ class FuelPaymentMethod
     #[ORM\Column(options: ['default' => true])]
     private bool $isActive = true;
 
+    #[ORM\Column(options: ['default' => true])]
+    private bool $availableForExpenses = true;
+
     #[ORM\Column(options: ['default' => false])]
     private bool $supplierDeduction = false;
 
@@ -47,6 +50,8 @@ class FuelPaymentMethod
     public function setName(string $name): static { $this->name = $name; return $this; }
     public function isActive(): bool { return $this->isActive; }
     public function setIsActive(bool $active): static { $this->isActive = $active; return $this; }
+    public function isAvailableForExpenses(): bool { return $this->availableForExpenses; }
+    public function setAvailableForExpenses(bool $available): static { $this->availableForExpenses = $available; return $this; }
     public function isSupplierDeduction(): bool { return $this->supplierDeduction; }
     public function setSupplierDeduction(bool $enabled): static { $this->supplierDeduction = $enabled; return $this; }
     public function isCredit(): bool { return $this->isCredit; }

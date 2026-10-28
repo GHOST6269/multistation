@@ -47,6 +47,7 @@ export class FuelConfig implements OnInit {
       contact: [''],
       allowedRoles: fb.nonNullable.control<string[]>([]),
       journalType: ['BANK'],
+      availableForExpenses: [true],
     });
   }
   ngOnInit() {
@@ -173,6 +174,7 @@ export class FuelConfig implements OnInit {
       contact: x.contact ?? '',
       allowedRoles: x.allowedRoles ?? [],
       journalType: x.journalType ?? (x.isCredit || String(x.code ?? '').toUpperCase() === 'CLIENT_VOUCHER' ? 'CREDIT' : x.supplierDeduction ? 'SUPPLIER' : (String(x.code ?? '').toUpperCase() === 'CASH' ? 'CASH' : 'BANK')),
+      availableForExpenses: x.availableForExpenses ?? true,
     });
   }
   changeTab(tab: string) {
@@ -185,7 +187,7 @@ export class FuelConfig implements OnInit {
   openCreate() {
     if (this.saving) return;
     this.editing = null;
-    this.form.reset({ code: '', name: '', fuelTypeId: 0, capacity: 0, minimumStock: 0, pumpId: 0, tankId: 0, attendantId: 0, nozzleIds: [], currentIndex: 0, unitPrice: 0, contact: '', allowedRoles: ['ROLE_GERANT'], journalType: 'BANK' });
+    this.form.reset({ code: '', name: '', fuelTypeId: 0, capacity: 0, minimumStock: 0, pumpId: 0, tankId: 0, attendantId: 0, nozzleIds: [], currentIndex: 0, unitPrice: 0, contact: '', allowedRoles: ['ROLE_GERANT'], journalType: 'BANK', availableForExpenses: true });
     this.formOpen = true;
   }
   closeForm() {

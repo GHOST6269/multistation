@@ -33,8 +33,8 @@ final class JournalController extends AbstractController
         $methodsById = []; $methodsByCode = [];
         foreach ($methods as $method) { $methodsById[$method->getId()] = $method; $methodsByCode[$method->getCode()] = $method; }
         $rows = [];
-        $add = static function (string $date, string $label, string $detail, float $amount, string $direction, ?string $reference = null) use (&$rows): void {
-            $rows[] = ['date' => $date, 'label' => $label, 'detail' => $detail, 'amount' => round($amount, 2), 'direction' => $direction, 'reference' => $reference];
+        $add = static function (string $date, string $label, string $detail, float $amount, string $direction, ?string $reference = null, ?string $kind = null, ?int $customerId = null, ?string $customerName = null) use (&$rows): void {
+            $rows[] = ['date' => $date, 'label' => $label, 'detail' => $detail, 'amount' => round($amount, 2), 'direction' => $direction, 'reference' => $reference, 'kind' => $kind, 'customerId' => $customerId, 'customerName' => $customerName];
         };
 
         if (in_array($type, ['CASH', 'BANK', 'CREDIT', 'SUPPLIER'], true)) {
@@ -43,25 +43,41 @@ final class JournalController extends AbstractController
                     $lineType = $this->lineType($line, $methodsById, $methodsByCode);
                     if ($lineType !== $type) continue;
                     $isCredit = $type === 'CREDIT';
-                    $add($reading->getWorkDate()?->format('Y-m-d') ?? '', $isCredit ? 'Vente à crédit' : ($type === 'SUPPLIER' ? 'Prélèvement fournisseur' : 'Vente carburant'), trim(($reading->getInvoiceNumber() ?? 'Relevé #'.$reading->getId()).' · '.($line['label'] ?? $line['type'] ?? '')), (float) ($line['amount'] ?? 0), ($isCredit || $type === 'SUPPLIER') ? 'DEBIT' : 'IN', $line['reference'] ?? null);
+                    $isCreditSale = $isCredit;
+                    $add((string) ($line['date'] ?? $reading->getWorkDate()?->format('Y-m-d') ?? ''), $isCreditSale ? 'Vente à crédit' : ($type === 'SUPPLIER' ? 'Prélèvement fournisseur' : 'Vente carburant'), trim(($reading->getInvoiceNumber() ?? 'Relevé #'.$reading->getId()).' · '.($line['label'] ?? $line['type'] ?? '')), (float) ($line['amount'] ?? 0), ($isCredit || $type === 'SUPPLIER') ? 'DEBIT' : 'IN', $line['reference'] ?? null, $isCreditSale ? 'SALE' : null, $isCreditSale ? (int) ($line['customerId'] ?? $reading->getCustomer()?->getId() ?? 0) ?: null : null, $isCreditSale ? (string) ($line['customerName'] ?? $reading->getCustomer()?->getName() ?? '') ?: null : null);
                 }
             }
         }
 
         if ($type === 'CASH' || $type === 'BANK') {
-            foreach ($em->getRepository(CustomerPayment::class)->findBy(['station' => $station]) as $payment) {
-                if ($this->codeType($payment->getPaymentMethod(), $methodsByCode) !== $type) continue;
-                $add($payment->getPaymentDate()?->format('Y-m-d') ?? '', 'Règlement client', $payment->getCustomer()?->getName() ?? 'Compte client', (float) $payment->getAmount(), 'IN', $payment->getReference());
+            foreach ($em->getRepository(FuelAttendantPayment::class)->findBy(['station' => $station]) as $payment) {
+                $method = $payment->getPaymentMethod();
+                if (!$method || $this->methodType($method) !== $type) continue;
+                $add($payment->getPaymentDate()?->format('Y-m-d') ?? '', 'Versement pompiste', $payment->getResponsible().' · '.$payment->getPaymentMethodName(), (float) $payment->getAmount(), 'IN', $payment->getReference());
             }
-            foreach ($em->getRepository(Expense::class)->findBy(['station' => $station]) as $expense) {
-                if ($this->codeType($expense->getPaymentMethod(), $methodsByCode) !== $type) continue;
-                $add($expense->getExpenseDate()?->format('Y-m-d') ?? '', 'Dépense · '.$expense->getCategory(), $expense->getDescription(), (float) $expense->getAmount(), 'OUT', $expense->getReference());
+            if ($type === 'BANK') {
+                foreach ($em->getRepository(CustomerPayment::class)->findBy(['station' => $station]) as $payment) {
+                    if ($this->codeType($payment->getPaymentMethod(), $methodsByCode) !== 'BANK') continue;
+                    $add($payment->getPaymentDate()?->format('Y-m-d') ?? '', 'Règlement client', $payment->getCustomer()?->getName() ?? 'Compte client', (float) $payment->getAmount(), 'IN', $payment->getReference());
+                }
             }
         }
 
+        foreach ($em->getRepository(Expense::class)->findBy(['station' => $station]) as $expense) {
+            if ($this->codeType($expense->getPaymentMethod(), $methodsByCode) !== $type) continue;
+            $detail = $expense->getDescription();
+            if ($expense->getSupplier()) $detail .= ' · Fournisseur : '.$expense->getSupplier()->getName();
+            $direction = $type === 'CREDIT' ? 'CREDIT' : 'OUT';
+            $add($expense->getExpenseDate()?->format('Y-m-d') ?? '', 'Dépense · '.$expense->getCategory(), $detail, (float) $expense->getAmount(), $direction, $expense->getReference());
+        }
+
         if ($type === 'CREDIT') {
+            foreach ($em->getRepository(FuelAttendantPayment::class)->findBy(['station' => $station]) as $payment) {
+                if (!($payment->getPaymentMethod()?->isCredit() ?? false)) continue;
+                $add($payment->getPaymentDate()?->format('Y-m-d') ?? '', 'Vente à crédit', $payment->getResponsible().' · '.$payment->getPaymentMethodName(), (float) $payment->getAmount(), 'DEBIT', $payment->getReference(), 'SALE', $payment->getCustomer()?->getId(), $payment->getCustomer()?->getName());
+            }
             foreach ($em->getRepository(CustomerPayment::class)->findBy(['station' => $station]) as $payment) {
-                $add($payment->getPaymentDate()?->format('Y-m-d') ?? '', 'Règlement de crédit', $payment->getCustomer()?->getName() ?? 'Compte client', (float) $payment->getAmount(), 'CREDIT', $payment->getReference());
+                $add($payment->getPaymentDate()?->format('Y-m-d') ?? '', 'Règlement de crédit', $payment->getCustomer()?->getName() ?? 'Compte client', (float) $payment->getAmount(), 'CREDIT', $payment->getReference(), 'PAYMENT', $payment->getCustomer()?->getId(), $payment->getCustomer()?->getName());
             }
         }
 
@@ -80,27 +96,34 @@ final class JournalController extends AbstractController
         $rows = array_values(array_filter($rows, static fn(array $row): bool => (!$from || $row['date'] >= $from) && (!$to || $row['date'] <= $to)));
         usort($rows, static fn(array $a, array $b): int => strcmp($b['date'], $a['date']));
         $debitDirection = $type === 'CREDIT' ? 'DEBIT' : ($type === 'SUPPLIER' ? 'DEBIT' : 'IN');
-        $creditDirection = $type === 'CREDIT' ? 'CREDIT' : ($type === 'SUPPLIER' ? 'CREDIT' : 'OUT');
+        $creditDirection = $type === 'CREDIT' ? 'CREDIT' : 'OUT';
         $incoming = array_sum(array_map(static fn(array $row): float => $row['direction'] === $debitDirection ? $row['amount'] : 0.0, $rows));
         $outgoing = array_sum(array_map(static fn(array $row): float => $row['direction'] === $creditDirection ? $row['amount'] : 0.0, $rows));
-        if ($type === 'SUPPLIER') { $outgoing = 0.0; $incoming = array_sum(array_column($rows, 'amount')); }
         return $this->json(['rows' => $rows, 'count' => count($rows), 'incoming' => round($incoming, 2), 'outgoing' => round($outgoing, 2), 'balance' => round($incoming - $outgoing, 2)]);
     }
 
     private function lineType(array $line, array $methodsById, array $methodsByCode): string
     {
-        $type = strtoupper((string) ($line['journalType'] ?? ''));
-        if (in_array($type, self::TYPES, true)) return $type;
         if (!empty($line['isCredit']) || ($line['type'] ?? '') === 'CLIENT_VOUCHER') return 'CREDIT';
         if (!empty($line['supplierDeduction'])) return 'SUPPLIER';
+        $type = strtoupper((string) ($line['journalType'] ?? ''));
+        if (in_array($type, self::TYPES, true)) return $type;
         $method = isset($line['methodId']) ? ($methodsById[(int) $line['methodId']] ?? null) : ($methodsByCode[(string) ($line['type'] ?? '')] ?? null);
-        return $method?->getJournalType() ?? $this->codeType((string) ($line['type'] ?? ''), $methodsByCode);
+        return $method ? $this->methodType($method) : $this->codeType((string) ($line['type'] ?? ''), $methodsByCode);
     }
 
     private function codeType(string $code, array $methodsByCode): string
     {
         $method = $methodsByCode[$code] ?? null;
-        if ($method) return $method->getJournalType();
+        if ($method) return $this->methodType($method);
         return in_array(strtoupper($code), ['CASH', 'ESPECES', 'ESPECE'], true) ? 'CASH' : 'BANK';
+    }
+
+    private function methodType(FuelPaymentMethod $method): string
+    {
+        if ($method->isCredit()) return 'CREDIT';
+        if ($method->isSupplierDeduction()) return 'SUPPLIER';
+        $type = strtoupper($method->getJournalType());
+        return in_array($type, self::TYPES, true) ? $type : 'BANK';
     }
 }

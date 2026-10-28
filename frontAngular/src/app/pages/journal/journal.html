@@ -1,25 +1,31 @@
 <section class="operation-page journal-page">
   <header class="operation-heading"><div><p>JOURNAUX COMPTABLES</p><h1>{{ title }}</h1><span>{{ description }}</span></div></header>
-  <section class="operation-controls journal-controls">
+  <section class="operation-controls journal-controls" [class.credit-controls]="type === 'CREDIT'" [class.flow-controls]="usesFlowFilter">
     <label>STATION<app-dropdown [(ngModel)]="stationId" (ngModelChange)="load()" [options]="stations" [searchable]="true" [disabled]="auth.stationLocked()" /></label>
+    @if (type === 'CREDIT') {
+    <label>CLIENT<app-dropdown [(ngModel)]="clientId" [options]="clientOptions" [searchable]="true" /></label>
+    <label class="detail-filter">DÉTAIL<input type="search" [(ngModel)]="detailQuery" placeholder="Rechercher dans le détail" /></label>
+    }
+    @if (usesFlowFilter) { <label>MOUVEMENT<select [(ngModel)]="directionFilter"><option value="ALL">Entrées et sorties</option><option value="IN">Entrées</option><option value="OUT">Sorties / dépenses</option></select></label> }
     <div class="date-range"><label>Du<input type="date" [(ngModel)]="from" (ngModelChange)="load()" /></label><label>Au<input type="date" [(ngModel)]="to" (ngModelChange)="load()" /></label></div>
-    @if (from || to) { <button type="button" class="clear-journal-filter" (click)="clearDates()">Effacer les dates</button> }
+    @if (from || to || clientId !== '' || detailQuery || directionFilter !== 'ALL') { <button type="button" class="clear-journal-filter" (click)="clearDates()">Effacer les filtres</button> }
   </section>
   <section class="operation-kpis journal-kpis">
     @if (type === 'SUPPLIER') {
     <article class="journal-single-total"><small>VERSEMENTS PAR PRÉLÈVEMENT</small><strong>{{ money(incoming) }} <em>Ar</em></strong><span>{{ rows.length }} mouvement(s)</span></article>
+    @if (outgoing > 0) { <article><small>DÉPENSES</small><strong>{{ money(outgoing) }} <em>Ar</em></strong></article> }
     } @else {
-    <article><small>{{ type === 'CREDIT' ? 'CRÉDITS ACCORDÉS' : 'ENTRÉES' }}</small><strong>{{ money(incoming) }} <em>Ar</em></strong></article>
-    <article><small>{{ type === 'CREDIT' ? 'RÈGLEMENTS CLIENTS' : 'SORTIES' }}</small><strong>{{ money(outgoing) }} <em>Ar</em></strong></article>
-    <article><small>{{ type === 'CREDIT' ? 'SOLDE CRÉDIT' : 'SOLDE NET' }}</small><strong [class.warning-value]="balance < 0">{{ money(balance) }} <em>Ar</em></strong></article>
+    <article><small>{{ type === 'CREDIT' ? 'CRÉDITS ACCORDÉS' : 'ENTRÉES' }}</small><strong>{{ money(displayIncoming) }} <em>Ar</em></strong></article>
+    <article><small>{{ type === 'CREDIT' ? 'RÈGLEMENTS CLIENTS' : 'SORTIES' }}</small><strong>{{ money(displayOutgoing) }} <em>Ar</em></strong></article>
+    <article><small>{{ type === 'CREDIT' ? 'SOLDE CRÉDIT' : 'SOLDE NET' }}</small><strong [class.warning-value]="displayBalance < 0">{{ money(displayBalance) }} <em>Ar</em></strong></article>
     }
   </section>
   <section class="operation-table">
-    <header><div><h2>{{ title }}</h2><p>{{ rows.length }} mouvement(s) sur la période</p></div></header>
+    <header><div><h2>{{ title }}</h2><p>{{ filteredRows.length }} mouvement(s) affiché(s)</p></div></header>
     @if (error) { <p class="operation-form-error" role="alert">{{ error }}</p> }
     <div class="table-scroll"><table><thead><tr><th>DATE</th><th>MOUVEMENT</th><th>DÉTAIL</th><th>RÉFÉRENCE</th><th>MONTANT</th></tr></thead><tbody>
-      @for (row of rows; track $index) { <tr><td>{{ row.date | date:'dd/MM/yyyy' }}</td><td><strong>{{ row.label }}</strong></td><td>{{ row.detail }}</td><td>{{ row.reference || '—' }}</td><td class="journal-amount">{{ money(row.amount) }} Ar</td></tr> }
-      @empty { <tr><td colspan="5" class="empty">{{ loading ? 'Chargement du journal…' : 'Aucun mouvement pour cette période.' }}</td></tr> }
+      @for (row of filteredRows; track $index) { <tr [class.flow-entry]="usesFlowFilter && row.direction === 'IN'" [class.flow-expense]="usesFlowFilter && row.direction === 'OUT'"><td>{{ row.date | date:'dd/MM/yyyy' }}</td><td><strong>{{ row.label }}</strong>@if (usesFlowFilter) { <span class="flow-kind" [class.expense-kind]="row.direction === 'OUT'">{{ row.direction === 'OUT' ? 'Sortie' : 'Entrée' }}</span> }@if (type === 'CREDIT' && row.kind) { <span class="credit-kind" [class.payment-kind]="row.kind === 'PAYMENT'">{{ row.kind === 'PAYMENT' ? 'Règlement' : 'Vente' }}</span> }</td><td>{{ row.detail }}</td><td>{{ row.reference || '—' }}</td><td class="journal-amount">{{ money(row.amount) }} Ar</td></tr> }
+      @empty { <tr><td colspan="5" class="empty">{{ loading ? 'Chargement du journal…' : 'Aucun mouvement ne correspond aux filtres.' }}</td></tr> }
     </tbody></table></div>
   </section>
 </section>

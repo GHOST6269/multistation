@@ -250,7 +250,7 @@
 }
 .invoice-panel table {
   width: 100%;
-  min-width: 950px;
+  min-width: 1100px;
   border-collapse: collapse;
 }
 .invoice-panel th,
@@ -280,6 +280,22 @@
 .invoice-panel td > span.overdue {
   background: #fff0ec;
   color: #c66750;
+}
+.invoice-panel td > span.invoice-type-badge {
+  display: inline-block;
+  width: max-content;
+  padding: 4px 8px;
+  border: 1px solid #c8e4d9;
+  border-radius: 999px;
+  background: #eaf7f1;
+  color: #287859;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.invoice-panel td > span.invoice-type-badge.expense-type {
+  border-color: #f0d8b5;
+  background: #fff6e8;
+  color: #a66a16;
 }
 .invoice-panel button {
   border: 0;

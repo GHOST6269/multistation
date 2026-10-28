@@ -85,11 +85,13 @@
     /></label>
     <span>{{ filteredInvoices.length }} facture(s)</span>
   </header>
-  <div class="history-date-filters"><label>Du<input type="date" [(ngModel)]="invoiceFromDate" (ngModelChange)="resetInvoicePage()" /></label><label>Au<input type="date" [(ngModel)]="invoiceToDate" (ngModelChange)="resetInvoicePage()" /></label></div>
+  <div class="history-date-filters"><label>TYPE DE FACTURE<select [(ngModel)]="invoiceTypeFilter" (ngModelChange)="resetInvoicePage()"><option value="ALL">Toutes</option><option value="EXPENSE">Dépenses</option><option value="FUEL">Livraisons</option></select></label><label>Du<input type="date" [(ngModel)]="invoiceFromDate" (ngModelChange)="resetInvoicePage()" /></label><label>Au<input type="date" [(ngModel)]="invoiceToDate" (ngModelChange)="resetInvoicePage()" /></label></div>
   <table>
     <thead>
       <tr>
-        <th>FACTURE / AVIS</th>
+        <th>N° FACTURE</th>
+        <th>AVIS</th>
+        <th>TYPE</th>
         <th>FOURNISSEUR</th>
         <th>DATE</th>
         <th>ÉCHÉANCE</th>
@@ -103,10 +105,9 @@
     <tbody>
       @for (i of pagedInvoices; track i.id) {
         <tr>
-          <td>
-            <strong>{{ i.number }}</strong
-            ><small>{{ i.description }}</small>
-          </td>
+          <td><strong>{{ i.number }}</strong></td>
+          <td>{{ i.description || '—' }}</td>
+          <td><span class="invoice-type-badge" [class.expense-type]="i.type === 'EXPENSE'">{{ i.type === 'EXPENSE' ? 'Dépense' : 'Livraison carburant' }}</span></td>
           <td>{{ i.supplier }}</td>
           <td>{{ i.date | date: 'dd/MM/yyyy' }}</td>
           <td>{{ i.dueDate ? (i.dueDate | date: 'dd/MM/yyyy') : '—' }}</td>
@@ -124,7 +125,7 @@
         </tr>
       } @empty {
         <tr>
-          <td colspan="9" class="empty">Aucune facture.</td>
+          <td colspan="11" class="empty">Aucune facture.</td>
         </tr>
       }
     </tbody>

@@ -43,7 +43,8 @@ final class FuelPaymentController extends AbstractController
         if (!$items) {
             foreach (self::DEFAULT_METHODS as $code => $name) {
                 $roles = $code === 'CASH' ? [UserAccessService::ROLE_GERANT, UserAccessService::ROLE_ASSISTANT] : [UserAccessService::ROLE_GERANT];
-                $item = (new FuelPaymentMethod())->setStation($station)->setCode($code)->setName($name)->setAllowedRoles($roles)->setSupplierDeduction(in_array($code, ['FANILO', 'TPE', 'VISA', 'FMS'], true))->setIsCredit($code === 'CLIENT_VOUCHER')->setCreatedAt(new \DateTimeImmutable());
+                $journalType = $code === 'CLIENT_VOUCHER' ? 'CREDIT' : (in_array($code, ['FANILO', 'TPE', 'VISA', 'FMS'], true) ? 'SUPPLIER' : ($code === 'CASH' ? 'CASH' : 'BANK'));
+                $item = (new FuelPaymentMethod())->setStation($station)->setCode($code)->setName($name)->setAllowedRoles($roles)->setJournalType($journalType)->setSupplierDeduction($journalType === 'SUPPLIER')->setIsCredit($journalType === 'CREDIT')->setCreatedAt(new \DateTimeImmutable());
                 $em->persist($item);
                 $items[] = $item;
             }
@@ -79,6 +80,7 @@ final class FuelPaymentController extends AbstractController
             ->setJournalType($journalType)
             ->setSupplierDeduction($journalType === 'SUPPLIER')
             ->setIsCredit($journalType === 'CREDIT')
+            ->setAvailableForExpenses((bool) ($data['availableForExpenses'] ?? true))
             ->setCreatedAt(new \DateTimeImmutable());
         $em->persist($item); $em->flush();
         return $this->json($this->methodRow($item), 201);
@@ -92,7 +94,7 @@ final class FuelPaymentController extends AbstractController
         $data = $request->toArray(); $name = trim((string) ($data['name'] ?? ''));
         if ($name === '') return $this->json(['message' => 'Libellé obligatoire'], 422);
         $journalType = $this->journalType($data, $method->getCode());
-        $method->setName($name)->setAllowedRoles($this->allowedRoles($data))->setJournalType($journalType)->setSupplierDeduction($journalType === 'SUPPLIER')->setIsCredit($journalType === 'CREDIT');
+        $method->setName($name)->setAllowedRoles($this->allowedRoles($data))->setJournalType($journalType)->setSupplierDeduction($journalType === 'SUPPLIER')->setIsCredit($journalType === 'CREDIT')->setAvailableForExpenses((bool) ($data['availableForExpenses'] ?? $method->isAvailableForExpenses()));
         $em->flush(); return $this->json($this->methodRow($method));
     }
 
@@ -338,7 +340,7 @@ final class FuelPaymentController extends AbstractController
 
     private function methodRow(FuelPaymentMethod $method): array
     {
-        return ['id' => $method->getId(), 'code' => $method->getCode(), 'name' => $method->getName(), 'active' => $method->isActive(), 'journalType' => $method->getJournalType(), 'supplierDeduction' => $method->isSupplierDeduction(), 'isCredit' => $method->isCredit(), 'allowedRoles' => $method->getAllowedRoles()];
+        return ['id' => $method->getId(), 'code' => $method->getCode(), 'name' => $method->getName(), 'active' => $method->isActive(), 'journalType' => $method->getJournalType(), 'supplierDeduction' => $method->isSupplierDeduction(), 'isCredit' => $method->isCredit(), 'availableForExpenses' => $method->isAvailableForExpenses(), 'allowedRoles' => $method->getAllowedRoles()];
     }
 
     private function journalType(array $data, string $code = ''): string
